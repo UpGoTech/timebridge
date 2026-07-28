@@ -1,0 +1,132 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-17 15:22:18.420063",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "connection_settings",
+  "default_port",
+  "connection_timeout",
+  "retry_count",
+  "sync_settings",
+  "auto_sync",
+  "sync_interval",
+  "enable_scheduler",
+  "attendance_settings",
+  "save_raw_events",
+  "duplicate_punch_window",
+  "log_retention_days",
+  "debug_settings",
+  "enable_debug_log"
+ ],
+ "fields": [
+  {
+   "fieldname": "connection_settings",
+   "fieldtype": "Section Break",
+   "label": "Connection Settings"
+  },
+  {
+   "fieldname": "default_port",
+   "fieldtype": "Int",
+   "label": "Default Port",
+   "default": "4370",
+   "reqd": 1
+  },
+  {
+   "fieldname": "connection_timeout",
+   "fieldtype": "Int",
+   "label": "Connection Timeout (Seconds)",
+   "default": "30",
+   "reqd": 1
+  },
+  {
+   "fieldname": "retry_count",
+   "fieldtype": "Int",
+   "label": "Retry Count",
+   "default": "3",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sync_settings",
+   "fieldtype": "Section Break",
+   "label": "Sync Settings"
+  },
+  {
+   "fieldname": "auto_sync",
+   "fieldtype": "Check",
+   "label": "Auto Sync",
+   "default": "1"
+  },
+  {
+   "fieldname": "sync_interval",
+   "fieldtype": "Int",
+   "label": "Sync Interval (Minutes)",
+   "default": "5"
+  },
+  {
+   "fieldname": "enable_scheduler",
+   "fieldtype": "Check",
+   "label": "Enable Scheduler",
+   "default": "1"
+  },
+  {
+   "fieldname": "attendance_settings",
+   "fieldtype": "Section Break",
+   "label": "Attendance Settings"
+  },
+  {
+   "fieldname": "save_raw_events",
+   "fieldtype": "Check",
+   "label": "Save Raw Device Events",
+   "default": "1"
+  },
+  {
+   "fieldname": "duplicate_punch_window",
+   "fieldtype": "Int",
+   "label": "Duplicate Punch Window (Seconds)",
+   "default": "30"
+  },
+  {
+   "fieldname": "log_retention_days",
+   "fieldtype": "Int",
+   "label": "Log Retention (Days)",
+   "default": "90"
+  },
+  {
+   "fieldname": "debug_settings",
+   "fieldtype": "Section Break",
+   "label": "Debug Settings"
+  },
+  {
+   "fieldname": "enable_debug_log",
+   "fieldtype": "Check",
+   "label": "Enable Debug Log",
+   "default": "0"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-07-17 15:22:18.420063",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

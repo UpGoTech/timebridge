@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:BM-{#####}",
+ "creation": "2026-07-17 13:35:36.011348",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "machine_information",
+  "machine_id",
+  "machine_name",
+  "device_brand",
+  "device_model",
+  "serial_number",
+  "connection_information",
+  "ip_address",
+  "port",
+  "communication_type",
+  "status_information",
+  "status",
+  "last_sync",
+  "other_information",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "machine_information",
+   "fieldtype": "Section Break",
+   "label": "Machine Information"
+  },
+  {
+   "fieldname": "machine_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Machine ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "machine_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Machine Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "device_brand",
+   "fieldtype": "Select",
+   "label": "Device Brand",
+   "options": "ZKTeco\neSSL\nMatrix\nSuprema\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "device_model",
+   "fieldtype": "Data",
+   "label": "Device Model"
+  },
+  {
+   "fieldname": "serial_number",
+   "fieldtype": "Data",
+   "label": "Serial Number"
+  },
+  {
+   "fieldname": "connection_information",
+   "fieldtype": "Section Break",
+   "label": "Connection Information"
+  },
+  {
+   "fieldname": "ip_address",
+   "fieldtype": "Data",
+   "label": "IP Address",
+   "reqd": 1
+  },
+  {
+   "default": "4370",
+   "fieldname": "port",
+   "fieldtype": "Int",
+   "label": "Port",
+   "reqd": 1
+  },
+  {
+   "default": "TCP/IP",
+   "fieldname": "communication_type",
+   "fieldtype": "Select",
+   "label": "Communication Type",
+   "options": "TCP/IP\nUSB\nCloud API"
+  },
+  {
+   "fieldname": "status_information",
+   "fieldtype": "Section Break",
+   "label": "Status Information"
+  },
+  {
+   "default": "Disconnected",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Connected\nDisconnected\nInactive"
+  },
+  {
+   "fieldname": "last_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Sync",
+   "read_only": 1
+  },
+  {
+   "fieldname": "other_information",
+   "fieldtype": "Section Break",
+   "label": "Other Information"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-18 15:54:54.508232",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "Biometric Machine",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

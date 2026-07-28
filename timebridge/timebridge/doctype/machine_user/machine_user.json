@@ -1,0 +1,135 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:MU-{#####}",
+ "creation": "2026-07-17 14:21:35.441270",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user_information",
+  "machine",
+  "employee",
+  "user_id",
+  "user_name",
+  "uid",
+  "card_number",
+  "biometric_information",
+  "finger_count",
+  "face_registered",
+  "password",
+  "privilege",
+  "status_information",
+  "is_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "user_information",
+   "fieldtype": "Section Break",
+   "label": "User Information"
+  },
+  {
+   "fieldname": "machine",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Biometric Machine",
+   "options": "Biometric Machine",
+   "reqd": 1
+  },
+  {
+   "fieldname": "user_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "User ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "user_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "User Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "uid",
+   "fieldtype": "Int",
+   "label": "UID"
+  },
+  {
+   "fieldname": "card_number",
+   "fieldtype": "Data",
+   "label": "Card Number"
+  },
+  {
+   "fieldname": "biometric_information",
+   "fieldtype": "Section Break",
+   "label": "Biometric Information"
+  },
+  {
+   "default": "0",
+   "fieldname": "finger_count",
+   "fieldtype": "Int",
+   "label": "Finger Count"
+  },
+  {
+   "default": "0",
+   "fieldname": "face_registered",
+   "fieldtype": "Check",
+   "label": "Face Registered"
+  },
+  {
+   "fieldname": "password",
+   "fieldtype": "Password",
+   "label": "Password"
+  },
+  {
+   "default": "User",
+   "fieldname": "privilege",
+   "fieldtype": "Select",
+   "label": "Privilege",
+   "options": "User\nAdmin"
+  },
+  {
+   "fieldname": "status_information",
+   "fieldtype": "Section Break",
+   "label": "Status Information"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-18 15:55:15.316757",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "Machine User",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
