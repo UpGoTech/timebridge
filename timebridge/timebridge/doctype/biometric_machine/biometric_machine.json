@@ -16,6 +16,8 @@
   "ip_address",
   "port",
   "communication_type",
+  "sdk_type",
+  "communication_password",
   "status_information",
   "status",
   "last_sync",
@@ -84,6 +86,20 @@
    "fieldtype": "Select",
    "label": "Communication Type",
    "options": "TCP/IP\nUSB\nCloud API"
+  },
+  {
+   "default": "PyZK",
+   "fieldname": "sdk_type",
+   "fieldtype": "Select",
+   "label": "SDK Type",
+   "options": "PyZK\nADMS\nMatrix\nCustom",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "communication_password",
+   "fieldtype": "Int",
+   "label": "Communication Password (Comm Key)"
   },
   {
    "fieldname": "status_information",

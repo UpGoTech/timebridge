@@ -1,6 +1,6 @@
 import frappe
 
-from timebridge.sdk_connectors.pyzk_connector import PyZKConnector
+from timebridge.timebridge.sdk_connectors.pyzk_connector import PyZKConnector
 
 
 def get_connector(device):

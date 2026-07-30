@@ -1,16 +1,4 @@
-# import frappe
-
-
-# @frappe.whitelist()
-# def test_connection(machine_name):
-#     pass
-
-
-import frappe
-
-@frappe.whitelist()
-def test_connection(machine_id=None):
-    return {
-        "status": "success",
-        "message": "API Working"
-    }
+# Reserved for app-level API endpoints.
+#
+# The device-facing API lives in the module package instead:
+# timebridge/timebridge/api.py  ->  timebridge.timebridge.api

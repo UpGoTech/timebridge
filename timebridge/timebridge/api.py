@@ -9,6 +9,14 @@
 import frappe
 import socket
 
+from timebridge.timebridge.services.device_info import enqueue_device_info
+
+
+@frappe.whitelist()
+def get_device_info(machine_id):
+
+    return enqueue_device_info(machine_id)
+
 
 @frappe.whitelist()
 def test_connection(machine_id):
