@@ -14,6 +14,7 @@
   "start_time",
   "end_time",
   "grace_time",
+  "half_day_after_time",
   "status_information",
   "is_active",
   "description"
@@ -73,6 +74,12 @@
    "label": "Grace Time (Minutes)"
   },
   {
+   "description": "Arriving later than this counts the day as Half Day, however many hours are then worked. Leave blank to fall back to the single time in TimeBridge Settings; leave both blank to switch the rule off entirely.",
+   "fieldname": "half_day_after_time",
+   "fieldtype": "Time",
+   "label": "Half Day If Arriving After"
+  },
+  {
    "fieldname": "status_information",
    "fieldtype": "Section Break",
    "label": "Status"
@@ -112,8 +119,11 @@
    "write": 1
   }
  ],
+ "search_fields": "shift_code",
+ "show_title_field_in_link": 1,
  "sort_field": "shift_name",
  "sort_order": "ASC",
  "states": [],
+ "title_field": "shift_name",
  "track_changes": 1
 }

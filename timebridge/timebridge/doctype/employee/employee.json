@@ -9,6 +9,7 @@
   "basic_information",
   "employee_code",
   "employee_name",
+  "photo",
   "gender",
   "date_of_birth",
   "date_of_joining",
@@ -30,8 +31,8 @@
  "fields": [
   {
    "fieldname": "basic_information",
-   "fieldtype": "Section Break",
-   "label": "Basic Information"
+   "fieldtype": "Tab Break",
+   "label": "Basic"
   },
   {
    "fieldname": "employee_code",
@@ -47,6 +48,12 @@
    "in_list_view": 1,
    "label": "Employee Name",
    "reqd": 1
+  },
+  {
+   "description": "Employee photo. Falls back to the one held on the biometric device if that is available.",
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
   },
   {
    "fieldname": "gender",
@@ -67,8 +74,8 @@
   },
   {
    "fieldname": "organization_information",
-   "fieldtype": "Section Break",
-   "label": "Organization Information"
+   "fieldtype": "Tab Break",
+   "label": "Organization"
   },
   {
    "fieldname": "organization",
@@ -98,8 +105,8 @@
   },
   {
    "fieldname": "machine_information",
-   "fieldtype": "Section Break",
-   "label": "Machine Information"
+   "fieldtype": "Tab Break",
+   "label": "Device"
   },
   {
    "fieldname": "biometric_machine",
@@ -117,8 +124,8 @@
   },
   {
    "fieldname": "contact_information",
-   "fieldtype": "Section Break",
-   "label": "Contact Information"
+   "fieldtype": "Tab Break",
+   "label": "Contact"
   },
   {
    "fieldname": "mobile_number",
@@ -148,6 +155,7 @@
    "label": "Remarks"
   }
  ],
+ "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
  "modified": "2026-07-18 15:55:05.669348",
@@ -170,8 +178,11 @@
    "write": 1
   }
  ],
+ "search_fields": "employee_code",
+ "show_title_field_in_link": 1,
  "sort_field": "employee_name",
  "sort_order": "ASC",
  "states": [],
+ "title_field": "employee_name",
  "track_changes": 1
 }

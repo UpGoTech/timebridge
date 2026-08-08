@@ -11,6 +11,7 @@
   "employee",
   "user_id",
   "user_name",
+  "photo",
   "uid",
   "card_number",
   "biometric_information",
@@ -48,6 +49,12 @@
    "in_list_view": 1,
    "label": "User Name",
    "reqd": 1
+  },
+  {
+   "description": "Photo captured or enrolled on the biometric device. Set automatically if the device uploads one; otherwise attach it here.",
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
   },
   {
    "fieldname": "uid",
@@ -106,6 +113,7 @@
    "options": "Employee"
   }
  ],
+ "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
  "modified": "2026-07-18 15:55:15.316757",
@@ -128,8 +136,11 @@
    "write": 1
   }
  ],
+ "search_fields": "user_id",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "user_name",
  "track_changes": 1
 }
