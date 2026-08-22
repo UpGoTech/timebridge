@@ -38,11 +38,16 @@ RETRY_BACKOFF_SECONDS = 2
 
 class PyZKConnector:
 
-    def connect(self, device):
+    def connect(self, device, on_attempt=None):
         """
         Open a session to the device, retrying transient network
         failures. retry_count is read as the TOTAL number of attempts,
         so the stock value of 3 means three tries, not four.
+
+        on_attempt(attempt, attempts) is optional and called before each
+        try, so a caller can show which retry is running. A stock failure
+        takes ~96s here; without it the UI cannot tell a slow first
+        attempt from a hung job.
         """
 
         timeout = cint(
@@ -64,6 +69,9 @@ class PyZKConnector:
         last_error = None
 
         for attempt in range(1, attempts + 1):
+
+            if on_attempt:
+                on_attempt(attempt, attempts)
 
             # A fresh ZK per attempt: pyzk opens its socket inside
             # connect() and leaves session state behind on failure,

@@ -131,8 +131,11 @@
    "write": 1
   }
  ],
+ "search_fields": "branch_code",
+ "show_title_field_in_link": 1,
  "sort_field": "branch_name",
  "sort_order": "ASC",
  "states": [],
+ "title_field": "branch_name",
  "track_changes": 1
 }

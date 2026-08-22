@@ -1,0 +1,187 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:PL-{#####}",
+ "creation": "2026-07-30 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "punch_information",
+  "machine",
+  "device_user_id",
+  "timestamp",
+  "punch_direction",
+  "column_break_punch",
+  "machine_user",
+  "employee",
+  "employee_name",
+  "device_information",
+  "verify_mode",
+  "device_status",
+  "source",
+  "processing_information",
+  "processed",
+  "sync_batch",
+  "raw_payload",
+  "punch_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "punch_information",
+   "fieldtype": "Section Break",
+   "label": "Punch Information"
+  },
+  {
+   "fieldname": "machine",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Biometric Machine",
+   "options": "Biometric Machine",
+   "reqd": 1
+  },
+  {
+   "description": "The user id as reported by the device. Retained even when no Machine User matches it.",
+   "fieldname": "device_user_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Device User ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "timestamp",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Punch Timestamp",
+   "reqd": 1
+  },
+  {
+   "default": "Unknown",
+   "description": "Unknown until the device's punch codes have been confirmed against real hardware.",
+   "fieldname": "punch_direction",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Direction",
+   "options": "Unknown\nIn\nOut"
+  },
+  {
+   "fieldname": "column_break_punch",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Resolved by matching Device User ID on this machine. Left blank when there is no match.",
+   "fieldname": "machine_user",
+   "fieldtype": "Link",
+   "label": "Machine User",
+   "options": "Machine User"
+  },
+  {
+   "fetch_from": "machine_user.employee",
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "device_information",
+   "fieldtype": "Section Break",
+   "label": "Device Information"
+  },
+  {
+   "fieldname": "verify_mode",
+   "fieldtype": "Select",
+   "label": "Verify Mode",
+   "options": "\nFingerprint\nFace\nCard\nPassword\nOther"
+  },
+  {
+   "description": "Raw status / punch codes exactly as the device reported them, left unmapped for forensics.",
+   "fieldname": "device_status",
+   "fieldtype": "Data",
+   "label": "Device Status Code",
+   "read_only": 1
+  },
+  {
+   "default": "PyZK Pull",
+   "description": "Which transport delivered this punch. Pull and push write to this same table.",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Source",
+   "options": "PyZK Pull\nADMS Push",
+   "reqd": 1
+  },
+  {
+   "fieldname": "processing_information",
+   "fieldtype": "Section Break",
+   "label": "Processing"
+  },
+  {
+   "default": "0",
+   "description": "Set once this punch has been folded into a TimeBridge Attendance day.",
+   "fieldname": "processed",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Processed"
+  },
+  {
+   "description": "Identifies the sync run that created this record.",
+   "fieldname": "sync_batch",
+   "fieldtype": "Data",
+   "label": "Sync Batch",
+   "read_only": 1
+  },
+  {
+   "description": "Original device payload. Only written when Save Raw Device Events is enabled.",
+   "fieldname": "raw_payload",
+   "fieldtype": "Small Text",
+   "label": "Raw Payload"
+  },
+  {
+   "description": "machine::device_user_id::timestamp. Unique, so re-reading a device's full log cannot duplicate punches.",
+   "fieldname": "punch_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Punch Key",
+   "read_only": 1,
+   "unique": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-30 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Punch Log",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "device_user_id,timestamp",
+ "show_title_field_in_link": 1,
+ "sort_field": "timestamp",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 0
+}

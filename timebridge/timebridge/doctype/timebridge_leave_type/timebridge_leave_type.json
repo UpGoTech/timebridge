@@ -1,0 +1,121 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:leave_type_name",
+ "creation": "2026-08-05 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "type_information",
+  "leave_type_name",
+  "is_paid",
+  "column_break_type",
+  "is_active",
+  "description",
+  "quota_information",
+  "quota",
+  "quota_period",
+  "column_break_quota",
+  "carry_forward"
+ ],
+ "fields": [
+  {
+   "fieldname": "type_information",
+   "fieldtype": "Tab Break",
+   "label": "Type"
+  },
+  {
+   "fieldname": "leave_type_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Leave Type",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "description": "Untick for leave that is never paid, whatever the quota says.",
+   "fieldname": "is_paid",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Paid Leave"
+  },
+  {
+   "fieldname": "column_break_type",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Untick to retire a type without deleting the leave already recorded against it.",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "quota_information",
+   "fieldtype": "Tab Break",
+   "label": "Quota"
+  },
+  {
+   "default": "0",
+   "description": "How many paid days of this type an employee gets in each period. Zero means this type is never paid from a quota.",
+   "fieldname": "quota",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Quota",
+   "precision": "1"
+  },
+  {
+   "default": "Monthly",
+   "description": "Whether the quota starts again each month or each calendar year.",
+   "fieldname": "quota_period",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Quota Resets",
+   "options": "Monthly\nYearly"
+  },
+  {
+   "fieldname": "column_break_quota",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Tick to let an unused quota roll into the next period. Left unticked, anything not taken simply lapses.",
+   "fieldname": "carry_forward",
+   "fieldtype": "Check",
+   "label": "Carry Forward Unused"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-05 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Leave Type",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "leave_type_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

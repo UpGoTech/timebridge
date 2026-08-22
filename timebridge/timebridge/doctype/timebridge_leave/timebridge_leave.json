@@ -1,0 +1,158 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-08-01 19:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "leave_information",
+  "employee",
+  "employee_name",
+  "leave_type",
+  "balance_panel",
+  "column_break_leave",
+  "from_date",
+  "to_date",
+  "half_day",
+  "approval_information",
+  "approval_status",
+  "is_paid",
+  "column_break_approval",
+  "total_days",
+  "reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "leave_information",
+   "fieldtype": "Tab Break",
+   "label": "Leave"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "description": "Each type carries its own quota and rules \u2014 see TimeBridge Leave Type.",
+   "fieldname": "leave_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Leave Type",
+   "options": "TimeBridge Leave Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "balance_panel",
+   "fieldtype": "HTML",
+   "label": "Quota"
+  },
+  {
+   "fieldname": "column_break_leave",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "From Date",
+   "reqd": 1
+  },
+  {
+   "description": "Leave blank for a single day.",
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date"
+  },
+  {
+   "default": "0",
+   "description": "Counts as half a day against the quota. Only valid for a single-day leave.",
+   "fieldname": "half_day",
+   "fieldtype": "Check",
+   "label": "Half Day"
+  },
+  {
+   "fieldname": "approval_information",
+   "fieldtype": "Tab Break",
+   "label": "Approval"
+  },
+  {
+   "default": "Pending",
+   "description": "Only Approved leave affects attendance. Pending and Rejected are ignored.",
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Approval Status",
+   "options": "Pending\nApproved\nRejected",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "Set automatically on save: paid while the employee is within their quota for the year, unpaid once it is used up. Override manually if needed.",
+   "fieldname": "is_paid",
+   "fieldtype": "Check",
+   "label": "Paid Leave"
+  },
+  {
+   "fieldname": "column_break_approval",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_days",
+   "fieldtype": "Float",
+   "label": "Total Days",
+   "precision": "1",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-01 19:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Leave",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "leave_type,from_date",
+ "show_title_field_in_link": 1,
+ "sort_field": "from_date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

@@ -5,6 +5,16 @@ app_description = "Connect biometric devices with Frappe ERP for attendance sync
 app_email = "email@example.com"
 app_license = "mit"
 
+# ADMS push receiver
+# ------------------
+# Devices that push (eSSL AIFace, newer ZKTeco) have their paths hardcoded in
+# firmware — they call /iclock/cdata, never /api/method/... A page_renderer is
+# how an app claims arbitrary website paths, and it gives us the raw POST body
+# and a text/plain response, neither of which website_route_rules can provide.
+page_renderer = [
+	"timebridge.timebridge.adms.renderer.ADMSRenderer",
+]
+
 # Apps
 # ------------------
 
@@ -147,6 +157,25 @@ app_license = "mit"
 
 # Scheduled Tasks
 # ---------------
+
+# Keep attendance current without anyone pressing a button.
+#
+# Punches arrive on their own over ADMS, but they are only raw timestamps —
+# this is what turns them into first_in / last_out / hours. A short trailing
+# window rather than the whole history: today's row changes every time someone
+# punches out, and yesterday's can still change if the device delivers late.
+scheduler_events = {
+	"cron": {
+		"*/15 * * * *": [
+			"timebridge.timebridge.services.attendance_sync.rebuild_recent"
+		],
+		# More often than attendance: a device that has stopped sending should
+		# show as Disconnected quickly, not up to fifteen minutes later.
+		"*/2 * * * *": [
+			"timebridge.timebridge.services.attendance_sync.refresh_push_device_status"
+		]
+	}
+}
 
 # scheduler_events = {
 # 	"all": [

@@ -9,13 +9,526 @@
 import frappe
 import socket
 
-from timebridge.timebridge.services.device_info import enqueue_device_info
+from frappe.utils import add_days, cint, now_datetime
+
+from timebridge.timebridge.services.device_info import enqueue_device_info, get_progress
 
 
 @frappe.whitelist()
 def get_device_info(machine_id):
 
     return enqueue_device_info(machine_id)
+
+
+@frappe.whitelist()
+def request_all_data(machine_id, days=30):
+    """
+    Ask a push device to upload its users and recent attendance.
+
+    This does not fetch anything itself — it cannot. The device accepts no
+    incoming connections, so the request waits until the device next polls us
+    (roughly every 30s, per the Delay we send in the handshake) and the data
+    arrives afterwards on its own.
+
+    A dated range rather than CHECK, deliberately: CHECK returns nothing on
+    this hardware once the device believes its records were delivered, whereas
+    an explicit range ignores that pointer. Users are requested first so the
+    punches that follow already have names to attach to.
+
+    Safe to press twice: punches carry their original timestamps and the
+    unique punch_key rejects anything already stored.
+    """
+
+    from timebridge.timebridge.adms import commands
+
+    machine = frappe.get_doc("Biometric Machine", machine_id)
+
+    if not machine.serial_number:
+        return {
+            "status": "failed",
+            "message": "This machine has no serial number, so the device cannot be "
+                       "matched when it answers. Fill in Serial Number first."
+        }
+
+    days = cint(days) or 30
+
+    end = now_datetime()
+    start = add_days(end, -days)
+
+    commands.queue_command(machine_id, commands.request_users())
+
+    command_id = commands.queue_command(
+        machine_id,
+        commands.resend_attendance_between(
+            start.strftime("%Y-%m-%d 00:00:00"),
+            end.strftime("%Y-%m-%d 23:59:59")
+        )
+    )
+
+    return {
+        "status": "queued",
+        "command_id": command_id,
+        "serial": machine.serial_number,
+        "days": days,
+        "baseline": frappe.db.count("TimeBridge Punch Log", {"machine": machine_id}),
+        "baseline_syncs": frappe.db.count("TimeBridge Sync Log", {"machine": machine_id}),
+        "last_contact": commands.last_contact(machine_id),
+        "message": f"Asked the device for its users and the last {days} days of punches."
+    }
+
+
+@frappe.whitelist()
+def bulk_device_action(action, machines):
+    """
+    Run one device action across several machines and report on each.
+
+    Exists so a room full of terminals can be handled from the list instead of
+    opening each one. The per-machine dialogs stay where they are — they show
+    a running commentary, which is useful for one device and unreadable for
+    ten. This returns a single summary instead.
+
+    Today's figures come back with every result whether the action succeeded or
+    not: "the request failed" is far more useful next to "and nobody has
+    punched there today either".
+    """
+
+    import json
+
+    if isinstance(machines, str):
+        machines = json.loads(machines)
+
+    handlers = {
+        "test_connection": _bulk_test_connection,
+        "fetch_all_data": _bulk_fetch_all,
+        "fetch_photos": _bulk_fetch_photos,
+    }
+
+    handler = handlers.get(action)
+
+    if not handler:
+        frappe.throw(f"Unknown action {action!r}")
+
+    results = []
+
+    for machine_id in machines:
+
+        row = {
+            "machine": machine_id,
+            "machine_name": frappe.db.get_value("Biometric Machine", machine_id, "machine_name"),
+        }
+
+        row.update(_today_counts(machine_id))
+
+        try:
+            row.update(handler(machine_id))
+
+        except Exception as e:
+            # One bad device must not stop the rest of the batch.
+            row.update({"ok": False, "message": str(e)})
+
+        results.append(row)
+
+    return {"action": action, "results": results}
+
+
+def _today_counts(machine_id):
+    """How many people punched at this machine today, and how many punches."""
+
+    row = frappe.db.sql(
+        """
+        SELECT COUNT(DISTINCT COALESCE(employee, device_user_id)) AS people,
+               COUNT(*) AS punches
+        FROM `tabTimeBridge Punch Log`
+        WHERE machine = %s AND DATE(timestamp) = CURDATE()
+        """,
+        machine_id,
+        as_dict=True,
+    )[0]
+
+    return {"people_today": row.people or 0, "punches_today": row.punches or 0}
+
+
+def _bulk_test_connection(machine_id):
+
+    from timebridge.timebridge.services.connection import get_connector, is_push_device
+
+    machine = frappe.get_doc("Biometric Machine", machine_id)
+
+    if not is_push_device(machine):
+        # Dialling a device can take the better part of two minutes, which is
+        # far too long to do serially across a list. Queue it instead.
+        enqueue_device_info(machine_id)
+        return {"ok": True, "message": "Connection test queued"}
+
+    health = get_connector(machine).health(machine)
+
+    frappe.db.set_value("Biometric Machine", machine_id, "status", health["machine_status"])
+    frappe.db.commit()
+
+    return {"ok": health["status"] == "success", "message": health["message"]}
+
+
+def _bulk_fetch_all(machine_id):
+
+    result = request_all_data(machine_id)
+
+    return {"ok": result.get("status") == "queued", "message": result.get("message")}
+
+
+def _bulk_fetch_photos(machine_id):
+
+    result = request_photos(machine_id)
+
+    return {"ok": result.get("status") == "queued", "message": result.get("message")}
+
+
+@frappe.whitelist()
+def match_photos(machine_id, file_urls):
+    """
+    Attach uploaded pictures to the right people by reading their filenames.
+
+    The device stores only face templates and cannot produce photographs, so
+    they have to come from somewhere else — and doing sixteen people one form
+    at a time is the kind of chore that never gets finished.
+
+    A filename is matched, in this order, against: the device user id, the
+    employee code, and then the person's name. Names are compared with spaces
+    and punctuation stripped, because "SHUBHANGI KAMBLE.jpg",
+    "shubhangi_kamble.jpg" and "Shubhangi-Kamble.jpg" all clearly mean the
+    same person and refusing them would just send someone back to rename files.
+
+    Anything unmatched is reported rather than guessed at — a photo on the
+    wrong person is worse than no photo.
+    """
+
+    import json
+    import os
+    import re
+
+    if isinstance(file_urls, str):
+        file_urls = json.loads(file_urls)
+
+    # Files are identified by their record name, not their url. Frappe stores
+    # one copy of identical content, so two people given the same picture share
+    # a url — looking a name up by url would then return whichever record was
+    # written last and attach it to the wrong person.
+    file_rows = frappe.get_all(
+        "File",
+        filters={"name": ["in", file_urls]},
+        fields=["name", "file_name", "file_url"],
+    )
+
+    def normalise(value):
+        return re.sub(r"[^a-z0-9]", "", (value or "").lower())
+
+    users = frappe.get_all(
+        "Machine User",
+        filters={"machine": machine_id},
+        fields=["name", "user_id", "user_name", "employee"],
+    )
+
+    by_user_id = {normalise(u.user_id): u for u in users}
+    by_name = {normalise(u.user_name): u for u in users}
+
+    by_code = {}
+
+    for emp in frappe.get_all("Employee", fields=["name", "employee_code", "employee_name"]):
+        for user in users:
+            if user.employee == emp.name:
+                by_code[normalise(emp.employee_code)] = user
+
+    matched, unmatched = [], []
+
+    for row in file_rows:
+
+        file_name = row.file_name or row.name
+        url = row.file_url
+        stem = normalise(os.path.splitext(os.path.basename(file_name))[0])
+
+        user = by_user_id.get(stem) or by_code.get(stem) or by_name.get(stem)
+
+        if not user:
+            unmatched.append(file_name)
+            continue
+
+        frappe.db.set_value("Machine User", user.name, "photo", url)
+
+        # The Employee record is what most people actually open, so the picture
+        # is put on both rather than only where it happened to be uploaded.
+        if user.employee:
+            frappe.db.set_value("Employee", user.employee, "photo", url)
+
+        matched.append({
+            "file": file_name,
+            "user_id": user.user_id,
+            "user_name": user.user_name,
+            "employee": user.employee,
+        })
+
+    frappe.db.commit()
+
+    return {
+        "matched": matched,
+        "unmatched": unmatched,
+        "total": len(file_rows),
+        "with_photo": frappe.db.count("Machine User", {"machine": machine_id, "photo": ["is", "set"]}),
+        "users": len(users),
+    }
+
+
+@frappe.whitelist()
+def request_photos(machine_id):
+    """
+    Ask a push device for its enrolled photographs.
+
+    Two things have to happen: the FACE and UserPic switches must be opened in
+    the handshake (a device is not permitted to send pictures otherwise), and
+    the request itself has to wait for the device's next poll.
+
+    Opening those switches is the risky half — a firmware that does not
+    understand them may reject the handshake and go silent, taking the punch
+    feed with it. So this records how the device was behaving beforehand, and
+    photo_fetch_status() closes the switches again the moment it looks like
+    that has happened.
+    """
+
+    from timebridge.timebridge.adms import commands
+
+    machine = frappe.get_doc("Biometric Machine", machine_id)
+
+    if not machine.serial_number:
+        return {
+            "status": "failed",
+            "message": "This machine has no serial number, so the device cannot be "
+                       "matched when it answers.",
+        }
+
+    contact = commands.last_contact(machine_id) or {}
+
+    if not contact.get("at"):
+        return {
+            "status": "failed",
+            "message": "This device is not currently talking to us, so it cannot be "
+                       "asked for anything. Get it sending punches first.",
+        }
+
+    frappe.db.set_single_value("TimeBridge Settings", "enable_photo_transfer", 1)
+
+    for command in ("DATA QUERY USERPIC", "DATA QUERY BIODATA", "DATA QUERY FACE"):
+        commands.queue_command(machine_id, command)
+
+    frappe.db.commit()
+
+    return {
+        "status": "queued",
+        "baseline_photos": frappe.db.count("File", {"attached_to_doctype": "Machine User"}),
+        "last_contact": contact.get("at"),
+        "message": "Photo switches opened and the request queued. Waiting for the "
+                   "device to collect it.",
+    }
+
+
+@frappe.whitelist()
+def photo_fetch_status(machine_id, last_contact_before=None):
+    """
+    How is the photo request going — and is the device still alive?
+
+    The second question is the important one. If the device has fallen silent
+    since the switches were opened, they are closed again here rather than
+    left for someone to notice later, because a silent device means no punches.
+    """
+
+    from frappe.utils import time_diff_in_seconds
+
+    from timebridge.timebridge.adms import commands
+
+    contact = commands.last_contact(machine_id) or {}
+
+    minutes_quiet = None
+
+    if contact.get("at"):
+        minutes_quiet = time_diff_in_seconds(frappe.utils.now_datetime(), contact["at"]) / 60
+
+    # Two full poll cycles of silence. The device checks in every 30s, so this
+    # is well past coincidence while still reacting quickly.
+    went_quiet = minutes_quiet is None or minutes_quiet > 2
+
+    reverted = False
+
+    if went_quiet and cint(
+        frappe.db.get_single_value("TimeBridge Settings", "enable_photo_transfer")
+    ):
+        frappe.db.set_single_value("TimeBridge Settings", "enable_photo_transfer", 0)
+        frappe.db.commit()
+        reverted = True
+
+    return {
+        "photos": frappe.db.count("File", {"attached_to_doctype": "Machine User"}),
+        "with_photo": frappe.db.count("Machine User", {"photo": ["is", "set"]}),
+        "users": frappe.db.count("Machine User", {"machine": machine_id}),
+        "pending_commands": commands.pending_count(machine_id),
+        "last_contact": contact.get("at"),
+        "minutes_quiet": minutes_quiet,
+        "device_quiet": went_quiet,
+        "reverted": reverted,
+        "photo_transfer_on": cint(
+            frappe.db.get_single_value("TimeBridge Settings", "enable_photo_transfer")
+        ),
+    }
+
+
+@frappe.whitelist()
+def stop_photo_transfer():
+    """Close the photo switches — used when the fetch finishes or is closed."""
+
+    frappe.db.set_single_value("TimeBridge Settings", "enable_photo_transfer", 0)
+    frappe.db.commit()
+
+    return {"photo_transfer_on": 0}
+
+
+@frappe.whitelist()
+def connection_health(machine_id):
+    """
+    Everything needed to answer "is this working, and if not, what do I do?".
+
+    Exists so the answer lives on the page rather than in a terminal. The
+    checks it cannot make from here — whether Windows' port proxy points at
+    the right place — are inferred from whether the device is actually
+    arriving, which is the only thing that really matters anyway.
+    """
+
+    import socket
+    import subprocess
+
+    from timebridge.timebridge.adms import commands
+
+    machine = frappe.get_doc("Biometric Machine", machine_id)
+
+    contact = commands.last_contact(machine_id) or {}
+
+    last_punch = frappe.db.sql(
+        """
+        SELECT MAX(creation) FROM `tabTimeBridge Punch Log` WHERE machine = %s
+        """,
+        machine_id,
+    )[0][0]
+
+    # The address the device must be pointed at is the Windows LAN IP, which
+    # this process cannot see from inside WSL — it only knows the gateway it
+    # routes through. Reported as "ask the fixer" rather than guessed at.
+    wsl_ip = None
+
+    try:
+        wsl_ip = subprocess.run(
+            ["hostname", "-I"], capture_output=True, text=True, timeout=5
+        ).stdout.split()[0]
+    except Exception:
+        pass
+
+    # Does our own receiver answer? If this fails nothing else matters.
+    receiver_ok = False
+
+    try:
+        with socket.create_connection(("127.0.0.1", 8000), timeout=3):
+            receiver_ok = True
+    except OSError:
+        pass
+
+    minutes_since = None
+
+    if contact.get("at"):
+        minutes_since = int(
+            frappe.utils.time_diff_in_seconds(frappe.utils.now_datetime(), contact["at"]) / 60
+        )
+
+    return {
+        "machine_name": machine.machine_name,
+        "serial_number": machine.serial_number,
+        "ip_address": machine.ip_address,
+        "receiver_ok": receiver_ok,
+        "wsl_ip": wsl_ip,
+        "last_contact": contact.get("at"),
+        "last_contact_kind": contact.get("kind"),
+        "minutes_since_contact": minutes_since,
+        "last_punch": last_punch,
+        "punches_total": frappe.db.count("TimeBridge Punch Log", {"machine": machine_id}),
+        "punches_today": frappe.db.count(
+            "TimeBridge Punch Log",
+            {"machine": machine_id, "timestamp": [">=", frappe.utils.today()]},
+        ),
+        "users": frappe.db.count("Machine User", {"machine": machine_id}),
+        "pending_commands": commands.pending_count(machine_id),
+    }
+
+
+@frappe.whitelist()
+def rebuild_attendance(from_date=None, to_date=None, employee=None):
+    """
+    Rebuild attendance rows from stored punches.
+
+    Runs synchronously: 816 punches across 226 days took well under a second,
+    and a background job here would only reintroduce the "did anything
+    happen?" problem the progress dialog exists to solve.
+    """
+
+    from timebridge.timebridge.services import attendance_sync
+
+    return attendance_sync.rebuild_for_range(
+        from_date=from_date or None,
+        to_date=to_date or None,
+        employee=employee or None,
+    )
+
+
+@frappe.whitelist()
+def fetch_status(machine_id):
+    """
+    How is the re-upload going? Polled by the form while it waits.
+
+    Reports three separate things, because they fail in different ways: has
+    the device collected the request, has it spoken to us at all recently, and
+    have punches actually landed.
+    """
+
+    from timebridge.timebridge.adms import commands
+
+    # Sync Logs are the honest measure of whether the device answered.
+    # Counting only *new* punches would call a correct re-fetch a failure —
+    # a device that dutifully re-sends 800 already-stored records adds none,
+    # because the unique punch_key rejects every one of them.
+    recent = frappe.get_all(
+        "TimeBridge Sync Log",
+        filters={"machine": machine_id},
+        fields=["name", "sync_type", "status", "records_fetched",
+                "records_created", "records_skipped", "creation"],
+        order_by="creation desc",
+        limit=5
+    )
+
+    return {
+        "punches": frappe.db.count("TimeBridge Punch Log", {"machine": machine_id}),
+        "users": frappe.db.count("Machine User", {"machine": machine_id}),
+        "sync_logs": frappe.db.count("TimeBridge Sync Log", {"machine": machine_id}),
+        "recent_syncs": recent,
+        "pending_commands": commands.pending_count(machine_id),
+        "last_contact": commands.last_contact(machine_id)
+    }
+
+
+@frappe.whitelist()
+def get_device_info_progress(machine_id):
+    """
+    Where has the queued device read got to?
+
+    The form polls this instead of listening on the realtime port. Under WSL2
+    only IPv4 listeners reach Windows, and Frappe's socketio binds IPv6, so
+    realtime events never arrive in the browser here. Polling uses the ordinary
+    web port, which does work — and keeps the fix inside this app rather than
+    patching Frappe.
+    """
+
+    return get_progress(machine_id)
 
 
 @frappe.whitelist()

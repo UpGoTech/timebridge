@@ -134,8 +134,11 @@
    "write": 1
   }
  ],
+ "search_fields": "organization_code",
+ "show_title_field_in_link": 1,
  "sort_field": "organization_name",
  "sort_order": "ASC",
  "states": [],
+ "title_field": "organization_name",
  "track_changes": 1
 }

@@ -1,0 +1,151 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:SL-{#####}",
+ "creation": "2026-07-30 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "run_information",
+  "machine",
+  "sync_type",
+  "status",
+  "column_break_run",
+  "started_at",
+  "finished_at",
+  "sync_batch",
+  "result_information",
+  "records_fetched",
+  "records_created",
+  "records_skipped",
+  "error_information",
+  "error_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "run_information",
+   "fieldtype": "Section Break",
+   "label": "Run Information"
+  },
+  {
+   "fieldname": "machine",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Biometric Machine",
+   "options": "Biometric Machine",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sync_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sync Type",
+   "options": "Device Info\nUsers\nAttendance",
+   "reqd": 1
+  },
+  {
+   "default": "Running",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Running\nSuccess\nFailed",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_run",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "label": "Started At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "finished_at",
+   "fieldtype": "Datetime",
+   "label": "Finished At",
+   "read_only": 1
+  },
+  {
+   "description": "Shared with the punches this run created.",
+   "fieldname": "sync_batch",
+   "fieldtype": "Data",
+   "label": "Sync Batch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result_information",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "description": "Records the device handed over.",
+   "fieldname": "records_fetched",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Records Fetched",
+   "read_only": 1
+  },
+  {
+   "description": "Records new to this app.",
+   "fieldname": "records_created",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Records Created",
+   "read_only": 1
+  },
+  {
+   "description": "Already present, or outside the sync window, or dropped by the duplicate punch window.",
+   "fieldname": "records_skipped",
+   "fieldtype": "Int",
+   "label": "Records Skipped",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.status == \"Failed\"",
+   "fieldname": "error_information",
+   "fieldtype": "Section Break",
+   "label": "Error"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error Message",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-30 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Sync Log",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "sync_type,status",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "machine",
+ "track_changes": 0
+}

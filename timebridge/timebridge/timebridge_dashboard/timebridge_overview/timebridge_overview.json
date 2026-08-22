@@ -1,0 +1,26 @@
+{
+ "cards": [
+  {"card": "TimeBridge Active Employees"},
+  {"card": "TimeBridge Connected Machines"},
+  {"card": "TimeBridge Punches Today"},
+  {"card": "TimeBridge Unmapped Punches"}
+ ],
+ "chart_options": "",
+ "charts": [
+  {"chart": "TimeBridge Punches Per Day", "width": "Full"},
+  {"chart": "TimeBridge Attendance Status", "width": "Half"},
+  {"chart": "TimeBridge Employees By Department", "width": "Half"}
+ ],
+ "creation": "2026-07-30 00:00:00.000000",
+ "dashboard_name": "TimeBridge Overview",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2026-07-30 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Overview",
+ "owner": "Administrator"
+}
