@@ -1,24 +1,3 @@
-# from zk import ZK
-
-
-# class PyZKConnector:
-
-#     def connect(self, device):
-#         pass
-
-#     def disconnect(self, conn):
-#         pass
-
-#     def get_device_info(self, conn):
-#         pass
-
-#     def get_users(self, conn):
-#         pass
-
-#     def get_attendance(self, conn):
-#         pass
-
-
 import time
 
 import frappe
@@ -34,6 +13,17 @@ DEFAULT_RETRY_COUNT = 3
 
 # Waited between attempts, multiplied by the attempt number.
 RETRY_BACKOFF_SECONDS = 2
+
+# The same mappings adms/parser.py applies to pushed records, keyed on ints
+# because pyzk hands these over already decoded. Both paths must agree, or the
+# transport would change what a punch appears to mean.
+#
+# Codes outside the map stay Unknown rather than being guessed at. The AIFace
+# units here report punch=255 ("not stated") on every record, so direction is
+# left to attendance_sync, which reads it from the day's first and last punch.
+PUNCH_DIRECTION_MAP = {0: "In", 1: "Out", 4: "In", 5: "Out"}
+
+VERIFY_MODE_MAP = {0: "Password", 1: "Fingerprint", 2: "Card", 15: "Face"}
 
 
 class PyZKConnector:
@@ -80,7 +70,8 @@ class PyZKConnector:
                 device.ip_address,
                 port=device.port,
                 timeout=timeout,
-                password=device.communication_password or 0
+                password=device.communication_password or 0,
+                force_udp=bool(cint(getattr(device, "force_udp", 0))),
             )
 
             try:
@@ -177,3 +168,123 @@ class PyZKConnector:
         })
 
         return info
+
+    def get_users(self, conn):
+        """
+        Everyone enrolled on the device, shaped for logger.save_users.
+
+        A device will happily hold a user with no name, but user_name is
+        mandatory on Machine User. Such a record is labelled by its id instead
+        of being dropped: without the mapping every punch that person ever
+        makes would stay unattached to an employee.
+        """
+
+        users = []
+
+        for user in conn.get_users():
+
+            # user_id is the number keyed at the terminal and the only thing
+            # punches carry. uid is the device's internal row number and is
+            # not interchangeable, so it is a last resort rather than a
+            # fallback of equal standing.
+            user_id = str(user.user_id or "").strip() or str(user.uid or "").strip()
+
+            if not user_id:
+                continue
+
+            user_name = (user.name or "").strip()
+            card = getattr(user, "card", None)
+
+            users.append({
+                "user_id": user_id,
+                "user_name": user_name or f"User {user_id}",
+                "card_number": str(card) if card else None,
+
+                # pyzk reports 0 for an ordinary user and 14 for an
+                # administrator; the DocType only distinguishes the two.
+                "privilege": "Admin" if cint(user.privilege) else "User",
+            })
+
+        return users
+
+    def get_attendance(self, conn):
+        """
+        Every punch the device is still holding, shaped for logger.save_punches.
+
+        The whole log is returned, not a date range — the protocol offers no
+        server-side filter. Trimming to a window is the caller's job, and
+        punch_key makes re-reading the same records harmless.
+        """
+
+        records = []
+
+        for punch in conn.get_attendance():
+
+            user_id = str(punch.user_id or "").strip()
+
+            if not user_id or not punch.timestamp:
+                continue
+
+            status = punch.status
+            state = punch.punch
+
+            records.append({
+                "device_user_id": user_id,
+                "timestamp": punch.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "punch_direction": PUNCH_DIRECTION_MAP.get(cint(state), "Unknown"),
+                "verify_mode": (
+                    VERIFY_MODE_MAP.get(cint(status), "Other")
+                    if status is not None else None
+                ),
+
+                # Kept verbatim so an unmapped code can still be identified
+                # later from stored rows, without re-reading the device.
+                "device_status": f"status={status} punch={state}",
+                "raw": f"{user_id}\t{punch.timestamp}\t{status}\t{state}",
+            })
+
+        return records
+
+    def get_user_photos(self, conn, users=None):
+        """
+        Enrolled JPEGs, if this connection can produce them.
+
+        pyzk 0.9 has no photo command. A newer library on the same object
+        sometimes grows `get_userpic`; that is used when present. Anything
+        that is not a JPEG is dropped — a face *template* is biometric data,
+        not a picture, and must not be stored as one.
+
+        Returns [] rather than raising when the device cannot help, so a
+        pull of users and punches is not lost to a missing photograph.
+        """
+
+        from timebridge.timebridge.adms.photos import looks_like_image
+
+        getter = getattr(conn, "get_userpic", None) or getattr(conn, "get_user_pic", None)
+
+        if not getter:
+            return []
+
+        photos = []
+
+        for user in users or []:
+
+            user_id = str(user.get("user_id") or "").strip()
+
+            if not user_id:
+                continue
+
+            try:
+                image = getter(user_id)
+            except TypeError:
+                try:
+                    image = getter()
+                except Exception:
+                    continue
+            except Exception:
+                continue
+
+            if looks_like_image(image):
+                photos.append({"user_id": user_id, "image_bytes": image})
+
+        return photos

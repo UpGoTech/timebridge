@@ -252,3 +252,86 @@ def leave_balance(employee, leave_type, on_date, days=1, exclude=None):
 	})
 
 	return result
+
+
+@frappe.whitelist()
+def create_bulk_leaves(leave_type, rows):
+	"""
+	Record one leave per row, and say plainly what happened to each.
+
+	Entering a month of sick days one form at a time is the kind of chore that
+	gets abandoned halfway. This takes a list of (employee, date) pairs and
+	makes an ordinary TimeBridge Leave out of each — the same document the form
+	makes, through the same validation, so quota, overlap and the paid decision
+	behave identically. Nothing here is a second implementation of those rules.
+
+	Rows are handled independently. One bad date does not cost the other
+	nineteen, and every skipped row comes back with the reason, because a bulk
+	tool that silently drops work is worse than no bulk tool.
+	"""
+
+	rows = frappe.parse_json(rows) or []
+
+	if not leave_type:
+		frappe.throw("Pick a leave type.")
+
+	created = []
+	skipped = []
+
+	for row in rows:
+
+		employee = (row or {}).get("employee")
+		date = (row or {}).get("leave_date")
+
+		if not (employee and date):
+			# A half-filled row is the user's place-marker, not an error worth
+			# reporting back at them.
+			continue
+
+		name = frappe.db.get_value("Employee", employee, "employee_name") or employee
+
+		# A day the person actually punched is almost always a mistyped date.
+		# Refusing it protects attendance that was built from real evidence —
+		# the one thing in this system that is not a guess.
+		punches = frappe.db.count(
+			"TimeBridge Punch Log",
+			{"employee": employee, "timestamp": ["between", [f"{date} 00:00:00", f"{date} 23:59:59"]]},
+		)
+
+		if punches:
+			skipped.append({
+				"employee_name": name,
+				"date": date,
+				"reason": f"{punches} punch(es) recorded that day — check the date",
+			})
+			continue
+
+		try:
+			doc = frappe.get_doc({
+				"doctype": "TimeBridge Leave",
+				"employee": employee,
+				"leave_type": leave_type,
+				"from_date": date,
+				"to_date": date,
+				"approval_status": "Approved",
+			}).insert(ignore_permissions=True)
+
+			created.append({
+				"employee_name": name,
+				"date": date,
+				"is_paid": cint(doc.is_paid),
+				"name": doc.name,
+			})
+
+		except Exception as exc:
+			# Overlaps and anything else validate() objects to land here. The
+			# message is already written for a human, so it is passed through.
+			skipped.append({
+				"employee_name": name,
+				"date": date,
+				"reason": frappe.utils.strip_html(str(exc)).strip() or "could not be saved",
+			})
+
+	frappe.db.commit()
+
+	return {"created": created, "skipped": skipped}

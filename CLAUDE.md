@@ -69,7 +69,7 @@ TimeBridge Settings  (single DocType — global config)
 
 ### SDK connector pattern
 
-`services/connection.py::get_connector(device)` inspects `device.sdk_type` and returns the appropriate connector. Currently only `PyZKConnector` (using the `zk` Python library) is implemented. `matrix_connector.py`, `essl_connector.py`, and `custom_connector.py` are empty stubs.
+`services/connection.py::get_connector(device)` inspects `device.sdk_type` and returns the appropriate connector: `PyZKConnector` (using the `zk` Python library) for devices we dial, `ADMSConnector` (in `essl_connector.py`) for devices that dial us. `matrix_connector.py` and `custom_connector.py` are empty stubs, and `get_connector` names them as unbuilt rather than throwing "Unsupported SDK Type". `is_push_device(device)` is the test every caller uses before assuming a device can be connected to.
 
 `sdk_type` on Biometric Machine is a Select: `PyZK` / `ADMS` / `Matrix` / `Custom`, defaulting to `PyZK`. The string must match exactly — `get_connector` compares against the literal `"PyZK"`. It is deliberately separate from `device_brand`: brand is catalog metadata, `sdk_type` picks the driver. A Fabrixcel unit is brand `Other` but `sdk_type` `PyZK`.
 
@@ -77,7 +77,7 @@ TimeBridge Settings  (single DocType — global config)
 
 Note the import path for connectors is `timebridge.timebridge.sdk_connectors.…` — doubled. `timebridge.sdk_connectors` does not exist.
 
-Each connector must implement: `connect(device)` / `disconnect(conn)` / `get_device_info(conn)`. `PyZKConnector.connect()` calls `conn.disable_device()` on connect and `conn.enable_device()` on disconnect — this is required by the ZK protocol to safely read data.
+Each connector must implement: `connect(device)` / `disconnect(conn)` / `get_device_info(conn)`. A connector for a device that can be dialled also implements `get_users(conn)` and `get_attendance(conn)`, which return dicts already shaped for `adms/logger.py`'s `save_users` / `save_punches` — that is what lets push and pull share one set of tables. `PyZKConnector.connect()` calls `conn.disable_device()` on connect and `conn.enable_device()` on disconnect — this is required by the ZK protocol to safely read data.
 
 **`disable_device()` takes a live terminal offline.** Never open a connection casually against production hardware, and never let two jobs connect to the same device concurrently — see the deduplication note below.
 
@@ -107,6 +107,68 @@ Jobs are deduplicated on `timebridge_device_info::<machine_id>`, so a double-cli
 
 `timebridge.timebridge.api.test_connection` still exists — a plain socket ping that sets `status`. Nothing calls it since the button was rewired.
 
+### Pull sync — "Fetch All Data"
+
+One button, two entirely different mechanisms, chosen by transport in `api.request_all_data`:
+
+```
+api.request_all_data (whitelisted)
+  ├─ dialable device → enqueue_pull_sync    → run_pull_sync_job → pull_all_data
+  └─ push device     → adms.commands.queue_command (device collects it later)
+```
+
+`services/pull_sync.py` holds the pull half. Two things about it are deliberate and easy to undo by accident:
+
+**The device is read out completely, released, and only then written to the database.** `connect()` disables the terminal, so nobody can punch while the session is open. Reading 46k records takes seconds; inserting them takes minutes. Storing while still connected would keep a live door offline for the whole insert.
+
+**Punches are stored in committed batches of `INSERT_BATCH`**, so an interrupted run keeps what it wrote, and `drop_stored()` bulk-loads existing `punch_key`s first — a device hands over its entire log every time, so on the second run almost everything is already held and checking row by row would be tens of thousands of queries.
+
+`days` trims how far back punches are kept (`0` = the device's whole log); the ZK protocol offers no server-side date filter, so the full log is always transferred regardless. Users are always taken in full.
+
+Progress is polled from the cache via `api.pull_sync_progress`, on its own key, not shared with device-info — a connection test and a fetch can legitimately overlap.
+
+### Employees and Machine Users
+
+**A sync of either kind produces only Machine Users, and attendance is built per Employee.** `attendance_sync.rebuild_for_range` begins at `p.employee IS NOT NULL`, so until a Machine User points at an Employee its punches are stored and invisible — Rebuild Attendance reports success and does nothing, because it never saw them. This is the single most confusing state in the app and it looks exactly like a bug.
+
+`services/employee_link.py` closes that gap, behind the **Create & Link Employees** button. `plan()` decides and writes nothing; it returns what would happen for a human to agree to, and `apply_plan()` recomputes the same plan server-side rather than trusting rows posted back from a browser. There is no automatic matching anywhere, deliberately: a name is the only evidence a device offers, and attaching the wrong one moves one person's attendance onto another silently.
+
+Three rules in there exist because of what real device data turned out to look like on the Fabrixcel unit (172 enrolments):
+
+**`employee_code` is unique across every machine, but each device numbers its people from 1 independently.** Six of that device's ids were already Employee codes belonging to *different* people from another terminal — its user `4` is not the user `4` already on file. So the bare device id is used as a code only while it is free, and collisions fall back to `<machine_id>-<user_id>` (`AIFACE002-4`). Do not "tidy" this into always-prefixed or always-bare: bare is what somebody reads off the terminal, and prefixing is what keeps it honest.
+
+**One person can hold two enrolments.** `09` and `F09` are both Amol Bawane. Same-named users are therefore gathered onto one Employee by default, so their day is not split across two records. `merge_same_name=0` turns that off. Note the risk runs both ways — two genuinely different people with one name would be merged — which is why the preview flags every merged row instead of doing it quietly.
+
+**`normalise()` does no fuzzy matching.** `SUVARNAJICHKAR` and `SUVARNA JICHKAR` stay different. A near-miss that silently resolves to somebody is worse than one the operator is asked about.
+
+`date_of_joining`, `organization` and `branch` are mandatory on Employee and the device knows none of them, so they come from the dialog; `suggested_defaults()` offers the commonest existing values as a starting point. `apply_plan()` finishes by calling `logger.link_unmatched_punches()`, which is what makes the *stored history* visible rather than only punches from that moment on.
+
+**Create & Link cannot correct the people it created**, because `plan()` only ever considers Machine Users with no Employee. Changing Organization or Shift in that dialog afterwards does nothing at all, which is why its "everything is already linked" message names the other button rather than just saying there is nothing to do.
+
+That other button is **Update Organization / Shift** (`apply_assignment`). It is an update and only an update: no record is created, deleted or unlinked. The obvious-looking alternative — reset the links and run Create & Link again with different values — does not work and is dangerous. Re-linking matches the same Employees by name and never rewrites these fields, so nothing would change; and deleting the Employees to force a re-create would take every attendance row and every punch's `employee` with them.
+
+Membership for that update comes from the Machine User links (`machine_employees()`), not `Employee.biometric_machine`, since the link is what attendance follows and `biometric_machine` names only one machine for somebody enrolled on two. Anyone shared with another machine is counted and shown before the change rather than moved quietly. `assignment_summary()` also exposes the current spread, which matters: on `BM-104987` the sixteen people hold three different shifts, and flattening those to one would be a silent loss.
+
+A device photograph lands on Machine User first. `adms.photos.sync_employee_photo` already copies it onto Employee when the picture arrives *and* the person is already linked. `services/employee_photo.copy_linked_photos` is the other direction: after Create & Link, or after a pull, it copies whatever is already on the device record. It reuses that function rather than writing a second rule. pyzk 0.9 cannot read JPEGs, so a pull copies existing pictures but does not invent them from a face template.
+
+### Reports
+
+Three, all Script Reports on `TimeBridge Attendance`: **Attendance Report** (the register — one letter per day), **Punch Register** (the same shape with the actual In-Out times in each cell), and **Employee Attendance Detail** (one person, one month, downwards).
+
+The first two share `attendance_report.get_employees()` — the only place a filter turns into a set of people, so a filter added there appears in both. Detail is not part of that: it takes a single employee and never asks the question.
+
+**The Machine filter is the one that usually does the work.** A site typically puts every employee on the same Organization, Branch and Shift, so those three narrow nothing and the reports look like they cannot separate one terminal's staff from another's. Machine can: on this database it splits 185 employees into 169 and 16 exactly. It resolves through the **Machine User links**, not `Employee.biometric_machine` — same reasoning as `machine_employees()` above, and that field is also unset for anyone linked by hand.
+
+**Punch Register builds its own Excel file** (`export_excel`, wired to the toolbar's Excel button by `download_excel` in its JS) rather than calling `report.export_report()`. Frappe's export writes the grid and nothing else — no title, no machine, no month, no legend, no frozen header — and `build_xlsx_data` divides every declared column width by ten, which is what left thirty-one time columns too narrow to hold `11:38-19:01` and spilling into each other. None of that is reachable from a column definition.
+
+Two things in that file are load-bearing and easy to undo:
+
+**The title rows are merged and centred across the sheet, and only the header row is frozen.** Freezing the name columns as well splits every merged title at column D, so the heading arrives cut in half. Do not put that freeze back without un-merging the titles.
+
+**The heading only names an Organization it can be sure of** — the one filtered on, or the only one that exists. There are two on this site, so with no filter the line is left off entirely rather than printing whichever came back first. Note `attendance_report.day_wise_heading` still does take the first one, and can therefore print the wrong company on a printed register; it was left alone rather than changing another report's output as a side effect. Punch Register no longer shows Organization / Branch / Department in its filter bar — Machine is what actually splits the staff, and those three were empty noise. The register still has them.
+
+The response is the file itself, which is why the client posts a form at the endpoint instead of using `frappe.call`.
+
 ### ADMS push receiver
 
 The push path. The device drives everything: it dials out on its own timer and POSTs tab-delimited plain text. TimeBridge never opens a connection to it, so none of the pyzk machinery above applies.
@@ -120,7 +182,7 @@ Four endpoints are answered, all in `adms/api.py`:
 | `GET /iclock/cdata?SN=…&options=all` | handshake — replies with `Delay`, `Realtime=1`, `Encrypt=0`, etc. |
 | `POST /iclock/cdata?SN=…&table=ATTLOG` | punches |
 | `POST /iclock/cdata?SN=…&table=OPERLOG` (or `USERINFO`) | enrolled users |
-| `/iclock/getrequest`, `/iclock/devicecmd`, `/iclock/ping` | acknowledged only |
+| `/iclock/getrequest`, `/iclock/devicecmd`, `/iclock/ping` | commands out / command result / probe |
 
 An unlisted `/iclock/*` path falls through to a normal 404 rather than being silently acknowledged.
 
@@ -132,7 +194,7 @@ An unlisted `/iclock/*` path falls through to a normal 404 rather than being sil
 
 `adms/logger.py` writes into the same `TimeBridge Punch Log` / `Machine User` tables the pull path will use, so push and pull differ only in transport. Idempotency comes from `build_punch_key()` and the unique `punch_key` column — re-sending a batch cannot duplicate rows, which matters because firmwares re-send freely. `link_unmatched_punches()` exists because devices routinely upload punches *before* the users they belong to; backfilling is the normal path, not a repair job.
 
-`adms/commands.py` is still empty, so `getrequest` always answers "nothing pending" — the receiver is receive-only, with no way to push commands back to a device.
+`adms/commands.py` queues work for the next `/iclock/getrequest` poll. Attendance date-range resend is proven on this firmware; `CHECK` is not (the device collects it and sends nothing). **Fetch Photos** is the other live command path: it opens FACE/UserPic in the handshake, then tries three query dialects in sequence — tab-separated bulk `biophoto`/`userpic` (this firmware splits ATTLOG on tabs), comma form plus `DATA QUERY USERPIC`, then one `PIN=` query per enrolled user. Rounds advance only while the device is still talking and no new Machine User photo has appeared. Punch snapshots (`ATTPHOTO`, or `PIN=YYYYMMDDHHMMSS-<id>.jpg`) are acknowledged and dropped; they are not the enrolment Bio-Photo. OPERLOG/USERINFO harvests `PIN`+`Content` rows via `parse_photo_fields` so a mixed photo POST cannot rename people to `"User 3"`. If all three rounds return nothing, the remaining path is **Upload Photos** with files named `{user id}.jpg` — this firmware will not re-send Bio-Photo the way the other middleware's Import Bio-Photo tab reads it.
 
 **Network topology is where the time actually goes.** Frappe runs inside WSL2; the device is on the Windows LAN and cannot reach it directly. A `netsh interface portproxy` rule on Windows forwards `192.168.2.173:8000` (the Windows LAN IP) to the WSL2 IP, plus an inbound firewall rule for 8000. **WSL2's IP changes on every reboot**, silently breaking the proxy — several dead rules pointing at old IPs are already on that machine. Before suspecting app code when nothing arrives, compare:
 
@@ -161,18 +223,25 @@ So any code reading these must supply its own fallback, e.g. `cint(get_single_va
 
 ## What's Not Yet Implemented
 
-- `adms/commands.py` — empty. No commands are ever queued back to a device
-- `services/attendance_sync.py`, `scheduler.py`, `user_sync.py` — empty stubs
-- `essl_connector.py`, `matrix_connector.py`, `custom_connector.py` — empty stubs
-- `PyZKConnector.get_users` / `get_attendance` — still commented out
+- `services/scheduler.py`, `services/user_sync.py` — empty stubs. Nothing syncs on a timer; every fetch is a button press
+- `matrix_connector.py`, `custom_connector.py` — empty stubs, and `get_connector` says so by name rather than throwing
 - Scheduler hooks in `hooks.py` are commented out — no background sync runs yet
+- Employee linking is assisted, not automatic, and that is a decision rather than an omission — see *Employees and Machine Users*. Nothing attaches a device user to an Employee without someone confirming it
 
-`services/device_info.py` **is** implemented (device metadata read + writeback), as is the whole `adms/` push path.
+`services/device_info.py`, `services/pull_sync.py`, `services/employee_link.py`, `services/attendance_sync.py`, `sdk_connectors/essl_connector.py` (`ADMSConnector`) and the whole `adms/` push path **are** implemented.
 
 ### Verification status
 
-**Pull path — unverified against hardware.** The device-info path has never run against a real device. `192.168.88.44` (BM-104988, "fabrixcel") is unreachable from WSL2 — it refuses every TCP port including 4370 and 80, and ICMP is intermittent. Everything below the socket is verified; `connect()` succeeding and `get_device_info()` parsing a real response are not.
+**Pull path — verified against hardware.** `BM-106762` ("Fabrixcel", `192.168.88.18`, firmware Ver 6.60, platform `ZAM180_TFT`) answers on 4370 and was read end to end: 172 users and 46,436 punches transferred, users upserted, punches stored with `source: PyZK Pull`, a re-run created 0 rows and counted 115 duplicates, and the queued job path completed in about four seconds for a three-day window.
 
-**Push path — verified end to end over HTTP, not yet by a real device.** `adms/test_parser.py` covers the parsing (11 cases). Beyond that, a full run over real HTTP against `/iclock/cdata` — same URL and payload format a device uses — created Machine Users, created linked Punch Logs with the right direction and verify mode, wrote `Success` Sync Logs, rejected a re-sent batch without duplicating, and rejected an unregistered serial without storing anything. What is still untested is a physical device's own firmware: its exact payload dialect, its timing, and how it behaves when a reply is slow.
+That run also settled a question the code had been hedging on: this firmware **does** report usable punch state codes (`punch=0` / `1`), so direction comes back as real In/Out — 169 In, 99 Out, 2 Unknown on the first three days — rather than the Unknown the mapping comment feared. `verify_mode` reads `Face` (`status=15`) throughout. Codes seen on menu-access records (`punch=255`) still map to Unknown, correctly.
+
+The employee-link path is verified the same way: a full `apply_plan()` run inside a transaction that was then rolled back created 169 Employees, attached 171 Machine Users, backfilled 3,199 punches and reported no failures, leaving the database as it started. Six codes were qualified to `AIFACE002-*` and two pairs of enrolments were folded onto one person each, exactly as the preview said.
+
+Two cautions from that same run. A device on `192.168.88.x` is reachable from WSL2 through the Windows host even though the PC sits on `192.168.2.x` — do not assume a different subnet means unreachable; probe TCP 4370 before concluding anything. And `communication_password` matters: this unit rejected `0` with `Unauthenticated` and accepted `12345`. That failure surfaces in the UI with the port-scan panel's *"no port is open"* wording, which is wrong for an auth failure — the port was open the whole time.
+
+`192.168.88.44` (BM-104988) remains unreachable from WSL2 — it refuses every TCP port including 4370 and 80, and ICMP is intermittent.
+
+**Push path — verified end to end over HTTP, not yet by a real device.** `adms/test_parser.py` covers the parsing (13 cases). Beyond that, a full run over real HTTP against `/iclock/cdata` — same URL and payload format a device uses — created Machine Users, created linked Punch Logs with the right direction and verify mode, wrote `Success` Sync Logs, rejected a re-sent batch without duplicating, and rejected an unregistered serial without storing anything. What is still untested is a physical device's own firmware: its exact payload dialect, its timing, and how it behaves when a reply is slow. Fetch Photos has been verified to queue commands and keep the device polling; the AIFace MARS has not yet re-sent enrolment Bio-Photo over ADMS.
 
 `BM-104987` is still recorded as `device_brand: ZKTeco` / `sdk_type: PyZK`, which is untrue — it is an eSSL device on ADMS. Correcting `sdk_type` to `ADMS` would make `get_connector()` raise `Unsupported SDK Type : ADMS` and disable the pull buttons, which is the honest outcome but a behaviour change. Left as-is deliberately.

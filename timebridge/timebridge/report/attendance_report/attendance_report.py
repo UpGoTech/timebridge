@@ -67,6 +67,22 @@ def get_employees(filters):
             conditions += f" AND emp.{field} = %({field})s"
             values[field] = filters.get(field)
 
+    if filters.get("biometric_machine"):
+
+        # Membership is read from the Machine User links rather than from
+        # Employee.biometric_machine, because the link is what attendance
+        # actually follows, and that field can only name one machine even for
+        # somebody enrolled on two.
+        conditions += """
+            AND emp.name IN (
+                SELECT mu.employee
+                FROM `tabMachine User` mu
+                WHERE mu.machine = %(biometric_machine)s
+                  AND mu.employee IS NOT NULL
+            )
+        """
+        values["biometric_machine"] = filters.get("biometric_machine")
+
     if filters.get("employee"):
         conditions += " AND emp.name = %(employee)s"
         values["employee"] = filters.get("employee")

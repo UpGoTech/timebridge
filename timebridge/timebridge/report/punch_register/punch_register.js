@@ -32,31 +32,14 @@ frappe.query_reports["Punch Register"] = {
             fieldtype: "Int",
             default: new Date().getFullYear()
         },
+        // Also the sheet's heading, so an exported file says which terminal
+        // it came from. Organization / Branch / Department are left off:
+        // they do not split anyone here, and Machine already does.
         {
-            fieldname: "organization",
-            label: __("Organization"),
+            fieldname: "biometric_machine",
+            label: __("Machine"),
             fieldtype: "Link",
-            options: "Organization"
-        },
-        {
-            fieldname: "branch",
-            label: __("Branch"),
-            fieldtype: "Link",
-            options: "Branch",
-            get_query: function () {
-                const organization = frappe.query_report.get_filter_value("organization");
-                return organization ? { filters: { organization: organization } } : {};
-            }
-        },
-        {
-            fieldname: "department",
-            label: __("Department"),
-            fieldtype: "Link",
-            options: "Department",
-            get_query: function () {
-                const branch = frappe.query_report.get_filter_value("branch");
-                return branch ? { filters: { branch: branch } } : {};
-            }
+            options: "Biometric Machine"
         },
         {
             fieldname: "shift",
@@ -146,7 +129,7 @@ function add_export_buttons(report) {
     const EXPORT = __("Export");
 
     report.page.add_inner_button(__("Excel"), function () {
-        report.export_report();
+        download_excel(report);
     }, EXPORT);
 
     report.page.add_inner_button(__("PDF"), function () {
@@ -156,6 +139,27 @@ function add_export_buttons(report) {
     report.page.add_inner_button(__("Print"), function () {
         open_print_settings(report, (settings) => report.print_report(settings));
     }, EXPORT);
+}
+
+
+/**
+ * The report's own workbook rather than Frappe's.
+ *
+ * Frappe's export writes the grid and nothing else: no title, no machine, no
+ * month, no frozen header, and every declared column width divided by ten —
+ * which is what left thirty-one time columns spilling into each other. The
+ * server builds the file instead.
+ *
+ * Posted as a form rather than called, because the response is the file. A
+ * frappe.call would hand back bytes with nowhere to put them; open_url_post is
+ * how Frappe's own exports do the same thing, and it carries the CSRF token.
+ */
+function download_excel(report) {
+
+    open_url_post(frappe.request.url, {
+        cmd: "timebridge.timebridge.report.punch_register.punch_register.export_excel",
+        filters: JSON.stringify(report.get_filter_values(true))
+    });
 }
 
 

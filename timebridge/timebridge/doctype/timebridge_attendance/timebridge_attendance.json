@@ -34,7 +34,6 @@
   {
    "fieldname": "employee",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Employee",
    "options": "Employee",
@@ -75,7 +74,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Present\nIn Office\nNeeds Review\nAbsent\nHalf Day\nOn Leave\nHoliday",
+   "options": "Present\nIn Office\nNeeds Review\nAbsent\nHalf Day",
    "reqd": 1
   },
   {
@@ -83,6 +82,7 @@
    "fieldname": "leave_type",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Leave Type",
    "read_only": 1
   },
@@ -156,7 +156,7 @@
   }
  ],
  "links": [],
- "modified": "2026-08-03 15:20:31.281724",
+ "modified": "2026-08-18 16:24:37.810683",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Attendance",
