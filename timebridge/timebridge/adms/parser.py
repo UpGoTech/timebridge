@@ -121,6 +121,11 @@ def parse_userinfo(body):
             skipped.append(line)
             continue
 
+        # A Bio-Photo row also has PIN, but Content is the picture, not a
+        # person. Treated as a user it would rename everyone to "User 3".
+        if fields.get("CONTENT") or fields.get("PHOTO"):
+            continue
+
         privilege = fields.get("PRI") or "0"
 
         records.append({
@@ -146,3 +151,46 @@ def parse_table_name(table):
     parts = table.strip().split()
 
     return parts[0].upper() if parts else None
+
+
+def parse_photo_fields(body):
+    """
+    PIN + base64 Content rows — how enrolment pictures travel in USERPIC /
+    BIOPHOTO (and sometimes mixed into OPERLOG).
+
+    One POST is a whole department, not one face. The JPEG decoder must not
+    swallow the rest of the body as a single blob.
+    """
+
+    records = []
+
+    for line in (body or "").splitlines():
+
+        line = line.rstrip("\r")
+
+        if not line.strip() or "=" not in line:
+            continue
+
+        fields = {}
+
+        for chunk in line.split("\t"):
+
+            if "=" not in chunk:
+                continue
+
+            key, _, value = chunk.partition("=")
+            fields[key.strip().upper()] = value.strip()
+
+        user_id = fields.get("PIN")
+        content = fields.get("CONTENT") or fields.get("PHOTO")
+
+        if not user_id or not content or len(content) < 64:
+            continue
+
+        records.append({
+            "user_id": user_id,
+            "content": content,
+            "type": fields.get("TYPE"),
+        })
+
+    return records

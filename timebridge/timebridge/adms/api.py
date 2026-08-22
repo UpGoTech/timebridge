@@ -36,13 +36,13 @@ from timebridge.timebridge.adms import commands, logger, parser, photos
 #   1 AttLog   2 OpLog    3 AttPhoto  4 EnrollUser  5 ChgUser
 #   6 EnrollFP 7 ChgFP    8 FPImage   9 FACE       10 UserPic
 #
-# Punches need only the first four, and that is the safe default: not every
-# firmware understands the rest, and one that does not may reject the whole
-# handshake and stop talking. The last two are what permit photographs, so
-# they are opened only while someone is actively asking for photos — see
-# api.request_photos, which turns them back off if the device goes quiet.
+# Punches need AttLog, OpLog, AttPhoto and EnrollUser. FACE and UserPic
+# (positions 9 and 10) are what permit enrolment photographs — Bio-Photo —
+# and are opened only while Fetch Photos is running. The middle switches
+# (fingerprint images and the rest) stay off: they are unused here, and
+# turning every bit on is what some firmwares reject.
 TRANSFLAG_PUNCHES_ONLY = "1111000000"
-TRANSFLAG_WITH_PHOTOS = "1111111111"
+TRANSFLAG_WITH_PHOTOS = "1111000011"
 
 HANDSHAKE_TEMPLATE = (
     "GET OPTION FROM: {serial}\n"
@@ -158,39 +158,53 @@ def _receive_attlog(machine, body):
 def _receive_userinfo(machine, body):
 
     records, skipped = parser.parse_userinfo(body)
+    photo_rows = parser.parse_photo_fields(body)
 
-    if not records:
-        return "OK"
+    if records:
 
-    sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-    log_name = logger.open_sync_log(machine, "Users", sync_batch)
+        sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+        log_name = logger.open_sync_log(machine, "Users", sync_batch)
 
-    try:
-        result = logger.save_users(machine, records)
+        try:
+            result = logger.save_users(machine, records)
 
-        # Devices routinely send punches before the users they belong to, so
-        # backfill the links now that more users are known.
-        linked = logger.link_unmatched_punches(machine)
+            # Devices routinely send punches before the users they belong to, so
+            # backfill the links now that more users are known.
+            linked = logger.link_unmatched_punches(machine)
 
-        logger.close_sync_log(
-            log_name,
-            "Success",
-            fetched=len(records) + len(skipped),
-            created=result["created"],
-            skipped=len(skipped),
-            error=(f"{linked} earlier punch(es) linked" if linked else None),
-        )
+            logger.close_sync_log(
+                log_name,
+                "Success",
+                fetched=len(records) + len(skipped),
+                created=result["created"],
+                skipped=len(skipped),
+                error=(f"{linked} earlier punch(es) linked" if linked else None),
+            )
 
-        frappe.db.set_value("Biometric Machine", machine, "last_user_sync",
-                            frappe.utils.now_datetime())
-        frappe.db.commit()
+            frappe.db.set_value("Biometric Machine", machine, "last_user_sync",
+                                frappe.utils.now_datetime())
+            frappe.db.commit()
 
-    except Exception:
-        frappe.db.rollback()
-        logger.close_sync_log(log_name, "Failed", fetched=len(records),
-                              error=frappe.get_traceback()[:1000])
-        frappe.db.commit()
-        frappe.log_error(title="TimeBridge ADMS: USERINFO failed", message=frappe.get_traceback())
+        except Exception:
+            frappe.db.rollback()
+            logger.close_sync_log(log_name, "Failed", fetched=len(records),
+                                  error=frappe.get_traceback()[:1000])
+            frappe.db.commit()
+            frappe.log_error(title="TimeBridge ADMS: USERINFO failed", message=frappe.get_traceback())
+
+    # Enrolment pictures often ride in OPERLOG as PIN + Content, not as a
+    # USERPIC table. Harvest them even when the POST had no people to save.
+    if photo_rows:
+
+        try:
+            if photos.save_photos_from_fields(machine, photo_rows, "BIOPHOTO"):
+                frappe.db.commit()
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(
+                title="TimeBridge ADMS: OPERLOG photo harvest failed",
+                message=frappe.get_traceback(),
+            )
 
     return "OK"
 

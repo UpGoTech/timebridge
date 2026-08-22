@@ -199,6 +199,31 @@ def run_device_info_job(machine_id, user=None, run_id=None):
     return result
 
 
+def failure_reason(error):
+    """
+    Classify a failed session so the form can advise instead of guess.
+
+    Only the case worth separating is named. A rejected comm key is not a
+    network problem at all — the port was open and the protocol answered — so
+    the client must not go on to offer a port search, whose wording ("no port
+    is open") contradicts what actually happened and sends the reader off to
+    restart a device that was working correctly.
+    """
+
+    return "unauthenticated" if "unauth" in str(error).lower() else None
+
+
+def uses_udp(device):
+    """True when this machine's ZK session is UDP, not TCP.
+
+    Default is TCP, matching every device that already works. A K300 in
+    the field refused TCP 4370 outright and answered the same port over
+    UDP; without this flag Test Connection never gets past the TCP probe.
+    """
+
+    return bool(cint(getattr(device, "force_udp", 0)))
+
+
 def probe_socket(ip_address, port, timeout=SOCKET_PROBE_TIMEOUT):
     """
     Is anything accepting TCP on that address and port?
@@ -285,14 +310,23 @@ def fetch_device_info(machine_id, on_stage=None):
         return dict(result, failed_step=None if result["status"] == "success" else STEP_CONNECT)
 
     port = cint(device.port) or 4370
+    udp = uses_udp(device)
 
     # Reachability first. If nothing is listening, the connector would
     # spend the entire retry budget discovering that — up to ~96s of
     # silence for the stock settings — and then report it as a protocol
-    # error rather than a network one.
-    stage(STEP_NETWORK, "Checking network", f"{device.ip_address}:{port}")
+    # error rather than a network one. UDP devices have nothing on TCP
+    # (the Dantoli K300 refuses 4370 TCP), so the probe is skipped there.
+    stage(
+        STEP_NETWORK,
+        "Checking network",
+        f"{device.ip_address}:{port}" + (" UDP" if udp else "")
+    )
 
-    reachable, detail = probe_socket(device.ip_address, port)
+    if udp:
+        reachable, detail = True, "udp"
+    else:
+        reachable, detail = probe_socket(device.ip_address, port)
 
     if not reachable:
 
@@ -305,7 +339,11 @@ def fetch_device_info(machine_id, on_stage=None):
             "message": f"Cannot reach {device.ip_address}:{port} — {detail}"
         }
 
-    stage(STEP_NETWORK, "Checking network", f"port {port} is open")
+    stage(
+        STEP_NETWORK,
+        "Checking network",
+        "UDP — TCP probe skipped" if udp else f"port {port} is open"
+    )
 
     connector = get_connector(device)
 
@@ -342,6 +380,7 @@ def fetch_device_info(machine_id, on_stage=None):
             "status": "failed",
             "failed_step": STEP_CONNECT if conn is None else STEP_READ,
             "machine_status": "Disconnected",
+            "reason": failure_reason(e),
             "message": str(e)
         }
 

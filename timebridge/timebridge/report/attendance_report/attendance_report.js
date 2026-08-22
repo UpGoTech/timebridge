@@ -36,6 +36,16 @@ frappe.query_reports["Attendance Report"] = {
             default: new Date().getFullYear()
         },
 
+        // Often the only filter that separates one group of staff from
+        // another: a single site puts every employee on the same
+        // organization, branch and shift, and then the three below narrow
+        // nothing. Which terminal somebody punches on does.
+        {
+            fieldname: "biometric_machine",
+            label: __("Machine"),
+            fieldtype: "Link",
+            options: "Biometric Machine"
+        },
         {
             fieldname: "organization",
             label: __("Organization"),

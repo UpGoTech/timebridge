@@ -12,6 +12,7 @@
   "user_id",
   "user_name",
   "photo",
+  "retake_photo",
   "uid",
   "card_number",
   "biometric_information",
@@ -55,6 +56,14 @@
    "fieldname": "photo",
    "fieldtype": "Attach Image",
    "label": "Photo"
+  },
+  {
+   "default": "0",
+   "depends_on": "photo",
+   "description": "The first photograph a device sends is kept and later ones ignored, so a face does not change with every punch. Tick this to accept the next one instead — it clears itself once the new photo arrives.",
+   "fieldname": "retake_photo",
+   "fieldtype": "Check",
+   "label": "Retake Photo on Next Punch"
   },
   {
    "fieldname": "uid",
@@ -116,7 +125,7 @@
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-18 15:55:15.316757",
+ "modified": "2026-08-11 18:40:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "Machine User",

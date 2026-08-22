@@ -13,6 +13,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from timebridge.timebridge.adms.parser import (
     parse_attlog,
+    parse_photo_fields,
     parse_table_name,
     parse_userinfo,
 )
@@ -105,3 +106,33 @@ class TestADMSParser(FrappeTestCase):
         self.assertEqual(parse_table_name(" ATTLOG Stamp=9999 "), "ATTLOG")
         self.assertIsNone(parse_table_name(""))
         self.assertIsNone(parse_table_name(None))
+
+    def test_userinfo_skips_bio_photo_content_lines(self):
+        # A Bio-Photo row also has PIN. Treated as a user it would rename
+        # everyone to the placeholder "User 3".
+        blob = "A" * 80
+        body = (
+            "PIN=3\tName=Manali\tPri=0\n"
+            f"PIN=3\tType=9\tContent={blob}\n"
+        )
+        records, skipped = parse_userinfo(body)
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["user_name"], "Manali")
+        self.assertEqual(skipped, [])
+
+    def test_parse_photo_fields_one_row_per_person(self):
+        blob_a = "A" * 80
+        blob_b = "B" * 80
+        body = (
+            f"PIN=3\tType=9\tContent={blob_a}\n"
+            f"PIN=5\tPHOTO={blob_b}\n"
+            "PIN=7\tName=NotAPhoto\tPri=0\n"
+            f"PIN=8\tContent=short\n"
+        )
+        rows = parse_photo_fields(body)
+
+        self.assertEqual([r["user_id"] for r in rows], ["3", "5"])
+        self.assertEqual(rows[0]["content"], blob_a)
+        self.assertEqual(rows[1]["content"], blob_b)
+        self.assertEqual(rows[0]["type"], "9")

@@ -38,13 +38,17 @@ def get_machine_by_serial(serial):
     )
 
 
-def save_punches(machine, records, sync_batch=None, save_raw=None):
+def save_punches(machine, records, sync_batch=None, save_raw=None, source=SOURCE_ADMS):
     """
     Insert punch records, skipping any already stored.
 
     Returns a dict of counts. Unmatched users are stored anyway — a punch whose
     device_user_id has no Machine User yet is still evidence someone was at the
     door, and dropping it would lose data permanently.
+
+    `source` names the transport that delivered these records. It defaults to
+    push because this module was written for it, but the pull path stores
+    through here too and its punches must not claim to have been pushed.
     """
 
     if save_raw is None:
@@ -103,7 +107,7 @@ def save_punches(machine, records, sync_batch=None, save_raw=None):
             "punch_direction": record.get("punch_direction") or "Unknown",
             "verify_mode": record.get("verify_mode"),
             "device_status": record.get("device_status"),
-            "source": SOURCE_ADMS,
+            "source": source,
             "sync_batch": sync_batch,
             "raw_payload": record.get("raw") if save_raw else None,
         })

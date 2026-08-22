@@ -33,8 +33,13 @@ const FETCH_POLL_SECONDS = 2;
 // request, then upload images. Long enough to be fair, short enough that a
 // firmware that dislikes the switches is caught quickly.
 const PHOTO_POLL_SECONDS = 3;
-const PHOTO_GIVE_UP_SECONDS = 180;
+const PHOTO_GIVE_UP_SECONDS = 300;
 const FETCH_GIVE_UP_SECONDS = 120;
+
+function endpoint_label(frm) {
+    const host = `${frm.doc.ip_address || ""}:${frm.doc.port || ""}`;
+    return cint(frm.doc.force_udp) ? `${host} UDP` : host;
+}
 
 // Only one progress dialog is meaningful at a time. Held here so a dialog
 // closed mid-run can stop its own polling.
@@ -81,6 +86,14 @@ frappe.ui.form.on("Biometric Machine", {
         // waits for it to arrive.
         frm.add_custom_button(__("Fetch All Data"), needs_saved(start_fetch_all), DEVICE);
 
+        // A fetch only ever produces Machine Users, and attendance is built per
+        // Employee — so without this step the punches are stored and invisible.
+        frm.add_custom_button(__("Create & Link Employees"), needs_saved(employee_link_dialog), DEVICE);
+
+        // Create & Link only fills in people who have none, so it cannot correct
+        // the ones it already made. This does, without touching any link.
+        frm.add_custom_button(__("Update Organization / Shift"), needs_saved(employee_assignment_dialog), DEVICE);
+
         // Punches are only timestamps until this runs. Normally the scheduler
         // handles it, but a manual rebuild is needed after a bulk fetch of
         // history, which arrives all at once and outside the recent window.
@@ -93,9 +106,443 @@ frappe.ui.form.on("Biometric Machine", {
         // the server do the matching.
         frm.add_custom_button(__("Upload Photos"), needs_saved(start_photo_upload), PHOTOS);
 
+        // Photographs arrive on their own once the device is photographing
+        // punches. What was missing was any sense of how far along that is —
+        // sixteen names to hold in your head and no moment where it ends.
+        frm.add_custom_button(__("Collect Photos"), needs_saved(start_photo_collection), PHOTOS);
+
     }
 
 });
+
+
+/*
+ * Attaching device users to Employees.
+ *
+ * The device gives a number and a name and nothing else, so this cannot be
+ * automatic: a name matched to the wrong person moves their attendance onto
+ * somebody else, silently. The whole plan is therefore shown first — who is
+ * matched, who would be created, who is left out — and nothing is written until
+ * it is confirmed.
+ */
+function employee_link_dialog(frm) {
+
+    const dialog = new frappe.ui.Dialog({
+
+        title: __("Create & Link Employees"),
+        size: "large",
+
+        fields: [
+            {
+                fieldname: "intro",
+                fieldtype: "HTML",
+                options: `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">` +
+                    __("Attendance is built per Employee, so every device user needs one. Names are matched against existing Employees; the rest are created.") +
+                    `</div>`
+            },
+            {
+                fieldname: "date_of_joining",
+                fieldtype: "Date",
+                label: __("Date of Joining"),
+                reqd: 1,
+                default: frappe.datetime.get_today(),
+                description: __("Required on Employee. The device does not know it, so the same date is used for everyone created here.")
+            },
+            {
+                fieldname: "shift",
+                fieldtype: "Link",
+                label: __("Shift"),
+                options: "Shift",
+                description: __("Optional, but without it late and half-day cannot be worked out.")
+            },
+            { fieldname: "cb_org", fieldtype: "Column Break" },
+            {
+                fieldname: "organization",
+                fieldtype: "Link",
+                label: __("Organization"),
+                options: "Organization",
+                reqd: 1
+            },
+            {
+                fieldname: "branch",
+                fieldtype: "Link",
+                label: __("Branch"),
+                options: "Branch",
+                reqd: 1
+            },
+            { fieldname: "sb_options", fieldtype: "Section Break" },
+            {
+                fieldname: "merge_same_name",
+                fieldtype: "Check",
+                label: __("Treat identical names as one person"),
+                default: 1,
+                description: __("One person often holds two enrolments on a device. Off, each device id becomes its own Employee and their day is split between them.")
+            },
+            {
+                fieldname: "skip_non_person",
+                fieldtype: "Check",
+                label: __("Skip accounts that are not people"),
+                default: 1,
+                description: __("ADMIN and similar service accounts.")
+            },
+            { fieldname: "sb_plan", fieldtype: "Section Break" },
+            { fieldname: "plan", fieldtype: "HTML" }
+        ],
+
+        primary_action_label: __("Create & Link"),
+
+        primary_action(values) {
+
+            dialog.get_primary_btn().prop("disabled", true).text(__("Working…"));
+
+            frappe.call({
+
+                method: "timebridge.timebridge.api.create_and_link_employees",
+
+                args: {
+                    machine_id: frm.doc.name,
+                    date_of_joining: values.date_of_joining,
+                    organization: values.organization,
+                    branch: values.branch,
+                    shift: values.shift || null,
+                    merge_same_name: values.merge_same_name ? 1 : 0,
+                    skip_non_person: values.skip_non_person ? 1 : 0
+                },
+
+                callback: function (r) {
+
+                    const res = r.message || {};
+
+                    dialog.hide();
+
+                    const failures = res.failures || [];
+
+                    frappe.msgprint({
+                        title: __("Employees Linked"),
+                        indicator: failures.length ? "orange" : "green",
+                        message:
+                            `<div>${__("Employees created")}: <b>${res.created || 0}</b></div>` +
+                            `<div>${__("Machine Users linked")}: <b>${res.linked || 0}</b></div>` +
+                            `<div>${__("Existing punches attached")}: <b>${res.punches_linked || 0}</b></div>` +
+                            (failures.length
+                                ? `<div class="alert alert-warning" style="margin-top:8px;padding:8px;">` +
+                                  __("{0} could not be saved:", [failures.length]) + " " +
+                                  frappe.utils.escape_html(failures.map(f => f.user_name).join(", ")) +
+                                  `</div>`
+                                : "") +
+                            `<div style="margin-top:8px;">` +
+                            __("Run <b>Rebuild Attendance</b> now to turn those punches into attendance.") +
+                            `</div>`
+                    });
+
+                    frm.reload_doc();
+                },
+
+                error: function () {
+                    dialog.get_primary_btn().prop("disabled", false).text(__("Create & Link"));
+                }
+
+            });
+
+        }
+
+    });
+
+    // Both switches change what the plan would do, so the preview is re-read
+    // rather than filtered in the browser — the server decides, in one place.
+    const refresh_plan = () => load_employee_link_plan(frm, dialog);
+
+    dialog.fields_dict.merge_same_name.$input.on("change", refresh_plan);
+    dialog.fields_dict.skip_non_person.$input.on("change", refresh_plan);
+
+    dialog.show();
+
+    refresh_plan();
+}
+
+
+/*
+ * Correcting Organization / Branch / Shift on people who already exist.
+ *
+ * The tempting shape for this was a "reset" on the linking dialog — unlink
+ * everyone and run it again with different values. That does not work and is
+ * not safe: re-linking matches the same Employees and never rewrites these
+ * fields, and deleting them would take 2,000+ attendance rows and every punch's
+ * employee with it. The field is what needs changing, so only the field changes.
+ */
+function employee_assignment_dialog(frm) {
+
+    const dialog = new frappe.ui.Dialog({
+
+        title: __("Update Organization / Shift"),
+
+        fields: [
+            {
+                fieldname: "intro",
+                fieldtype: "HTML",
+                options: `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">` +
+                    __("Changes these fields on the Employees already linked to this machine. Nothing is created, deleted or unlinked — punches and attendance are untouched.") +
+                    `</div>`
+            },
+            { fieldname: "current", fieldtype: "HTML" },
+            { fieldname: "sb_values", fieldtype: "Section Break" },
+            {
+                fieldname: "organization",
+                fieldtype: "Link",
+                label: __("Organization"),
+                options: "Organization"
+            },
+            {
+                fieldname: "branch",
+                fieldtype: "Link",
+                label: __("Branch"),
+                options: "Branch"
+            },
+            { fieldname: "cb_values", fieldtype: "Column Break" },
+            {
+                fieldname: "shift",
+                fieldtype: "Link",
+                label: __("Shift"),
+                options: "Shift",
+                description: __("Changing this makes the stored late and half-day figures stale — rebuild afterwards.")
+            },
+            {
+                fieldname: "note",
+                fieldtype: "HTML",
+                options: `<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">` +
+                    __("Leave a field empty to keep what is already there.") +
+                    `</div>`
+            }
+        ],
+
+        primary_action_label: __("Update"),
+
+        primary_action(values) {
+
+            if (!values.organization && !values.branch && !values.shift) {
+                frappe.msgprint({
+                    title: __("Nothing Chosen"),
+                    indicator: "orange",
+                    message: __("Pick at least one of Organization, Branch or Shift.")
+                });
+                return;
+            }
+
+            dialog.get_primary_btn().prop("disabled", true).text(__("Working…"));
+
+            frappe.call({
+
+                method: "timebridge.timebridge.api.update_employee_assignment",
+
+                args: {
+                    machine_id: frm.doc.name,
+                    organization: values.organization || null,
+                    branch: values.branch || null,
+                    shift: values.shift || null
+                },
+
+                callback: function (r) {
+
+                    const res = r.message || {};
+
+                    dialog.hide();
+
+                    frappe.msgprint({
+                        title: __("Employees Updated"),
+                        indicator: "green",
+                        message:
+                            `<div>${__("Employees on this machine")}: <b>${res.employees || 0}</b></div>` +
+                            `<div>${__("Changed")}: <b>${res.changed || 0}</b></div>` +
+                            (res.changed === 0
+                                ? `<div style="margin-top:6px;color:var(--text-muted);">` +
+                                  __("They already held those values.") + `</div>`
+                                : "") +
+                            (res.needs_rebuild
+                                ? `<div class="alert alert-warning" style="margin-top:8px;padding:8px;">` +
+                                  __("Shift changed. Run <b>Rebuild Attendance</b> — late and half-day were worked out from the old shift.") +
+                                  `</div>`
+                                : "")
+                    });
+                },
+
+                error: function () {
+                    dialog.get_primary_btn().prop("disabled", false).text(__("Update"));
+                }
+
+            });
+
+        }
+
+    });
+
+    dialog.show();
+
+    frappe.call({
+
+        method: "timebridge.timebridge.api.employee_assignment_summary",
+        args: { machine_id: frm.doc.name },
+
+        callback: function (r) {
+
+            const res = r.message || {};
+            const $current = dialog.fields_dict.current.$wrapper;
+
+            if (!res.employees) {
+
+                $current.html(
+                    `<div class="alert alert-info" style="font-size:12px;padding:8px;">` +
+                    __("No Employees are linked to this machine yet. Use Create & Link Employees first.") +
+                    `</div>`
+                );
+
+                dialog.get_primary_btn().prop("disabled", true);
+
+                return;
+            }
+
+            const rows = (res.spread || []).map(function (row) {
+                return `<tr>
+                    <td>${frappe.utils.escape_html(row.organization_name || row.organization || "-")}</td>
+                    <td>${frappe.utils.escape_html(row.branch_name || row.branch || "-")}</td>
+                    <td>${frappe.utils.escape_html(row.shift_name || __("none"))}</td>
+                    <td style="text-align:right"><b>${row.n}</b></td>
+                </tr>`;
+            }).join("");
+
+            $current.html(`
+                <div style="font-size:12px;margin-bottom:6px;">
+                    ${__("{0} Employees are linked to this machine, and carry:", [res.employees])}
+                </div>
+                <table class="table table-sm" style="font-size:12px;margin:0;">
+                    <thead><tr>
+                        <th>${__("Organization")}</th>
+                        <th>${__("Branch")}</th>
+                        <th>${__("Shift")}</th>
+                        <th style="text-align:right">${__("People")}</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                ${res.shared
+                    ? `<div class="alert alert-warning" style="margin-top:8px;padding:8px;font-size:12px;">` +
+                      __("{0} of them also punch on another machine and will be changed too.", [res.shared]) +
+                      `</div>`
+                    : ""}
+            `);
+        }
+
+    });
+}
+
+
+function load_employee_link_plan(frm, dialog) {
+
+    const $plan = dialog.fields_dict.plan.$wrapper;
+
+    $plan.html(`<div style="font-size:12px;color:var(--text-muted)">${__("Working out the plan…")}</div>`);
+
+    frappe.call({
+
+        method: "timebridge.timebridge.api.preview_employee_link",
+
+        args: {
+            machine_id: frm.doc.name,
+            merge_same_name: dialog.get_value("merge_same_name") ? 1 : 0,
+            skip_non_person: dialog.get_value("skip_non_person") ? 1 : 0
+        },
+
+        callback: function (r) {
+
+            const res = r.message || {};
+            const counts = res.counts || {};
+            const rows = res.rows || [];
+
+            // Only fill these if untouched, so a re-read after flicking a
+            // switch cannot overwrite what the operator has already chosen.
+            const defaults = res.defaults || {};
+
+            if (!dialog.get_value("organization") && defaults.organization) {
+                dialog.set_value("organization", defaults.organization);
+            }
+
+            if (!dialog.get_value("branch") && defaults.branch) {
+                dialog.set_value("branch", defaults.branch);
+            }
+
+            if (!dialog.get_value("shift") && defaults.shift) {
+                dialog.set_value("shift", defaults.shift);
+            }
+
+            if (!rows.length) {
+
+                // Saying only "nothing to do" invites the reader to change the
+                // fields above and press again, which does nothing — those
+                // fields only ever apply to people being created.
+                $plan.html(
+                    `<div class="alert alert-info" style="font-size:12px;padding:8px;">` +
+                    (counts.already_linked
+                        ? __("Every device user on this machine already has an Employee. To change their Organization, Branch or Shift, close this and use <b>Update Organization / Shift</b> — the fields above apply only to newly created Employees.")
+                        : __("This machine has no device users yet. Fetch from the device first.")) +
+                    `</div>`
+                );
+
+                dialog.get_primary_btn().prop("disabled", true);
+
+                return;
+            }
+
+            dialog.get_primary_btn().prop("disabled", false);
+
+            const summary = [
+                `<b>${counts.create || 0}</b> ${__("to create")}`,
+                `<b>${counts.link || 0}</b> ${__("matched to existing Employees")}`,
+                `<b>${counts.already_linked || 0}</b> ${__("already linked")}`,
+                `<b>${counts.skipped || 0}</b> ${__("skipped")}`
+            ].join(" &middot; ");
+
+            const body = rows.map(function (row) {
+
+                const ids = frappe.utils.escape_html(row.user_ids.join(", "));
+                const merged = row.user_ids.length > 1;
+
+                return `<tr>
+                    <td>${frappe.utils.escape_html(row.user_name || "")}</td>
+                    <td>${ids}${merged ? ` <span style="color:var(--orange-600)">(${__("one person, {0} enrolments", [row.user_ids.length])})</span>` : ""}</td>
+                    <td>${row.action === "link"
+                        ? `<span style="color:var(--blue-600)">${__("link to")} ${frappe.utils.escape_html(row.employee)}</span>`
+                        : `<span style="color:var(--green-600)">${__("create")}</span> <code>${frappe.utils.escape_html(row.employee_code)}</code>`}</td>
+                </tr>`;
+
+            }).join("");
+
+            const skipped = (res.skipped || []).length
+                ? `<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">` +
+                  __("Skipped") + ": " +
+                  frappe.utils.escape_html(res.skipped.map(s => `${s.user_name} (${s.user_id})`).join(", ")) +
+                  `</div>`
+                : "";
+
+            $plan.html(`
+                <div style="font-size:12px;margin-bottom:8px;">${summary}</div>
+                <div style="max-height:260px;overflow:auto;border:1px solid var(--border-color);border-radius:4px;">
+                    <table class="table table-sm" style="font-size:12px;margin:0;">
+                        <thead><tr>
+                            <th>${__("Name on device")}</th>
+                            <th>${__("Device ID")}</th>
+                            <th>${__("Action")}</th>
+                        </tr></thead>
+                        <tbody>${body}</tbody>
+                    </table>
+                </div>
+                ${skipped}
+            `);
+        },
+
+        error: function () {
+            $plan.html(`<div style="color:var(--red-500);font-size:12px;">${__("Could not read the plan.")}</div>`);
+        }
+
+    });
+}
 
 
 function rebuild_attendance_dialog(frm) {
@@ -175,6 +622,206 @@ function rebuild_attendance_dialog(frm) {
 
 
 function start_fetch_all(frm) {
+
+    // The two transports make this button mean different things. A dialable
+    // device is read here and now, so how far back to read is a real question
+    // with a real cost — a full history can be tens of thousands of rows. A
+    // push device is only asked to re-send and answers on its own timer, so
+    // there is nothing to choose and asking would be noise.
+    if ((frm.doc.sdk_type || "") === "ADMS") {
+        start_push_fetch(frm);
+        return;
+    }
+
+    const dialog = new frappe.ui.Dialog({
+
+        title: __("Fetch From Device"),
+
+        fields: [
+            {
+                fieldname: "info",
+                fieldtype: "HTML",
+                options: `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">` +
+                    __("The device is read directly. It goes offline for a few seconds while its records are copied, so avoid doing this at a shift change.") +
+                    `</div>`
+            },
+            {
+                fieldname: "window",
+                fieldtype: "Select",
+                label: __("How far back"),
+                default: "30",
+                options: [
+                    { value: "7", label: __("Last 7 days") },
+                    { value: "30", label: __("Last 30 days") },
+                    { value: "90", label: __("Last 90 days") },
+                    { value: "0", label: __("Everything on the device") }
+                ],
+                description: __("Punches already stored are skipped, so a wider window costs time but never duplicates.")
+            }
+        ],
+
+        primary_action_label: __("Fetch"),
+
+        primary_action(values) {
+            dialog.hide();
+            start_pull_fetch(frm, cint(values.window));
+        }
+
+    });
+
+    dialog.show();
+}
+
+
+function start_pull_fetch(frm, days) {
+
+    const dialog = new frappe.ui.Dialog({
+        title: __("Fetching From Device"),
+        primary_action_label: __("Close"),
+        primary_action: () => dialog.hide(),
+        onhide: () => { if (timer) { clearInterval(timer); timer = null; } }
+    });
+
+    let timer = null;
+
+    dialog.$body.html(`
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+            ${frappe.utils.escape_html(frm.doc.machine_name || frm.doc.name)}
+            &middot; ${frappe.utils.escape_html(endpoint_label(frm))}
+        </div>
+        <div class="pf-note" style="font-size:13px;margin-bottom:6px;"></div>
+        <div class="pf-detail" style="font-size:12px;color:var(--text-muted);"></div>
+        <div class="pf-counts" style="font-size:12px;margin-top:10px;"></div>
+        <div class="pf-hint alert alert-info hidden"
+             style="margin-top:10px;font-size:12px;padding:8px;"></div>
+    `);
+
+    dialog.show();
+
+    const $note = dialog.$body.find(".pf-note");
+    const $detail = dialog.$body.find(".pf-detail");
+    const $counts = dialog.$body.find(".pf-counts");
+    const $hint = dialog.$body.find(".pf-hint");
+
+    $note.html(__("Queuing…"));
+
+    frappe.call({
+
+        method: "timebridge.timebridge.api.request_all_data",
+        args: { machine_id: frm.doc.name, days: days },
+
+        callback: function (r) {
+
+            const res = r.message || {};
+
+            if (res.status !== "queued") {
+                $note.html(`<b style="color:var(--red-500)">${frappe.utils.escape_html(res.message || __("Could not queue the fetch."))}</b>`);
+                return;
+            }
+
+            // A machine whose SDK Type was changed while this form sat open
+            // would otherwise be polled on the wrong channel and appear stuck.
+            if (res.mode === "push") {
+                dialog.hide();
+                start_push_fetch(frm);
+                return;
+            }
+
+            let waited = 0;
+
+            $note.html(__("Waiting for a background worker…"));
+
+            timer = setInterval(function () {
+
+                waited += POLL_SECONDS;
+
+                frappe.call({
+
+                    method: "timebridge.timebridge.api.pull_sync_progress",
+                    args: { machine_id: frm.doc.name },
+
+                    callback: function (p) {
+
+                        const st = p.message || {};
+
+                        if (st.stage) {
+                            $note.html(frappe.utils.escape_html(st.stage));
+                        }
+
+                        $detail.html(st.detail ? frappe.utils.escape_html(st.detail) : "");
+
+                        if (st.status === "queued" && waited >= WORKER_PICKUP_SECONDS) {
+                            $hint.removeClass("hidden").html(
+                                __("No worker has picked this up yet. If it stays here, the background workers are not running — start the bench with <code>bench start</code>.")
+                            );
+                        } else if (st.status !== "queued") {
+                            $hint.addClass("hidden");
+                        }
+
+                        if (st.status === "success") {
+
+                            clearInterval(timer);
+                            timer = null;
+
+                            const punches = st.punches || {};
+                            const users = st.users || {};
+
+                            $note.html(`<b style="color:var(--green-500)">${__("Done.")}</b>`);
+                            $detail.html("");
+
+                            $counts.html(
+                                `<div>${__("New punches")}: <b>${punches.created || 0}</b></div>` +
+                                `<div>${__("Already stored")}: <b>${punches.duplicates || 0}</b></div>` +
+                                `<div>${__("New users")}: <b>${users.created || 0}</b>` +
+                                (users.updated ? ` (${users.updated} ${__("updated")})` : "") + `</div>` +
+                                (punches.outside_window
+                                    ? `<div style="color:var(--text-muted);margin-top:6px;">` +
+                                      __("{0} punches on the device are older than the window you chose.", [punches.outside_window]) +
+                                      `</div>`
+                                    : "") +
+                                (punches.unmatched
+                                    ? `<div class="alert alert-warning" style="margin-top:8px;padding:8px;">` +
+                                      __("{0} punches belong to device users with no Employee linked yet. Link them on the Machine User record and they will attach themselves.", [punches.unmatched]) +
+                                      `</div>`
+                                    : "") +
+                                `<div style="margin-top:8px;">` +
+                                __("Run <b>Rebuild Attendance</b> next to turn these punches into attendance.") +
+                                `</div>`
+                            );
+
+                            frm.reload_doc();
+
+                            return;
+                        }
+
+                        if (st.status === "failed") {
+
+                            clearInterval(timer);
+                            timer = null;
+
+                            $note.html(`<b style="color:var(--red-500)">${__("Fetch failed")}</b>`);
+                            $detail.html(frappe.utils.escape_html(st.message || ""));
+
+                            frm.reload_doc();
+                        }
+
+                    }
+
+                });
+
+            }, POLL_SECONDS * 1000);
+
+        },
+
+        error: function () {
+            $note.html(`<b style="color:var(--red-500)">${__("Could not reach the server.")}</b>`);
+        }
+
+    });
+}
+
+
+function start_push_fetch(frm) {
 
     const dialog = new frappe.ui.Dialog({
         title: __("Fetching From Device"),
@@ -440,7 +1087,7 @@ function poll_progress(frm, progress, run_id, budget_seconds) {
                     if (data.is_push) {
                         progress.explain_push(data.message, data.machine_status, false);
                     } else {
-                        progress.fail(data.failed_step, data.message, data.machine_status);
+                        progress.fail(data.failed_step, data.message, data.machine_status, data.reason);
                     }
 
                     frm.reload_doc();
@@ -478,6 +1125,10 @@ function open_progress_dialog(frm) {
 
     dialog.$body.html(progress_html(frm));
     dialog.show();
+
+    // Held so the port search can close this one before opening the retry —
+    // otherwise the failed dialog stays sitting behind the new one.
+    frm.__tb_progress_dialog = dialog;
 
     // Nothing useful can be done mid-run, and a half-read device should not
     // be left behind by a stray click. Re-enabled when the job settles.
@@ -701,7 +1352,7 @@ function open_progress_dialog(frm) {
             settle("success");
         },
 
-        fail(step, message, machine_status) {
+        fail(step, message, machine_status, reason) {
 
             show_machine_status(machine_status);
 
@@ -722,6 +1373,29 @@ function open_progress_dialog(frm) {
                 .text(message || __("Unknown error"));
 
             settle("failed");
+
+            // A rejected comm key is not a network fault: the port was open and
+            // the device answered, it just refused us. Searching for a port
+            // here would report "no port is open", which is untrue and sends
+            // the reader off to restart a device that is behaving correctly.
+            if (reason === "unauthenticated") {
+
+                $body.find(".tb-blocked").removeClass("hidden").html(
+                    `<div style="font-weight:600;margin-bottom:6px;">` +
+                    __("The device refused the Communication Password.") +
+                    `</div>` +
+                    `<div>` +
+                    __("Read the key off the device — <b>Menu → Comm → PC Connection</b> (called Comm Key or Security on some firmware) — and enter it in <b>Communication Password</b> here. Setting it to 0 on the device works too, as long as this field is 0 as well.") +
+                    `</div>`
+                );
+
+                return;
+            }
+
+            // Only after the failure is already on screen. Finding the port is
+            // an extra kindness, not part of the test — if it errors or finds
+            // nothing, the dialog stays exactly as it was.
+            offer_port_search(frm, $body);
         }
 
     };
@@ -775,7 +1449,7 @@ function progress_html(frm) {
 
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">
             ${frappe.utils.escape_html(frm.doc.machine_name || frm.doc.name)}
-            &middot; ${frappe.utils.escape_html(frm.doc.ip_address || "")}:${frappe.utils.escape_html(String(frm.doc.port || ""))}
+            &middot; ${frappe.utils.escape_html(endpoint_label(frm))}
         </div>
 
         <div class="tb-note" style="min-height:18px;font-size:12px;color:var(--text-color);"></div>
@@ -981,6 +1655,9 @@ function start_photo_fetch(frm) {
                             `<div>${__("Employees with a photo")}: <b>${st.with_photo || 0}</b> / ${st.users || 0}</div>` +
                             `<div style="color:var(--text-muted);margin-top:6px;">` +
                             `${__("Device last spoke")}: ${st.last_contact || __("never")}</div>` +
+                            (st.fetch_round
+                                ? `<div style="color:var(--text-muted);">${__("Query form")}: ${st.fetch_round} / 3</div>`
+                                : "") +
                             `<div style="color:var(--text-muted);">${__("Waiting")}: ${waited}s</div>`
                         );
 
@@ -1014,7 +1691,7 @@ function start_photo_fetch(frm) {
                             if (gained === 0) {
                                 $note.html(`<b style="color:var(--orange-500)">${__("No photos in {0} seconds.", [PHOTO_GIVE_UP_SECONDS])}</b>`);
                                 $hint.removeClass("hidden").html(
-                                    __("The device kept talking to us but sent no pictures — it most likely stores only the face template, not a photograph. Look for an option like Save Photo or Attendance Photo in the device menu. Until then, photos can be attached by hand on each Machine User or Employee.")
+                                    __("Three query forms were tried (bulk with tabs, bulk with commas, then one request per person). Daily punch snapshots are ignored on purpose. If this stays at zero, the firmware is not re-sending Bio-Photo over ADMS — use Upload Photos with files named like 3.jpg.")
                                 );
                             }
                         }
@@ -1165,4 +1842,266 @@ function match_uploaded_photos(frm, file_urls) {
 
     });
 
+}
+
+
+/**
+ * When the test fails, go and look for the port ourselves.
+ *
+ * "Connection refused" tells the user the configured port did not answer and
+ * stops there, which is where the guessing used to start — was the address
+ * wrong, was the device off, or was it sitting right there on another port?
+ * Finding out meant someone running probes at a terminal.
+ *
+ * So the dialog now does that itself, and says which of the three it is. It
+ * runs only after a failure has already been drawn, so a successful test is
+ * untouched, and any error here leaves the dialog exactly as it was.
+ */
+function offer_port_search(frm, $body) {
+
+    if (!frm.doc.ip_address || $body.find(".tb-portscan").length) {
+        return;
+    }
+
+    const $panel = $(`
+        <div class="tb-portscan" style="margin-top:10px;padding-top:10px;
+             border-top:1px solid var(--border-color);font-size:12px;">
+            <div class="tb-portscan-msg" style="color:var(--text-muted)">
+                ${__("Looking for the right port…")}
+            </div>
+        </div>
+    `).appendTo($body);
+
+    frappe.call({
+
+        method: "timebridge.timebridge.api.find_device_port",
+        args: { machine_id: frm.doc.name },
+
+        callback: function (r) {
+
+            const res = r.message || {};
+
+            if (!res.checked) {
+                $panel.remove();
+                return;
+            }
+
+            // The device is there and talking on another port. This is the
+            // only case worth a button, because it is the only one where we
+            // know what to change.
+            if (res.suggestion) {
+
+                $panel.find(".tb-portscan-msg").html(`
+                    <div style="color:var(--green-600);font-weight:600;margin-bottom:2px">
+                        ${__("Found it — the device answers on port {0}.", [res.suggestion])}
+                    </div>
+                    <div>${__("It is listening, just not on {0}.", [res.configured_port])}</div>
+                `);
+
+                $(`<button class="btn btn-xs btn-primary" style="margin-top:8px">
+                       ${__("Use {0} and test again", [res.suggestion])}
+                   </button>`)
+                    .appendTo($panel)
+                    .on("click", function () {
+
+                        $(this).prop("disabled", true).text(__("Saving…"));
+
+                        // Saved rather than set quietly: the port is part of
+                        // the record, and a change nobody can see later is a
+                        // change nobody can undo.
+                        frm.set_value("port", res.suggestion);
+
+                        frm.save().then(() => {
+                            frm.__tb_progress_dialog && frm.__tb_progress_dialog.hide();
+                            start_connection_test(frm);
+                        });
+                    });
+
+                return;
+            }
+
+            // Something answered — a refusal counts — so the address is right
+            // and the device has power. Nothing is serving, which on these
+            // terminals is almost always a restart away.
+            if (res.reachable) {
+
+                $panel.find(".tb-portscan-msg").html(`
+                    <div style="color:var(--orange-600);font-weight:600;margin-bottom:2px">
+                        ${__("The device is awake, but no port is open.")}
+                    </div>
+                    <div>${__("Switch it off and on — network settings only take effect after a restart.")}</div>
+                `);
+
+                return;
+            }
+
+            $panel.find(".tb-portscan-msg").html(`
+                <div style="color:var(--red-500);font-weight:600;margin-bottom:2px">
+                    ${__("Nothing answered at {0}.", [res.ip_address])}
+                </div>
+                <div>${__("Either the address is wrong, or the device is on a different network from this server.")}</div>
+            `);
+        },
+
+        error: function () {
+            $panel.remove();
+        }
+
+    });
+}
+
+
+// A punch is answered within a second or two, so there is no point asking
+// more often than this — and a session can be left open for a long while.
+const COLLECT_POLL_SECONDS = 3;
+
+
+/**
+ * Watch photographs arrive, one person at a time.
+ *
+ * This collects nothing itself. Pictures come because people punch and the
+ * device is set to photograph them; all that was missing was somewhere to see
+ * how far along it is. Without that the job has no end — you cannot tell who
+ * is still outstanding, or when to switch the camera back off.
+ */
+function start_photo_collection(frm) {
+
+    let timer = null;
+
+    const dialog = new frappe.ui.Dialog({
+        title: __("Collect Photos"),
+        size: "large",
+        primary_action_label: __("Close"),
+        primary_action: () => dialog.hide(),
+        // Collection is passive, so closing costs nothing — photographs keep
+        // arriving, they simply stop being watched.
+        onhide: () => { if (timer) { clearInterval(timer); timer = null; } }
+    });
+
+    dialog.$body.html(`
+        <div style="font-size:13px;margin-bottom:10px;">
+            ${__("Have everyone punch once. Each photograph appears here as it arrives.")}
+        </div>
+        <div class="pc-bar-wrap" style="background:var(--gray-200);border-radius:6px;
+             height:8px;overflow:hidden;margin-bottom:6px;">
+            <div class="pc-bar" style="height:100%;width:0;background:var(--green-500);
+                 transition:width .3s;"></div>
+        </div>
+        <div class="pc-count" style="font-size:12px;color:var(--text-muted);
+             margin-bottom:12px;">&nbsp;</div>
+        <div class="pc-lists" style="display:flex;gap:18px;"></div>
+        <div class="pc-hint" style="margin-top:12px;padding-top:10px;
+             border-top:1px solid var(--border-color);font-size:11.5px;
+             color:var(--text-muted);">
+            ${__("No photographs arriving? Check Camera Mode on the device — it must be set to save a photo.")}
+        </div>
+    `);
+
+    dialog.show();
+
+    function render(status) {
+
+        const done = status.done || [];
+        const pending = status.pending || [];
+        const total = status.total || 0;
+
+        const pct = total ? Math.round((done.length / total) * 100) : 0;
+
+        dialog.$body.find(".pc-bar").css("width", pct + "%");
+        dialog.$body.find(".pc-count").text(
+            __("{0} of {1} collected", [done.length, total])
+        );
+
+        // The retake mark sits beside a finished name rather than in a menu:
+        // the moment you notice a bad photograph is the moment you are looking
+        // at this list.
+        const done_rows = done.map(p => `
+            <li style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                <span style="color:var(--green-600)">&#10003;</span>
+                <span style="flex:1">${frappe.utils.escape_html(p.name)}</span>
+                <span class="pc-retake" data-mu="${p.machine_user}"
+                      title="${__("Take a new photo on the next punch")}"
+                      style="cursor:pointer;color:var(--text-muted);">&#8635;</span>
+            </li>`).join("");
+
+        const pending_rows = pending.map(p => `
+            <li style="display:flex;align-items:center;gap:6px;padding:3px 0;
+                       color:var(--text-muted)">
+                <span>&#9675;</span>
+                <span>${frappe.utils.escape_html(p.name)}</span>
+                ${p.retaking ? `<span style="font-size:10px;color:var(--orange-600)">
+                    ${__("retaking")}</span>` : ""}
+            </li>`).join("");
+
+        dialog.$body.find(".pc-lists").html(`
+            <div style="flex:1">
+                <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+                     color:var(--text-muted);margin-bottom:4px;">
+                    ${__("Collected")} (${done.length})
+                </div>
+                <ul style="list-style:none;padding:0;margin:0;font-size:12.5px;">
+                    ${done_rows || `<li style="color:var(--text-muted)">—</li>`}
+                </ul>
+            </div>
+            <div style="flex:1">
+                <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+                     color:var(--text-muted);margin-bottom:4px;">
+                    ${__("Still to come")} (${pending.length})
+                </div>
+                <ul style="list-style:none;padding:0;margin:0;font-size:12.5px;">
+                    ${pending_rows || `<li style="color:var(--text-muted)">—</li>`}
+                </ul>
+            </div>
+        `);
+
+        if (status.finished) {
+
+            if (timer) { clearInterval(timer); timer = null; }
+
+            dialog.$body.find(".pc-hint").html(`
+                <div style="color:var(--green-600);font-weight:600;">
+                    ${__("Everyone has a photograph.")}
+                </div>
+                <div>${__("Set Camera Mode back to “No photo” on the device, so it stops filling its own memory.")}</div>
+            `);
+        }
+    }
+
+    function poll(method) {
+
+        frappe.call({
+            method: "timebridge.timebridge.api." + method,
+            args: { machine_id: frm.doc.name },
+            callback: (r) => r.message && render(r.message),
+            // A single failed poll is not worth interrupting a session that
+            // may be left open for an hour; the next one will report.
+            error: () => {}
+        });
+    }
+
+    dialog.$body.on("click", ".pc-retake", function () {
+
+        const machine_user = $(this).attr("data-mu");
+
+        frappe.call({
+            method: "timebridge.timebridge.api.request_photo_retake",
+            args: { machine_user: machine_user },
+            callback: () => {
+                // Restart the watch: a finished session stopped polling, and
+                // a retake gives it something to wait for again.
+                if (!timer) {
+                    timer = setInterval(() => poll("photo_collection_status"),
+                                        COLLECT_POLL_SECONDS * 1000);
+                }
+                poll("photo_collection_status");
+            }
+        });
+    });
+
+    // The first call also opens the transfer switch, without which the device
+    // is not permitted to send pictures at all.
+    poll("start_photo_collection");
+
+    timer = setInterval(() => poll("photo_collection_status"),
+                        COLLECT_POLL_SECONDS * 1000);
 }

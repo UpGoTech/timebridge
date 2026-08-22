@@ -3,6 +3,17 @@
 
 frappe.ui.form.on("TimeBridge Leave", {
 
+    setup(frm) {
+
+        // Only types still in use. Without this, unticking Active on a leave
+        // type retired it everywhere except the one place people pick from —
+        // so a type nobody was meant to use again kept being offered.
+        //
+        // This narrows the picker, not the field: a leave already recorded
+        // against a retired type still opens and still reads correctly.
+        frm.set_query("leave_type", () => ({ filters: { is_active: 1 } }));
+    },
+
     refresh: show_balance,
     employee: show_balance,
     leave_type: show_balance,

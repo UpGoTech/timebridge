@@ -15,7 +15,7 @@ back?": we cannot fetch them, but we can ask the device to send them again.
 
 import frappe
 
-from frappe.utils import now_datetime
+from frappe.utils import cint, now_datetime
 
 # Commands wait in the cache rather than a DocType: they are meaningful for
 # minutes, are consumed exactly once, and a queue that survives a restart
@@ -131,6 +131,115 @@ def resend_attendance_between(start, end):
     """
 
     return f"DATA QUERY ATTLOG StartTime={start}\tEndTime={end}"
+
+
+PHOTO_FETCH_TTL = 600
+PHOTO_FETCH_ROUNDS = 3
+
+
+def photo_fetch_key(machine):
+
+    return f"timebridge_photo_fetch::{machine}"
+
+
+def photo_query_round(machine, round_no):
+    """
+    Enrolment-picture queries, in the dialects this firmware family uses.
+
+    Round 1 uses tabs: the same split ATTLOG already proved on this device.
+    Comma form was tried first and collected with no pictures coming back.
+    Round 3 asks per PIN, which is how Bio-Photo import gets faces the bulk
+    query will not re-send.
+    """
+
+    if round_no == 1:
+
+        return [
+            "DATA QUERY tablename=biophoto\tfielddesc=*\tfilter=*",
+            "DATA QUERY tablename=userpic\tfielddesc=*\tfilter=*",
+            "DATA QUERY tablename=biophoto\tfielddesc=*\tfilter=Type=9",
+        ]
+
+    if round_no == 2:
+
+        return [
+            "DATA QUERY tablename=biophoto,fielddesc=*,filter=*",
+            "DATA QUERY tablename=userpic,fielddesc=*,filter=*",
+            "DATA QUERY USERPIC",
+            "DATA QUERY BIOPHOTO",
+        ]
+
+    pins = frappe.get_all(
+        "Machine User",
+        filters={"machine": machine},
+        pluck="user_id",
+    )
+
+    commands = []
+
+    for pin in pins:
+
+        if not pin:
+            continue
+
+        commands.append(
+            f"DATA QUERY tablename=biophoto\tfielddesc=*\tfilter=PIN={pin}"
+        )
+        commands.append(f"DATA QUERY USERPIC PIN={pin}")
+
+    return commands
+
+
+def start_enroll_photo_fetch(machine, baseline=0):
+
+    frappe.cache().set_value(
+        photo_fetch_key(machine),
+        {"round": 1, "baseline": cint(baseline)},
+        expires_in_sec=PHOTO_FETCH_TTL,
+    )
+
+    for command in photo_query_round(machine, 1):
+        queue_command(machine, command)
+
+
+def advance_enroll_photo_fetch(machine, photos_now=0):
+    """
+    Queue the next dialect once the device has taken the last batch and still
+    sent no enrolment pictures. No-op while commands are waiting, after a
+    picture has arrived, or after the last round.
+    """
+
+    if pending_count(machine):
+        return None
+
+    state = frappe.cache().get_value(photo_fetch_key(machine)) or {}
+
+    if not state:
+        return None
+
+    if cint(photos_now) > cint(state.get("baseline")):
+        return None
+
+    current = cint(state.get("round") or 1)
+
+    if current >= PHOTO_FETCH_ROUNDS:
+        return None
+
+    nxt = current + 1
+    commands = photo_query_round(machine, nxt)
+
+    if not commands:
+        return None
+
+    for command in commands:
+        queue_command(machine, command)
+
+    state["round"] = nxt
+    frappe.cache().set_value(
+        photo_fetch_key(machine), state, expires_in_sec=PHOTO_FETCH_TTL
+    )
+
+    return nxt
 
 
 def record_contact(machine, kind):

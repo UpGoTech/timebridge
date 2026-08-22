@@ -23,25 +23,35 @@ def get_device_info(machine_id):
 @frappe.whitelist()
 def request_all_data(machine_id, days=30):
     """
-    Ask a push device to upload its users and recent attendance.
+    Bring in a device's users and recent attendance.
 
-    This does not fetch anything itself — it cannot. The device accepts no
-    incoming connections, so the request waits until the device next polls us
-    (roughly every 30s, per the Delay we send in the handshake) and the data
-    arrives afterwards on its own.
+    How that happens depends on the transport, and the two are not comparable.
+    A dialable device is read on demand: we open a session and empty it, and
+    the answer is a job to watch. A push device accepts no incoming connection
+    at all, so it can only be *asked* — the request waits until it next polls
+    us (roughly every 30s, per the Delay in our handshake) and the data follows
+    on its own afterwards.
 
     A dated range rather than CHECK, deliberately: CHECK returns nothing on
     this hardware once the device believes its records were delivered, whereas
     an explicit range ignores that pointer. Users are requested first so the
     punches that follow already have names to attach to.
 
-    Safe to press twice: punches carry their original timestamps and the
-    unique punch_key rejects anything already stored.
+    Safe to press twice either way: punches carry their original timestamps and
+    the unique punch_key rejects anything already stored.
     """
 
     from timebridge.timebridge.adms import commands
+    from timebridge.timebridge.services.connection import is_push_device
+    from timebridge.timebridge.services.pull_sync import enqueue_pull_sync
 
     machine = frappe.get_doc("Biometric Machine", machine_id)
+
+    # Serial number is how a pushed batch is matched back to its machine. A
+    # dialed device needs no such match — we know who we called — so the check
+    # below must not stand in its way.
+    if not is_push_device(machine):
+        return enqueue_pull_sync(machine_id, days=days)
 
     if not machine.serial_number:
         return {
@@ -67,6 +77,7 @@ def request_all_data(machine_id, days=30):
 
     return {
         "status": "queued",
+        "mode": "push",
         "command_id": command_id,
         "serial": machine.serial_number,
         "days": days,
@@ -314,14 +325,17 @@ def request_photos(machine_id):
 
     frappe.db.set_single_value("TimeBridge Settings", "enable_photo_transfer", 1)
 
-    for command in ("DATA QUERY USERPIC", "DATA QUERY BIODATA", "DATA QUERY FACE"):
-        commands.queue_command(machine_id, command)
+    baseline = frappe.db.count(
+        "Machine User",
+        {"machine": machine_id, "photo": ["is", "set"]},
+    )
 
+    commands.start_enroll_photo_fetch(machine_id, baseline)
     frappe.db.commit()
 
     return {
         "status": "queued",
-        "baseline_photos": frappe.db.count("File", {"attached_to_doctype": "Machine User"}),
+        "baseline_photos": baseline,
         "last_contact": contact.get("at"),
         "message": "Photo switches opened and the request queued. Waiting for the "
                    "device to collect it.",
@@ -362,11 +376,22 @@ def photo_fetch_status(machine_id, last_contact_before=None):
         frappe.db.commit()
         reverted = True
 
+    photos_now = frappe.db.count(
+        "Machine User",
+        {"machine": machine_id, "photo": ["is", "set"]},
+    )
+
+    if not went_quiet and not reverted:
+        commands.advance_enroll_photo_fetch(machine_id, photos_now)
+
+    fetch_state = frappe.cache().get_value(commands.photo_fetch_key(machine_id)) or {}
+
     return {
-        "photos": frappe.db.count("File", {"attached_to_doctype": "Machine User"}),
-        "with_photo": frappe.db.count("Machine User", {"photo": ["is", "set"]}),
+        "photos": photos_now,
+        "with_photo": photos_now,
         "users": frappe.db.count("Machine User", {"machine": machine_id}),
         "pending_commands": commands.pending_count(machine_id),
+        "fetch_round": cint(fetch_state.get("round")),
         "last_contact": contact.get("at"),
         "minutes_quiet": minutes_quiet,
         "device_quiet": went_quiet,
@@ -517,6 +542,99 @@ def fetch_status(machine_id):
 
 
 @frappe.whitelist()
+def preview_employee_link(machine_id, skip_non_person=1, merge_same_name=1):
+    """
+    What would attaching this machine's users to Employees do?
+
+    Read-only on purpose. Names are the only evidence a device gives, so the
+    operator sees the whole plan — who is matched, who would be created under
+    which code, and who is left out — before anything is written.
+    """
+
+    from timebridge.timebridge.services.employee_link import plan
+
+    return plan(
+        machine_id,
+        skip_non_person=cint(skip_non_person),
+        merge_same_name=cint(merge_same_name),
+    )
+
+
+@frappe.whitelist()
+def create_and_link_employees(
+    machine_id,
+    date_of_joining,
+    organization,
+    branch,
+    shift=None,
+    skip_non_person=1,
+    merge_same_name=1,
+):
+    """
+    Create the Employees this machine's users need, attach them, and backfill.
+
+    Synchronous: a few hundred inserts finish well inside a request, and the
+    operator is waiting on the answer to decide whether to rebuild attendance.
+    """
+
+    from timebridge.timebridge.services.employee_link import apply_plan
+
+    return apply_plan(
+        machine_id,
+        date_of_joining=date_of_joining,
+        organization=organization,
+        branch=branch,
+        shift=shift or None,
+        skip_non_person=cint(skip_non_person),
+        merge_same_name=cint(merge_same_name),
+    )
+
+
+@frappe.whitelist()
+def employee_assignment_summary(machine_id):
+    """What Organization, Branch and Shift this machine's Employees carry now."""
+
+    from timebridge.timebridge.services.employee_link import assignment_summary
+
+    return assignment_summary(machine_id)
+
+
+@frappe.whitelist()
+def update_employee_assignment(machine_id, organization=None, branch=None, shift=None):
+    """
+    Change Organization / Branch / Shift on this machine's existing Employees.
+
+    Separate from create_and_link_employees on purpose: that one only ever fills
+    in people who have none, so it cannot be used to correct the people it
+    already created. This corrects them without disturbing a single link.
+    """
+
+    from timebridge.timebridge.services.employee_link import apply_assignment
+
+    return apply_assignment(
+        machine_id,
+        organization=organization or None,
+        branch=branch or None,
+        shift=shift or None,
+    )
+
+
+@frappe.whitelist()
+def pull_sync_progress(machine_id):
+    """
+    Where has the queued fetch got to?
+
+    Separate from get_device_info_progress because the two runs are independent
+    and can overlap — sharing one cache key would let a connection test
+    overwrite the progress of a fetch that is still storing rows.
+    """
+
+    from timebridge.timebridge.services.pull_sync import get_progress as pull_progress
+
+    return pull_progress(machine_id)
+
+
+@frappe.whitelist()
 def get_device_info_progress(machine_id):
     """
     Where has the queued device read got to?
@@ -600,3 +718,166 @@ def test_connection(machine_id):
             "message": str(e)
         }
         
+
+# Ports a ZK-family terminal is actually likely to be speaking on. 4370 is the
+# documented default and the one every setup guide repeats, but firmwares in
+# the field drift: the K300 at Dantoli answers on 4368 and refuses 4370
+# outright. Telnet and HTTP are probed too — not as candidates, but because an
+# open one proves the device is alive and only the service port is wrong.
+ZK_PORT_CANDIDATES = (4370, 4368, 4369, 4371, 4372, 5005, 5010, 5500)
+LIVENESS_PORTS = (23, 80, 8080)
+
+# One second each. Eight candidates plus three liveness checks is eleven
+# seconds worst case, and every one of them is a port that either answers at
+# once or is not there — a longer wait buys nothing.
+PORT_PROBE_TIMEOUT = 1
+
+
+@frappe.whitelist()
+def find_device_port(machine_id):
+    """
+    Work out which port a device is really listening on.
+
+    Test Connection can only report that the configured port did not answer.
+    That leaves three very different situations looking identical: the address
+    is wrong, the device is asleep, or the device is right there but listening
+    somewhere else. Telling them apart used to mean someone running probes by
+    hand at a terminal.
+
+    Nothing here changes the machine. It reports what it found and leaves the
+    decision — and the saving — to whoever pressed the button.
+    """
+
+    from timebridge.timebridge.services.device_info import probe_socket
+
+    machine = frappe.db.get_value(
+        "Biometric Machine", machine_id, ["ip_address", "port"], as_dict=True
+    )
+
+    if not machine or not machine.ip_address:
+        return {"checked": False, "message": "This machine has no IP address to scan."}
+
+    configured = cint(machine.port)
+
+    open_ports = []
+    refused = False
+
+    def look(port):
+        """A refused connection is a live host saying no — worth knowing."""
+
+        nonlocal refused
+
+        ok, detail = probe_socket(machine.ip_address, port, timeout=PORT_PROBE_TIMEOUT)
+
+        if ok:
+            open_ports.append(port)
+        elif "refused" in (detail or "").lower():
+            refused = True
+
+    for port in ZK_PORT_CANDIDATES:
+        look(port)
+
+    for port in LIVENESS_PORTS:
+        look(port)
+
+    # Only a plausible protocol port is offered as the answer. Telnet being
+    # open says the device is awake; it does not mean attendance can be read
+    # over it, and suggesting it would send someone down a dead end.
+    suggestion = next(
+        (p for p in ZK_PORT_CANDIDATES if p in open_ports and p != configured), None
+    )
+
+    return {
+        "checked": True,
+        "ip_address": machine.ip_address,
+        "configured_port": configured,
+        "open_ports": open_ports,
+        "suggestion": suggestion,
+        # Something answered — either an open port or an explicit refusal — so
+        # the address itself is right and the device is powered on.
+        "reachable": bool(open_ports) or refused,
+    }
+
+
+@frappe.whitelist()
+def start_photo_collection(machine_id):
+    """
+    Open a photo-collecting session and report where it stands.
+
+    Collecting is not something this can do on its own: pictures arrive
+    because people punch, and the device has to be set to photograph them.
+    What is missing without this is any sense of progress — sixteen names to
+    keep in your head, and no moment where the job is done.
+
+    The transfer switch is opened here because a session with it shut would
+    wait forever for photographs the device was never permitted to send.
+    """
+
+    frappe.db.set_single_value("TimeBridge Settings", "enable_photo_transfer", 1)
+    frappe.db.commit()
+
+    return photo_collection_status(machine_id)
+
+
+@frappe.whitelist()
+def photo_collection_status(machine_id):
+    """
+    Who on this device has a photograph, and who is still to be caught.
+
+    Somebody flagged for a retake counts as outstanding even though a picture
+    is on file: the one there is the one being replaced, so the job is not
+    finished until a new one lands.
+    """
+
+    rows = frappe.db.sql(
+        """
+        SELECT mu.name, mu.user_id, mu.user_name, mu.photo, mu.retake_photo,
+               emp.employee_name
+        FROM `tabMachine User` mu
+        LEFT JOIN `tabEmployee` emp ON emp.name = mu.employee
+        WHERE mu.machine = %(machine)s
+        ORDER BY CAST(mu.user_id AS UNSIGNED), mu.user_id
+        """,
+        {"machine": machine_id},
+        as_dict=True,
+    )
+
+    done = []
+    pending = []
+
+    for row in rows:
+
+        entry = {
+            "machine_user": row.name,
+            "user_id": row.user_id,
+            "name": row.employee_name or row.user_name or row.user_id,
+            "photo": row.photo,
+        }
+
+        if row.photo and not cint(row.retake_photo):
+            done.append(entry)
+        else:
+            entry["retaking"] = bool(row.photo and cint(row.retake_photo))
+            pending.append(entry)
+
+    return {
+        "total": len(rows),
+        "done": done,
+        "pending": pending,
+        "finished": bool(rows) and not pending,
+    }
+
+
+@frappe.whitelist()
+def request_photo_retake(machine_user):
+    """
+    Put one person back in the queue for a fresh photograph.
+
+    The picture already on file is left alone until a new one arrives, so a
+    poor photo is still better than none while waiting for the next punch.
+    """
+
+    frappe.db.set_value("Machine User", machine_user, "retake_photo", 1)
+    frappe.db.commit()
+
+    return {"machine_user": machine_user, "retake": True}
