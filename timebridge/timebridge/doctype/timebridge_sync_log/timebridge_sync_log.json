@@ -32,8 +32,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Biometric Machine",
-   "options": "Biometric Machine",
+   "label": "TimeBridge Machine",
+   "options": "TimeBridge Machine",
    "reqd": 1
   },
   {

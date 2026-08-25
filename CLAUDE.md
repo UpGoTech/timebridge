@@ -27,7 +27,7 @@ bench start
 bench --site <site-name> run-tests --app timebridge
 
 # Run a single test
-bench --site <site-name> run-tests --module timebridge.timebridge.doctype.biometric_machine.test_biometric_machine
+bench --site <site-name> run-tests --module timebridge.timebridge.doctype.timebridge_machine.test_timebridge_machine
 
 # Apply migrations after changing DocType JSON
 bench --site <site-name> migrate
@@ -36,7 +36,7 @@ bench --site <site-name> migrate
 bench --site <site-name> clear-cache
 
 # Export a DocType schema to JSON (after editing via UI)
-bench --site <site-name> export-doc "Biometric Machine"
+bench --site <site-name> export-doc "TimeBridge Machine"
 ```
 
 ## Architecture
@@ -60,10 +60,10 @@ timebridge/           ← Python package (app root)
 ### DocType data model
 
 ```
-Organization → Branch → Department
-                      → Shift
-                      → Employee → Machine User (links to Biometric Machine)
-Biometric Machine  ←──────────────┘
+TimeBridge Organization → TimeBridge Branch → TimeBridge Department
+                      → TimeBridge Shift
+                      → TimeBridge Employee → TimeBridge Machine User (links to TimeBridge Machine)
+TimeBridge Machine  ←──────────────┘
 TimeBridge Settings  (single DocType — global config)
 ```
 
@@ -71,7 +71,7 @@ TimeBridge Settings  (single DocType — global config)
 
 `services/connection.py::get_connector(device)` inspects `device.sdk_type` and returns the appropriate connector: `PyZKConnector` (using the `zk` Python library) for devices we dial, `ADMSConnector` (in `essl_connector.py`) for devices that dial us. `matrix_connector.py` and `custom_connector.py` are empty stubs, and `get_connector` names them as unbuilt rather than throwing "Unsupported SDK Type". `is_push_device(device)` is the test every caller uses before assuming a device can be connected to.
 
-`sdk_type` on Biometric Machine is a Select: `PyZK` / `ADMS` / `Matrix` / `Custom`, defaulting to `PyZK`. The string must match exactly — `get_connector` compares against the literal `"PyZK"`. It is deliberately separate from `device_brand`: brand is catalog metadata, `sdk_type` picks the driver. A Fabrixcel unit is brand `Other` but `sdk_type` `PyZK`.
+`sdk_type` on TimeBridge Machine is a Select: `PyZK` / `ADMS` / `Matrix` / `Custom`, defaulting to `PyZK`. The string must match exactly — `get_connector` compares against the literal `"PyZK"`. It is deliberately separate from `device_brand`: brand is catalog metadata, `sdk_type` picks the driver. A Fabrixcel unit is brand `Other` but `sdk_type` `PyZK`.
 
 `communication_password` (the ZK comm key) is deliberately an **Int**, not a `Password` fieldtype. Frappe stores `Password` fields in `__Auth` and plain attribute access returns a masked placeholder, which would be handed to `ZK()` as the key. Int also matches pyzk, which does `int(key)` in `make_commkey`. Do not "upgrade" it to `Password`.
 
@@ -85,7 +85,7 @@ Each connector must implement: `connect(device)` / `disconnect(conn)` / `get_dev
 
 ### Key API call flow
 
-The "Test Connection" button on the Biometric Machine form calls
+The "Test Connection" button on the TimeBridge Machine form calls
 `timebridge.timebridge.api.get_device_info` — the **full dotted path**. The top-level `timebridge.api` namespace is empty; a shorter path will not resolve.
 
 That endpoint is asynchronous. It only queues work and returns `{"status": "queued", "job_id": ...}`:
@@ -97,7 +97,7 @@ api.get_device_info          (whitelisted, returns immediately)
       → fetch_device_info    (synchronous — call this directly from scheduler/console)
 ```
 
-The result reaches the browser on the realtime event `timebridge_device_info`, published `after_commit=True` so the client's `frm.reload_doc()` cannot race the job's writes. The event name is a shared constant: `DEVICE_INFO_EVENT` in `services/device_info.py` and in `biometric_machine.js` — change both together.
+The result reaches the browser on the realtime event `timebridge_device_info`, published `after_commit=True` so the client's `frm.reload_doc()` cannot race the job's writes. The event name is a shared constant: `DEVICE_INFO_EVENT` in `services/device_info.py` and in `timebridge_machine.js` — change both together.
 
 Jobs are deduplicated on `timebridge_device_info::<machine_id>`, so a double-clicked button cannot open two sessions to one device. `frappe.enqueue` returns `None` when it suppresses a duplicate.
 
@@ -127,37 +127,37 @@ api.request_all_data (whitelisted)
 
 Progress is polled from the cache via `api.pull_sync_progress`, on its own key, not shared with device-info — a connection test and a fetch can legitimately overlap.
 
-### Employees and Machine Users
+### TimeBridge Employees and TimeBridge Machine Users
 
-**A sync of either kind produces only Machine Users, and attendance is built per Employee.** `attendance_sync.rebuild_for_range` begins at `p.employee IS NOT NULL`, so until a Machine User points at an Employee its punches are stored and invisible — Rebuild Attendance reports success and does nothing, because it never saw them. This is the single most confusing state in the app and it looks exactly like a bug.
+**A sync of either kind produces only TimeBridge Machine Users, and attendance is built per TimeBridge Employee.** `attendance_sync.rebuild_for_range` begins at `p.employee IS NOT NULL`, so until a TimeBridge Machine User points at a TimeBridge Employee its punches are stored and invisible — Rebuild Attendance reports success and does nothing, because it never saw them. This is the single most confusing state in the app and it looks exactly like a bug.
 
-`services/employee_link.py` closes that gap, behind the **Create & Link Employees** button. `plan()` decides and writes nothing; it returns what would happen for a human to agree to, and `apply_plan()` recomputes the same plan server-side rather than trusting rows posted back from a browser. There is no automatic matching anywhere, deliberately: a name is the only evidence a device offers, and attaching the wrong one moves one person's attendance onto another silently.
+`services/employee_link.py` closes that gap, behind the **Create & Link TimeBridge Employees** button. `plan()` decides and writes nothing; it returns what would happen for a human to agree to, and `apply_plan()` recomputes the same plan server-side rather than trusting rows posted back from a browser. There is no automatic matching anywhere, deliberately: a name is the only evidence a device offers, and attaching the wrong one moves one person's attendance onto another silently.
 
 Three rules in there exist because of what real device data turned out to look like on the Fabrixcel unit (172 enrolments):
 
-**`employee_code` is unique across every machine, but each device numbers its people from 1 independently.** Six of that device's ids were already Employee codes belonging to *different* people from another terminal — its user `4` is not the user `4` already on file. So the bare device id is used as a code only while it is free, and collisions fall back to `<machine_id>-<user_id>` (`AIFACE002-4`). Do not "tidy" this into always-prefixed or always-bare: bare is what somebody reads off the terminal, and prefixing is what keeps it honest.
+**`employee_code` is unique across every machine, but each device numbers its people from 1 independently.** Six of that device's ids were already TimeBridge Employee codes belonging to *different* people from another terminal — its user `4` is not the user `4` already on file. So the bare device id is used as a code only while it is free, and collisions fall back to `<machine_id>-<user_id>` (`AIFACE002-4`). Do not "tidy" this into always-prefixed or always-bare: bare is what somebody reads off the terminal, and prefixing is what keeps it honest.
 
-**One person can hold two enrolments.** `09` and `F09` are both Amol Bawane. Same-named users are therefore gathered onto one Employee by default, so their day is not split across two records. `merge_same_name=0` turns that off. Note the risk runs both ways — two genuinely different people with one name would be merged — which is why the preview flags every merged row instead of doing it quietly.
+**One person can hold two enrolments.** `09` and `F09` are both Amol Bawane. Same-named users are therefore gathered onto one TimeBridge Employee by default, so their day is not split across two records. `merge_same_name=0` turns that off. Note the risk runs both ways — two genuinely different people with one name would be merged — which is why the preview flags every merged row instead of doing it quietly.
 
 **`normalise()` does no fuzzy matching.** `SUVARNAJICHKAR` and `SUVARNA JICHKAR` stay different. A near-miss that silently resolves to somebody is worse than one the operator is asked about.
 
-`date_of_joining`, `organization` and `branch` are mandatory on Employee and the device knows none of them, so they come from the dialog; `suggested_defaults()` offers the commonest existing values as a starting point. `apply_plan()` finishes by calling `logger.link_unmatched_punches()`, which is what makes the *stored history* visible rather than only punches from that moment on.
+`date_of_joining`, `organization` and `branch` are mandatory on TimeBridge Employee and the device knows none of them, so they come from the dialog; `suggested_defaults()` offers the commonest existing values as a starting point. `apply_plan()` finishes by calling `logger.link_unmatched_punches()`, which is what makes the *stored history* visible rather than only punches from that moment on.
 
-**Create & Link cannot correct the people it created**, because `plan()` only ever considers Machine Users with no Employee. Changing Organization or Shift in that dialog afterwards does nothing at all, which is why its "everything is already linked" message names the other button rather than just saying there is nothing to do.
+**Create & Link cannot correct the people it created**, because `plan()` only ever considers TimeBridge Machine Users with no TimeBridge Employee. Changing TimeBridge Organization or TimeBridge Shift in that dialog afterwards does nothing at all, which is why its "everything is already linked" message names the other button rather than just saying there is nothing to do.
 
-That other button is **Update Organization / Shift** (`apply_assignment`). It is an update and only an update: no record is created, deleted or unlinked. The obvious-looking alternative — reset the links and run Create & Link again with different values — does not work and is dangerous. Re-linking matches the same Employees by name and never rewrites these fields, so nothing would change; and deleting the Employees to force a re-create would take every attendance row and every punch's `employee` with them.
+That other button is **Update TimeBridge Organization / TimeBridge Shift** (`apply_assignment`). It is an update and only an update: no record is created, deleted or unlinked. The obvious-looking alternative — reset the links and run Create & Link again with different values — does not work and is dangerous. Re-linking matches the same TimeBridge Employees by name and never rewrites these fields, so nothing would change; and deleting the TimeBridge Employees to force a re-create would take every attendance row and every punch's `employee` with them.
 
-Membership for that update comes from the Machine User links (`machine_employees()`), not `Employee.biometric_machine`, since the link is what attendance follows and `biometric_machine` names only one machine for somebody enrolled on two. Anyone shared with another machine is counted and shown before the change rather than moved quietly. `assignment_summary()` also exposes the current spread, which matters: on `BM-104987` the sixteen people hold three different shifts, and flattening those to one would be a silent loss.
+Membership for that update comes from the TimeBridge Machine User links (`machine_employees()`), not `TimeBridge Employee.biometric_machine`, since the link is what attendance follows and `biometric_machine` names only one machine for somebody enrolled on two. Anyone shared with another machine is counted and shown before the change rather than moved quietly. `assignment_summary()` also exposes the current spread, which matters: on `BM-104987` the sixteen people hold three different shifts, and flattening those to one would be a silent loss.
 
-A device photograph lands on Machine User first. `adms.photos.sync_employee_photo` already copies it onto Employee when the picture arrives *and* the person is already linked. `services/employee_photo.copy_linked_photos` is the other direction: after Create & Link, or after a pull, it copies whatever is already on the device record. It reuses that function rather than writing a second rule. pyzk 0.9 cannot read JPEGs, so a pull copies existing pictures but does not invent them from a face template.
+A device photograph lands on TimeBridge Machine User first. `adms.photos.sync_employee_photo` already copies it onto TimeBridge Employee when the picture arrives *and* the person is already linked. `services/employee_photo.copy_linked_photos` is the other direction: after Create & Link, or after a pull, it copies whatever is already on the device record. It reuses that function rather than writing a second rule. pyzk 0.9 cannot read JPEGs, so a pull copies existing pictures but does not invent them from a face template.
 
 ### Reports
 
-Three, all Script Reports on `TimeBridge Attendance`: **Attendance Report** (the register — one letter per day), **Punch Register** (the same shape with the actual In-Out times in each cell), and **Employee Attendance Detail** (one person, one month, downwards).
+Three, all Script Reports on `TimeBridge Attendance`: **Attendance Report** (the register — one letter per day), **Punch Register** (the same shape with the actual In-Out times in each cell), and **TimeBridge Employee Attendance Detail** (one person, one month, downwards).
 
 The first two share `attendance_report.get_employees()` — the only place a filter turns into a set of people, so a filter added there appears in both. Detail is not part of that: it takes a single employee and never asks the question.
 
-**The Machine filter is the one that usually does the work.** A site typically puts every employee on the same Organization, Branch and Shift, so those three narrow nothing and the reports look like they cannot separate one terminal's staff from another's. Machine can: on this database it splits 185 employees into 169 and 16 exactly. It resolves through the **Machine User links**, not `Employee.biometric_machine` — same reasoning as `machine_employees()` above, and that field is also unset for anyone linked by hand.
+**The Machine filter is the one that usually does the work.** A site typically puts every employee on the same TimeBridge Organization, TimeBridge Branch and TimeBridge Shift, so those three narrow nothing and the reports look like they cannot separate one terminal's staff from another's. Machine can: on this database it splits 185 employees into 169 and 16 exactly. It resolves through the **TimeBridge Machine User links**, not `TimeBridge Employee.biometric_machine` — same reasoning as `machine_employees()` above, and that field is also unset for anyone linked by hand.
 
 **Punch Register builds its own Excel file** (`export_excel`, wired to the toolbar's Excel button by `download_excel` in its JS) rather than calling `report.export_report()`. Frappe's export writes the grid and nothing else — no title, no machine, no month, no legend, no frozen header — and `build_xlsx_data` divides every declared column width by ten, which is what left thirty-one time columns too narrow to hold `11:38-19:01` and spilling into each other. None of that is reachable from a column definition.
 
@@ -165,7 +165,7 @@ Two things in that file are load-bearing and easy to undo:
 
 **The title rows are merged and centred across the sheet, and only the header row is frozen.** Freezing the name columns as well splits every merged title at column D, so the heading arrives cut in half. Do not put that freeze back without un-merging the titles.
 
-**The heading only names an Organization it can be sure of** — the one filtered on, or the only one that exists. There are two on this site, so with no filter the line is left off entirely rather than printing whichever came back first. Note `attendance_report.day_wise_heading` still does take the first one, and can therefore print the wrong company on a printed register; it was left alone rather than changing another report's output as a side effect. Punch Register no longer shows Organization / Branch / Department in its filter bar — Machine is what actually splits the staff, and those three were empty noise. The register still has them.
+**The heading only names a TimeBridge Organization it can be sure of** — the one filtered on, or the only one that exists. There are two on this site, so with no filter the line is left off entirely rather than printing whichever came back first. Note `attendance_report.day_wise_heading` still does take the first one, and can therefore print the wrong company on a printed register; it was left alone rather than changing another report's output as a side effect. Punch Register no longer shows TimeBridge Organization / TimeBridge Branch / TimeBridge Department in its filter bar — Machine is what actually splits the staff, and those three were empty noise. The register still has them.
 
 The response is the file itself, which is why the client posts a form at the endpoint instead of using `frappe.call`.
 
@@ -188,13 +188,13 @@ An unlisted `/iclock/*` path falls through to a normal 404 rather than being sil
 
 **Every handler returns `OK`, even after a failure.** A 500 makes the firmware discard the batch it is holding, and losing punches is worse than losing one upload. Failures go to Error Log plus a `Failed` TimeBridge Sync Log row instead. Do not "fix" this by returning real HTTP error codes.
 
-**Devices are matched on `SN` against `Biometric Machine.serial_number`, never on IP** (`logger.get_machine_by_serial`). A push whose serial matches nothing stores no records and writes an Error Log entry titled *"TimeBridge ADMS: unknown device serial"* containing the serial and the raw body — which doubles as the way to discover a new device's serial without reading it off the hardware.
+**Devices are matched on `SN` against `TimeBridge Machine.serial_number`, never on IP** (`logger.get_machine_by_serial`). A push whose serial matches nothing stores no records and writes an Error Log entry titled *"TimeBridge ADMS: unknown device serial"* containing the serial and the raw body — which doubles as the way to discover a new device's serial without reading it off the hardware.
 
 `adms/parser.py` is pure functions, no DB and no request state — that is where the real tests live. Note `parse_attlog` deliberately uses `line.rstrip("\r")` and not `line.strip()`: stripping eats a leading tab, shifting every field left, so a record with an empty user id would have its timestamp read as the user id. A test caught this.
 
-`adms/logger.py` writes into the same `TimeBridge Punch Log` / `Machine User` tables the pull path will use, so push and pull differ only in transport. Idempotency comes from `build_punch_key()` and the unique `punch_key` column — re-sending a batch cannot duplicate rows, which matters because firmwares re-send freely. `link_unmatched_punches()` exists because devices routinely upload punches *before* the users they belong to; backfilling is the normal path, not a repair job.
+`adms/logger.py` writes into the same `TimeBridge Punch Log` / `TimeBridge Machine User` tables the pull path will use, so push and pull differ only in transport. Idempotency comes from `build_punch_key()` and the unique `punch_key` column — re-sending a batch cannot duplicate rows, which matters because firmwares re-send freely. `link_unmatched_punches()` exists because devices routinely upload punches *before* the users they belong to; backfilling is the normal path, not a repair job.
 
-`adms/commands.py` queues work for the next `/iclock/getrequest` poll. Attendance date-range resend is proven on this firmware; `CHECK` is not (the device collects it and sends nothing). **Fetch Photos** is the other live command path: it opens FACE/UserPic in the handshake, then tries three query dialects in sequence — tab-separated bulk `biophoto`/`userpic` (this firmware splits ATTLOG on tabs), comma form plus `DATA QUERY USERPIC`, then one `PIN=` query per enrolled user. Rounds advance only while the device is still talking and no new Machine User photo has appeared. Punch snapshots (`ATTPHOTO`, or `PIN=YYYYMMDDHHMMSS-<id>.jpg`) are acknowledged and dropped; they are not the enrolment Bio-Photo. OPERLOG/USERINFO harvests `PIN`+`Content` rows via `parse_photo_fields` so a mixed photo POST cannot rename people to `"User 3"`. If all three rounds return nothing, the remaining path is **Upload Photos** with files named `{user id}.jpg` — this firmware will not re-send Bio-Photo the way the other middleware's Import Bio-Photo tab reads it.
+`adms/commands.py` queues work for the next `/iclock/getrequest` poll. Attendance date-range resend is proven on this firmware; `CHECK` is not (the device collects it and sends nothing). **Fetch Photos** is the other live command path: it opens FACE/UserPic in the handshake, then tries three query dialects in sequence — tab-separated bulk `biophoto`/`userpic` (this firmware splits ATTLOG on tabs), comma form plus `DATA QUERY USERPIC`, then one `PIN=` query per enrolled user. Rounds advance only while the device is still talking and no new TimeBridge Machine User photo has appeared. Punch snapshots (`ATTPHOTO`, or `PIN=YYYYMMDDHHMMSS-<id>.jpg`) are acknowledged and dropped; they are not the enrolment Bio-Photo. OPERLOG/USERINFO harvests `PIN`+`Content` rows via `parse_photo_fields` so a mixed photo POST cannot rename people to `"User 3"`. If all three rounds return nothing, the remaining path is **Upload Photos** with files named `{user id}.jpg` — this firmware will not re-send Bio-Photo the way the other middleware's Import Bio-Photo tab reads it.
 
 **Network topology is where the time actually goes.** Frappe runs inside WSL2; the device is on the Windows LAN and cannot reach it directly. A `netsh interface portproxy` rule on Windows forwards `192.168.2.173:8000` (the Windows LAN IP) to the WSL2 IP, plus an inbound firewall rule for 8000. **WSL2's IP changes on every reboot**, silently breaking the proxy — several dead rules pointing at old IPs are already on that machine. Before suspecting app code when nothing arrives, compare:
 
@@ -215,18 +215,18 @@ So any code reading these must supply its own fallback, e.g. `cint(get_single_va
 
 ## DocType Naming Conventions
 
-- Biometric Machine: `BM-#####`
-- Machine User: `MU-#####`
-- Employee: `EMP-#####`
-- Organization: `ORG-#####`
-- Shift: `SH-#####`
+- TimeBridge Machine: `BM-#####`
+- TimeBridge Machine User: `MU-#####`
+- TimeBridge Employee: `EMP-#####`
+- TimeBridge Organization: `ORG-#####`
+- TimeBridge Shift: `SH-#####`
 
 ## What's Not Yet Implemented
 
 - `services/scheduler.py`, `services/user_sync.py` — empty stubs. Nothing syncs on a timer; every fetch is a button press
 - `matrix_connector.py`, `custom_connector.py` — empty stubs, and `get_connector` says so by name rather than throwing
 - Scheduler hooks in `hooks.py` are commented out — no background sync runs yet
-- Employee linking is assisted, not automatic, and that is a decision rather than an omission — see *Employees and Machine Users*. Nothing attaches a device user to an Employee without someone confirming it
+- TimeBridge Employee linking is assisted, not automatic, and that is a decision rather than an omission — see *TimeBridge Employees and TimeBridge Machine Users*. Nothing attaches a device user to a TimeBridge Employee without someone confirming it
 
 `services/device_info.py`, `services/pull_sync.py`, `services/employee_link.py`, `services/attendance_sync.py`, `sdk_connectors/essl_connector.py` (`ADMSConnector`) and the whole `adms/` push path **are** implemented.
 
@@ -236,12 +236,12 @@ So any code reading these must supply its own fallback, e.g. `cint(get_single_va
 
 That run also settled a question the code had been hedging on: this firmware **does** report usable punch state codes (`punch=0` / `1`), so direction comes back as real In/Out — 169 In, 99 Out, 2 Unknown on the first three days — rather than the Unknown the mapping comment feared. `verify_mode` reads `Face` (`status=15`) throughout. Codes seen on menu-access records (`punch=255`) still map to Unknown, correctly.
 
-The employee-link path is verified the same way: a full `apply_plan()` run inside a transaction that was then rolled back created 169 Employees, attached 171 Machine Users, backfilled 3,199 punches and reported no failures, leaving the database as it started. Six codes were qualified to `AIFACE002-*` and two pairs of enrolments were folded onto one person each, exactly as the preview said.
+The employee-link path is verified the same way: a full `apply_plan()` run inside a transaction that was then rolled back created 169 TimeBridge Employees, attached 171 TimeBridge Machine Users, backfilled 3,199 punches and reported no failures, leaving the database as it started. Six codes were qualified to `AIFACE002-*` and two pairs of enrolments were folded onto one person each, exactly as the preview said.
 
 Two cautions from that same run. A device on `192.168.88.x` is reachable from WSL2 through the Windows host even though the PC sits on `192.168.2.x` — do not assume a different subnet means unreachable; probe TCP 4370 before concluding anything. And `communication_password` matters: this unit rejected `0` with `Unauthenticated` and accepted `12345`. That failure surfaces in the UI with the port-scan panel's *"no port is open"* wording, which is wrong for an auth failure — the port was open the whole time.
 
 `192.168.88.44` (BM-104988) remains unreachable from WSL2 — it refuses every TCP port including 4370 and 80, and ICMP is intermittent.
 
-**Push path — verified end to end over HTTP, not yet by a real device.** `adms/test_parser.py` covers the parsing (13 cases). Beyond that, a full run over real HTTP against `/iclock/cdata` — same URL and payload format a device uses — created Machine Users, created linked Punch Logs with the right direction and verify mode, wrote `Success` Sync Logs, rejected a re-sent batch without duplicating, and rejected an unregistered serial without storing anything. What is still untested is a physical device's own firmware: its exact payload dialect, its timing, and how it behaves when a reply is slow. Fetch Photos has been verified to queue commands and keep the device polling; the AIFace MARS has not yet re-sent enrolment Bio-Photo over ADMS.
+**Push path — verified end to end over HTTP, not yet by a real device.** `adms/test_parser.py` covers the parsing (13 cases). Beyond that, a full run over real HTTP against `/iclock/cdata` — same URL and payload format a device uses — created TimeBridge Machine Users, created linked Punch Logs with the right direction and verify mode, wrote `Success` Sync Logs, rejected a re-sent batch without duplicating, and rejected an unregistered serial without storing anything. What is still untested is a physical device's own firmware: its exact payload dialect, its timing, and how it behaves when a reply is slow. Fetch Photos has been verified to queue commands and keep the device polling; the AIFace MARS has not yet re-sent enrolment Bio-Photo over ADMS.
 
 `BM-104987` is still recorded as `device_brand: ZKTeco` / `sdk_type: PyZK`, which is untrue — it is an eSSL device on ADMS. Correcting `sdk_type` to `ADMS` would make `get_connector()` raise `Unsupported SDK Type : ADMS` and disable the pull buttons, which is the honest outcome but a behaviour change. Left as-is deliberately.

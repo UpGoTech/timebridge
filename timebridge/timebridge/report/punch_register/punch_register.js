@@ -33,25 +33,25 @@ frappe.query_reports["Punch Register"] = {
             default: new Date().getFullYear()
         },
         // Also the sheet's heading, so an exported file says which terminal
-        // it came from. Organization / Branch / Department are left off:
+        // it came from. TimeBridge Organization / TimeBridge Branch / TimeBridge Department are left off:
         // they do not split anyone here, and Machine already does.
         {
             fieldname: "biometric_machine",
             label: __("Machine"),
             fieldtype: "Link",
-            options: "Biometric Machine"
+            options: "TimeBridge Machine"
         },
         {
             fieldname: "shift",
-            label: __("Shift"),
+            label: __("TimeBridge Shift"),
             fieldtype: "Link",
-            options: "Shift"
+            options: "TimeBridge Shift"
         },
         {
             fieldname: "employee",
-            label: __("Employee"),
+            label: __("TimeBridge Employee"),
             fieldtype: "Link",
-            options: "Employee"
+            options: "TimeBridge Employee"
         },
         {
             fieldname: "include_inactive",

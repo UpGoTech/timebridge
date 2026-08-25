@@ -54,7 +54,7 @@ INSERT_BUDGET_SECONDS = 3600
 PROGRESS_TTL = 1800
 
 # Mirrors the four steps in device_info.py and the STEPS array in
-# biometric_machine.js. The client matches on these numbers.
+# timebridge_machine.js. The client matches on these numbers.
 STEP_NETWORK = 1
 STEP_CONNECT = 2
 STEP_READ = 3
@@ -227,7 +227,7 @@ def pull_all_data(machine_id, days=30, on_stage=None):
         if on_stage:
             on_stage(step, text, detail)
 
-    device = frappe.get_doc("Biometric Machine", machine_id)
+    device = frappe.get_doc("TimeBridge Machine", machine_id)
 
     # A push device accepts no incoming connection, so there is nothing to
     # dial and no point walking the steps below to a certain failure.
@@ -363,7 +363,7 @@ def pull_all_data(machine_id, days=30, on_stage=None):
 
     # Devices are read users-first, so most punches match immediately. This
     # catches the rest: people deleted from the device but still in its log,
-    # and punches stored before their Machine User was mapped to an Employee.
+    # and punches stored before their TimeBridge Machine User was mapped to a TimeBridge Employee.
     linked = logger.link_unmatched_punches(machine_id)
 
     set_machine_status(device, "Connected")

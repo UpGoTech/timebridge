@@ -4,7 +4,7 @@
 """
 Picks the right driver for a machine from its SDK Type.
 
-Every option the Biometric Machine form offers is answered here. A dropdown
+Every option the TimeBridge Machine form offers is answered here. A dropdown
 that lists four choices and crashes on three of them is worse than no
 dropdown — the user has no way to tell a wrong selection from a broken app.
 So the two that are not built say exactly that, by name, instead of throwing

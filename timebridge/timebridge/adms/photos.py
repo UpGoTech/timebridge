@@ -31,7 +31,7 @@ PHOTO_TABLES = {"ATTPHOTO", "USERPIC", "USERPHOTO", "FACE", "BIOPHOTO"}
 
 # Enrolment pictures (Bio-Photo / User Photo). Daily punch snapshots are
 # ATTPHOTO — those are a different setting on the device and must not become
-# the face on Machine User or Employee.
+# the face on TimeBridge Machine User or TimeBridge Employee.
 ENROLL_PHOTO_SOURCES = {"USERPIC", "USERPHOTO", "BIOPHOTO"}
 PUNCH_PHOTO_SOURCES = {"ATTPHOTO"}
 
@@ -200,11 +200,11 @@ def save_photos_from_fields(machine, rows, source):
 
 def sync_employee_photo(employee, file_url, replace=False):
     """
-    Put the same picture on the Employee record.
+    Put the same picture on the TimeBridge Employee record.
 
-    Machine User is the device's record of a person; Employee is the company's.
-    Reports, lists and the person's own page all read Employee, so a face that
-    only ever reaches Machine User is a face nobody sees.
+    TimeBridge Machine User is the device's record of a person; TimeBridge Employee is the company's.
+    Reports, lists and the person's own page all read TimeBridge Employee, so a face that
+    only ever reaches TimeBridge Machine User is a face nobody sees.
 
     The same file is pointed at rather than written twice — one picture, two
     records referring to it.
@@ -213,7 +213,7 @@ def sync_employee_photo(employee, file_url, replace=False):
     if not employee or not file_url:
         return
 
-    current = frappe.db.get_value("Employee", employee, "photo")
+    current = frappe.db.get_value("TimeBridge Employee", employee, "photo")
 
     # A photograph someone uploaded by hand outranks anything a camera caught
     # at a doorway, so it is only overwritten when a retake was asked for.
@@ -221,12 +221,12 @@ def sync_employee_photo(employee, file_url, replace=False):
         return
 
     if current != file_url:
-        frappe.db.set_value("Employee", employee, "photo", file_url)
+        frappe.db.set_value("TimeBridge Employee", employee, "photo", file_url)
 
 
 def save_photo(machine, user_id, image_bytes, source):
     """
-    Attach the picture to the Machine User and show it on the record.
+    Attach the picture to the TimeBridge Machine User and show it on the record.
 
     Returns the file url, or None when the user is not one we know — an
     unknown id means the device and our records disagree, which is worth
@@ -234,7 +234,7 @@ def save_photo(machine, user_id, image_bytes, source):
     """
 
     existing = frappe.db.get_value(
-        "Machine User",
+        "TimeBridge Machine User",
         {"machine": machine, "user_id": user_id},
         ["name", "photo", "retake_photo", "employee"],
         as_dict=True,
@@ -244,7 +244,7 @@ def save_photo(machine, user_id, image_bytes, source):
         frappe.log_error(
             title="TimeBridge ADMS: photo for unknown user",
             message=f"Machine {machine} sent a photo for user id {user_id!r}, "
-                    f"which has no Machine User record.",
+                    f"which has no TimeBridge Machine User record.",
         )
         return None
 
@@ -268,7 +268,7 @@ def save_photo(machine, user_id, image_bytes, source):
     file_doc = frappe.get_doc({
         "doctype": "File",
         "file_name": f"{machine}-{user_id}.jpg",
-        "attached_to_doctype": "Machine User",
+        "attached_to_doctype": "TimeBridge Machine User",
         "attached_to_name": machine_user,
         "attached_to_field": "photo",
         "content": image_bytes,
@@ -276,19 +276,19 @@ def save_photo(machine, user_id, image_bytes, source):
         "is_private": 0,
     }).insert(ignore_permissions=True)
 
-    frappe.db.set_value("Machine User", machine_user, "photo", file_doc.file_url)
+    frappe.db.set_value("TimeBridge Machine User", machine_user, "photo", file_doc.file_url)
 
     # Asked for once, honoured once. Left set, every punch would go on
     # replacing the picture and the tick would mean nothing.
     if cint(existing.retake_photo):
-        frappe.db.set_value("Machine User", machine_user, "retake_photo", 0)
+        frappe.db.set_value("TimeBridge Machine User", machine_user, "retake_photo", 0)
 
     sync_employee_photo(
         existing.employee, file_doc.file_url, replace=True
     )
 
     if source in ENROLL_PHOTO_SOURCES or source in ("FACE", "fdata"):
-        frappe.db.set_value("Machine User", machine_user, "face_registered", 1)
+        frappe.db.set_value("TimeBridge Machine User", machine_user, "face_registered", 1)
 
     frappe.logger().info(
         f"[TimeBridge ADMS] {machine}: saved photo for user {user_id} -> {file_doc.file_url}"

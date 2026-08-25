@@ -2,12 +2,12 @@
 # For license information, please see license.txt
 
 """
-Turn a device's user list into Employees, and attach them.
+Turn a device's user list into TimeBridge Employees, and attach them.
 
-A sync of either kind only ever produces Machine Users: a device knows a number
-and a name and nothing else. Attendance, though, is built per Employee —
+A sync of either kind only ever produces TimeBridge Machine Users: a device knows a number
+and a name and nothing else. Attendance, though, is built per TimeBridge Employee —
 `attendance_sync.rebuild_for_range` begins at `p.employee IS NOT NULL` — so
-until every Machine User points at one, punches are stored and invisible. That
+until every TimeBridge Machine User points at one, punches are stored and invisible. That
 gap is what this module closes.
 
 **Nothing here runs by itself, and it must not.** A name is the only evidence
@@ -19,14 +19,14 @@ plan server-side rather than trusting a list posted back from a browser.
 Two facts about real device data shape the rules below, both found on the
 Fabrixcel unit (172 enrolments):
 
-* **Employee Code is unique across every machine, but each device numbers its
+* **TimeBridge Employee Code is unique across every machine, but each device numbers its
   people from 1 on its own.** Seven of its ids already belonged to different
   people enrolled on another terminal — its user 4 is not the user 4 who was
-  already an Employee. So a device id is used as a code only while it is free.
+  already a TimeBridge Employee. So a device id is used as a code only while it is free.
 
 * **One person can hold two enrolments.** `09`/`F09` are both Amol Bawane. Left
-  alone that becomes two Employees and one person's day is split across both,
-  so same-named users are gathered onto one Employee by default.
+  alone that becomes two TimeBridge Employees and one person's day is split across both,
+  so same-named users are gathered onto one TimeBridge Employee by default.
 """
 
 import frappe
@@ -36,7 +36,7 @@ from frappe.utils import getdate
 from timebridge.timebridge.adms import logger
 
 # Enrolments that are not people. Skipped rather than renamed or deleted: the
-# device needs its administrator account, we simply do not want an Employee for
+# device needs its administrator account, we simply do not want a TimeBridge Employee for
 # it. Nothing is hidden — the caller is told what was left out and why.
 NON_PERSON_NAMES = {
     "ADMIN",
@@ -71,9 +71,9 @@ def is_non_person(user_name, user_id):
 
 
 def employees_by_name():
-    """Existing Employees keyed on their comparable name."""
+    """Existing TimeBridge Employees keyed on their comparable name."""
 
-    rows = frappe.get_all("Employee", fields=["name", "employee_name"])
+    rows = frappe.get_all("TimeBridge Employee", fields=["name", "employee_name"])
 
     return {normalise(row.employee_name): row.name for row in rows}
 
@@ -82,7 +82,7 @@ def taken_codes():
 
     return {
         row.employee_code
-        for row in frappe.get_all("Employee", fields=["employee_code"])
+        for row in frappe.get_all("TimeBridge Employee", fields=["employee_code"])
         if row.employee_code
     }
 
@@ -113,9 +113,9 @@ def free_code(user_id, machine_code, taken):
 
 def suggested_defaults():
     """
-    Fields the device cannot know, guessed from the Employees already on file.
+    Fields the device cannot know, guessed from the TimeBridge Employees already on file.
 
-    Organization and Branch are mandatory on Employee, so a bulk create needs
+    TimeBridge Organization and TimeBridge Branch are mandatory on TimeBridge Employee, so a bulk create needs
     an answer for them. The commonest existing value is offered as a starting
     point; the operator confirms or changes it.
     """
@@ -123,7 +123,7 @@ def suggested_defaults():
     def commonest(fieldname):
 
         rows = frappe.get_all(
-            "Employee",
+            "TimeBridge Employee",
             fields=[fieldname, "count(name) as n"],
             group_by=fieldname,
             order_by="n desc",
@@ -133,10 +133,10 @@ def suggested_defaults():
         return rows[0].get(fieldname) if rows else None
 
     organization = commonest("organization") or (
-        frappe.db.get_value("Organization", {}, "name")
+        frappe.db.get_value("TimeBridge Organization", {}, "name")
     )
 
-    branch = commonest("branch") or frappe.db.get_value("Branch", {}, "name")
+    branch = commonest("branch") or frappe.db.get_value("TimeBridge Branch", {}, "name")
 
     return {
         "organization": organization,
@@ -150,16 +150,16 @@ def plan(machine_id, skip_non_person=True, merge_same_name=True):
     Work out what attaching this machine's users would do, without doing it.
 
     Returns the rows in the order they would be acted on, plus counts and the
-    defaults a caller needs to fill the mandatory Employee fields.
+    defaults a caller needs to fill the mandatory TimeBridge Employee fields.
     """
 
     machine_code = (
-        frappe.db.get_value("Biometric Machine", machine_id, "machine_id")
+        frappe.db.get_value("TimeBridge Machine", machine_id, "machine_id")
         or machine_id
     )
 
     users = frappe.get_all(
-        "Machine User",
+        "TimeBridge Machine User",
         filters={"machine": machine_id},
         fields=["name", "user_id", "user_name", "employee"],
         order_by="user_id",
@@ -187,7 +187,7 @@ def plan(machine_id, skip_non_person=True, merge_same_name=True):
             continue
 
         # Grouping on the name is what folds two enrolments of one person onto a
-        # single Employee. Turned off, each Machine User stands alone.
+        # single TimeBridge Employee. Turned off, each TimeBridge Machine User stands alone.
         key = normalise(user.user_name) if merge_same_name else user.name
 
         groups.setdefault(key, []).append(user)
@@ -208,7 +208,7 @@ def plan(machine_id, skip_non_person=True, merge_same_name=True):
                 "user_ids": [m.user_id for m in members],
                 "machine_users": [m.name for m in members],
                 "employee": match,
-                "employee_code": frappe.db.get_value("Employee", match, "employee_code"),
+                "employee_code": frappe.db.get_value("TimeBridge Employee", match, "employee_code"),
             })
 
             continue
@@ -229,7 +229,7 @@ def plan(machine_id, skip_non_person=True, merge_same_name=True):
 
     return {
         "machine": machine_id,
-        "machine_name": frappe.db.get_value("Biometric Machine", machine_id, "machine_name"),
+        "machine_name": frappe.db.get_value("TimeBridge Machine", machine_id, "machine_name"),
         "rows": rows,
         "skipped": skipped,
         "counts": {
@@ -253,7 +253,7 @@ def apply_plan(
     merge_same_name=True,
 ):
     """
-    Create the missing Employees, attach every Machine User, and backfill punches.
+    Create the missing TimeBridge Employees, attach every TimeBridge Machine User, and backfill punches.
 
     The plan is recomputed here rather than accepted from the caller, so what is
     written is decided by the same rules the operator was shown — and a stale
@@ -264,10 +264,10 @@ def apply_plan(
     """
 
     if not date_of_joining:
-        frappe.throw("Date of Joining is required — an Employee will not save without it.")
+        frappe.throw("Date of Joining is required — a TimeBridge Employee will not save without it.")
 
     if not organization or not branch:
-        frappe.throw("Organization and Branch are required on Employee.")
+        frappe.throw("TimeBridge Organization and TimeBridge Branch are required on TimeBridge Employee.")
 
     result = plan(machine_id, skip_non_person, merge_same_name)
 
@@ -294,14 +294,14 @@ def apply_plan(
                 created += 1
 
             for machine_user in row["machine_users"]:
-                frappe.db.set_value("Machine User", machine_user, "employee", employee)
+                frappe.db.set_value("TimeBridge Machine User", machine_user, "employee", employee)
                 linked += 1
 
         except Exception as e:
 
             frappe.log_error(
                 frappe.get_traceback(),
-                "TimeBridge: Employee Link Error"
+                "TimeBridge: TimeBridge Employee Link Error"
             )
 
             failures.append({"user_name": row["user_name"], "error": str(e)})
@@ -328,16 +328,16 @@ def apply_plan(
 
 def machine_employees(machine_id):
     """
-    The Employees this machine's users point at.
+    The TimeBridge Employees this machine's users point at.
 
-    Membership is read from the Machine User links rather than from
-    `Employee.biometric_machine`, because the link is what attendance actually
+    Membership is read from the TimeBridge Machine User links rather than from
+    `TimeBridge Employee.biometric_machine`, because the link is what attendance actually
     follows and `biometric_machine` can only name one machine even for somebody
     enrolled on two.
     """
 
     linked = frappe.get_all(
-        "Machine User",
+        "TimeBridge Machine User",
         filters={"machine": machine_id, "employee": ("is", "set")},
         pluck="employee",
     )
@@ -347,7 +347,7 @@ def machine_employees(machine_id):
 
 def assignment_summary(machine_id):
     """
-    What Organization, Branch and Shift this machine's people currently carry.
+    What TimeBridge Organization, TimeBridge Branch and TimeBridge Shift this machine's people currently carry.
 
     Shown before any bulk change so the operator can see what they are about to
     overwrite — including the case where everyone already agrees, which means
@@ -367,7 +367,7 @@ def assignment_summary(machine_id):
     spread = frappe.db.sql(
         """
         SELECT organization, branch, shift, COUNT(*) AS n
-        FROM `tabEmployee`
+        FROM `tabTimeBridge Employee`
         WHERE name IN %(names)s
         GROUP BY organization, branch, shift
         ORDER BY n DESC
@@ -378,11 +378,11 @@ def assignment_summary(machine_id):
 
     for row in spread:
         row["organization_name"] = frappe.db.get_value(
-            "Organization", row["organization"], "organization_name"
+            "TimeBridge Organization", row["organization"], "organization_name"
         )
-        row["branch_name"] = frappe.db.get_value("Branch", row["branch"], "branch_name")
+        row["branch_name"] = frappe.db.get_value("TimeBridge Branch", row["branch"], "branch_name")
         row["shift_name"] = (
-            frappe.db.get_value("Shift", row["shift"], "shift_name") if row["shift"] else None
+            frappe.db.get_value("TimeBridge Shift", row["shift"], "shift_name") if row["shift"] else None
         )
 
     # Somebody enrolled on two terminals would be changed by either machine's
@@ -391,7 +391,7 @@ def assignment_summary(machine_id):
     shared = frappe.db.sql(
         """
         SELECT COUNT(DISTINCT employee) AS n
-        FROM `tabMachine User`
+        FROM `tabTimeBridge Machine User`
         WHERE employee IN %(names)s AND machine != %(machine)s
         """,
         {"names": employees, "machine": machine_id},
@@ -408,14 +408,14 @@ def assignment_summary(machine_id):
 
 def apply_assignment(machine_id, organization=None, branch=None, shift=None):
     """
-    Set Organization, Branch and Shift on this machine's Employees.
+    Set TimeBridge Organization, TimeBridge Branch and TimeBridge Shift on this machine's TimeBridge Employees.
 
     An update and nothing else: no record is created, deleted or unlinked, so
-    punches, attendance and the Machine User links are all untouched. That is
+    punches, attendance and the TimeBridge Machine User links are all untouched. That is
     the whole reason this exists rather than a "reset and redo" — the link is
     not what needs changing.
 
-    A blank argument leaves that field alone, and an Employee already holding
+    A blank argument leaves that field alone, and a TimeBridge Employee already holding
     the requested value is not counted as changed.
     """
 
@@ -430,7 +430,7 @@ def apply_assignment(machine_id, organization=None, branch=None, shift=None):
     }
 
     if not updates:
-        frappe.throw("Choose at least one of Organization, Branch or Shift to change.")
+        frappe.throw("Choose at least one of TimeBridge Organization, TimeBridge Branch or TimeBridge Shift to change.")
 
     employees = machine_employees(machine_id)
 
@@ -438,7 +438,7 @@ def apply_assignment(machine_id, organization=None, branch=None, shift=None):
 
     for name in employees:
 
-        current = frappe.db.get_value("Employee", name, list(updates), as_dict=True) or {}
+        current = frappe.db.get_value("TimeBridge Employee", name, list(updates), as_dict=True) or {}
 
         delta = {
             field: value
@@ -449,7 +449,7 @@ def apply_assignment(machine_id, organization=None, branch=None, shift=None):
         if not delta:
             continue
 
-        frappe.db.set_value("Employee", name, delta)
+        frappe.db.set_value("TimeBridge Employee", name, delta)
 
         changed += 1
 
@@ -460,7 +460,7 @@ def apply_assignment(machine_id, organization=None, branch=None, shift=None):
         "changed": changed,
         "fields": list(updates),
 
-        # Shift decides late and half-day, so the figures already stored are
+        # TimeBridge Shift decides late and half-day, so the figures already stored are
         # stale the moment it moves. The caller says so rather than leaving the
         # operator to discover it from wrong numbers.
         "needs_rebuild": "shift" in updates and changed > 0,
@@ -469,15 +469,15 @@ def apply_assignment(machine_id, organization=None, branch=None, shift=None):
 
 def create_employee(row, machine_id, date_of_joining, organization, branch, shift=None):
     """
-    One Employee for one person, carrying the device details that identify them.
+    One TimeBridge Employee for one person, carrying the device details that identify them.
 
     machine_user records only the first enrolment when a person holds two; the
-    Machine User side of the link is set for every one of them, and that is the
+    TimeBridge Machine User side of the link is set for every one of them, and that is the
     direction attendance reads.
     """
 
     doc = frappe.get_doc({
-        "doctype": "Employee",
+        "doctype": "TimeBridge Employee",
         "employee_code": row["employee_code"],
         "employee_name": row["user_name"],
         "date_of_joining": getdate(date_of_joining),

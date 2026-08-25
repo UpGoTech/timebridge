@@ -69,14 +69,14 @@ def get_employees(filters):
 
     if filters.get("biometric_machine"):
 
-        # Membership is read from the Machine User links rather than from
-        # Employee.biometric_machine, because the link is what attendance
+        # Membership is read from the TimeBridge Machine User links rather than from
+        # TimeBridge Employee.biometric_machine, because the link is what attendance
         # actually follows, and that field can only name one machine even for
         # somebody enrolled on two.
         conditions += """
             AND emp.name IN (
                 SELECT mu.employee
-                FROM `tabMachine User` mu
+                FROM `tabTimeBridge Machine User` mu
                 WHERE mu.machine = %(biometric_machine)s
                   AND mu.employee IS NOT NULL
             )
@@ -95,7 +95,7 @@ def get_employees(filters):
         SELECT
             emp.name, emp.employee_code, emp.employee_name,
             emp.organization, emp.branch, emp.department, emp.shift
-        FROM `tabEmployee` emp
+        FROM `tabTimeBridge Employee` emp
         WHERE 1 = 1 {conditions}
         ORDER BY emp.employee_name ASC
         """,
@@ -154,10 +154,10 @@ def day_wise_heading(filters, month, year):
     """
 
     organisation = filters.get("organization") or frappe.db.get_value(
-        "Organization", {}, "name"
+        "TimeBridge Organization", {}, "name"
     )
 
-    name = frappe.db.get_value("Organization", organisation, "organization_name") or ""
+    name = frappe.db.get_value("TimeBridge Organization", organisation, "organization_name") or ""
 
     period = f"{calendar.month_name[month]} {year}"
 
@@ -196,7 +196,7 @@ def day_columns(year, month, days, off_days):
         # second count beside it looks like a mistake — it was also being
         # summed into a meaningless total at the foot of the page.
         {"label": "Code", "fieldname": "employee_code", "fieldtype": "Data", "width": 70},
-        {"label": "Full Name Of The Employee", "fieldname": "employee_name",
+        {"label": "Full Name Of The TimeBridge Employee", "fieldname": "employee_name",
          "fieldtype": "Data", "width": 190},
     ]
 

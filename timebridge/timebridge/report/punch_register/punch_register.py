@@ -4,7 +4,7 @@
 """
 Everyone's clock times for a month, laid out sideways.
 
-The Attendance Register answers "who was here" in one letter a day. Employee
+The Attendance Register answers "who was here" in one letter a day. TimeBridge Employee
 Attendance Detail answers "what time" — but for one person, reading downwards,
 which means sixteen exports to see a team.
 
@@ -133,7 +133,7 @@ def attach_machine_user_ids(employees, machine_id):
     """
     Stamp each row with the id this terminal actually enrolled.
 
-    Employee Code is unique across every machine, so a second terminal's user
+    TimeBridge Employee Code is unique across every machine, so a second terminal's user
     `4` becomes `AIFACE002-4` and then looks missing when the sheet is read as
     1, 2, 3, 6. The device id does not collide: it is unique per machine, which
     is the only id this report is answering for once a machine is chosen.
@@ -145,7 +145,7 @@ def attach_machine_user_ids(employees, machine_id):
     by_employee = {}
 
     for row in frappe.get_all(
-        "Machine User",
+        "TimeBridge Machine User",
         filters={
             "machine": machine_id,
             "employee": ["in", [emp.name for emp in employees]],
@@ -178,17 +178,17 @@ def organisation_name(filters):
     """
     Whose staff this is, or nothing if the sheet cannot say honestly.
 
-    With no Organization chosen the rows may span several, so the name is only
+    With no TimeBridge Organization chosen the rows may span several, so the name is only
     filled in when there is exactly one on the site — naming the wrong company
     at the top of a signed sheet is worse than leaving it off.
     """
 
     if filters.get("organization"):
-        return link_label("Organization", filters.get("organization"))
+        return link_label("TimeBridge Organization", filters.get("organization"))
 
-    names = frappe.get_all("Organization", pluck="name", limit=2)
+    names = frappe.get_all("TimeBridge Organization", pluck="name", limit=2)
 
-    return link_label("Organization", names[0]) if len(names) == 1 else None
+    return link_label("TimeBridge Organization", names[0]) if len(names) == 1 else None
 
 
 def period_name(month, year):
@@ -224,7 +224,7 @@ def machine_label(machine):
     if not machine:
         return "All Machines"
 
-    name = link_label("Biometric Machine", machine)
+    name = link_label("TimeBridge Machine", machine)
 
     return machine if name == machine else f"{name} ({machine})"
 
@@ -240,10 +240,10 @@ def filter_line(filters):
     parts = [f"Machine: {machine_label(filters.get('biometric_machine'))}"]
 
     for label, fieldname, doctype in (
-        ("Branch", "branch", "Branch"),
-        ("Department", "department", "Department"),
-        ("Shift", "shift", "Shift"),
-        ("Employee", "employee", "Employee"),
+        ("TimeBridge Branch", "branch", "TimeBridge Branch"),
+        ("TimeBridge Department", "department", "TimeBridge Department"),
+        ("TimeBridge Shift", "shift", "TimeBridge Shift"),
+        ("TimeBridge Employee", "employee", "TimeBridge Employee"),
     ):
         value = link_label(doctype, filters.get(fieldname))
 
@@ -289,7 +289,7 @@ def build_columns(days, off_days):
 
     columns = [
         {"label": "Code", "fieldname": "employee_code", "fieldtype": "Data", "width": 60},
-        {"label": "Full Name Of The Employee", "fieldname": "employee_name",
+        {"label": "Full Name Of The TimeBridge Employee", "fieldname": "employee_name",
          "fieldtype": "Data", "width": 180},
     ]
 

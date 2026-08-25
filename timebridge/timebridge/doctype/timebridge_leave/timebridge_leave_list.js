@@ -54,9 +54,9 @@ function open_bulk_dialog() {
                 fields: [
                     {
                         fieldname: "employee",
-                        label: __("Employee"),
+                        label: __("TimeBridge Employee"),
                         fieldtype: "Link",
-                        options: "Employee",
+                        options: "TimeBridge Employee",
                         in_list_view: 1,
                         reqd: 1,
                         columns: 5,
@@ -182,7 +182,7 @@ function show_result(result) {
 
         html += `<table class="table table-bordered" style="font-size:12px;margin-bottom:14px">
             <thead><tr>
-                <th>${__("Employee")}</th><th>${__("Date")}</th><th>${__("Paid")}</th>
+                <th>${__("TimeBridge Employee")}</th><th>${__("Date")}</th><th>${__("Paid")}</th>
             </tr></thead><tbody>`;
 
         created.forEach((c) => {
@@ -205,7 +205,7 @@ function show_result(result) {
         </div>
         <table class="table table-bordered" style="font-size:12px">
             <thead><tr>
-                <th>${__("Employee")}</th><th>${__("Date")}</th><th>${__("Why")}</th>
+                <th>${__("TimeBridge Employee")}</th><th>${__("Date")}</th><th>${__("Why")}</th>
             </tr></thead><tbody>`;
 
         skipped.forEach((s) => {

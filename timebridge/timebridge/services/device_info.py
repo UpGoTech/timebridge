@@ -18,7 +18,7 @@ DEVICE_INFO_EVENT = "timebridge_device_info"
 JOB_TIMEOUT_BUFFER = 60
 
 # The stages the client draws a progress list from. Keep in step with the
-# STEPS array in biometric_machine.js — the client matches on these numbers.
+# STEPS array in timebridge_machine.js — the client matches on these numbers.
 STEP_NETWORK = 1
 STEP_CONNECT = 2
 STEP_READ = 3
@@ -69,7 +69,7 @@ def enqueue_device_info(machine_id):
     """
     Queue a device read in the background. Returns immediately with the
     job id and a run_id; progress is polled via api.get_device_info_progress
-    and is mirrored onto the Biometric Machine record.
+    and is mirrored onto the TimeBridge Machine record.
     """
 
     job_id = f"{DEVICE_INFO_EVENT}::{machine_id}"
@@ -272,7 +272,7 @@ def job_timeout():
 def fetch_device_info(machine_id, on_stage=None):
     """
     Pull live metadata off a biometric device and mirror the identifying
-    parts of it back onto the Biometric Machine record.
+    parts of it back onto the TimeBridge Machine record.
 
     Returns a dict with "status" ("success" / "failed"), "message" and,
     on success, "info" holding everything the connector reported.
@@ -289,7 +289,7 @@ def fetch_device_info(machine_id, on_stage=None):
             on_stage(step, text, detail)
 
     device = frappe.get_doc(
-        "Biometric Machine",
+        "TimeBridge Machine",
         machine_id
     )
 
@@ -439,7 +439,7 @@ def apply_device_info(device, info):
     if updates:
 
         frappe.db.set_value(
-            "Biometric Machine",
+            "TimeBridge Machine",
             device.name,
             updates
         )
@@ -451,7 +451,7 @@ def set_machine_status(device, status):
         return
 
     frappe.db.set_value(
-        "Biometric Machine",
+        "TimeBridge Machine",
         device.name,
         "status",
         status

@@ -1,0 +1,129 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:SH-{#####}",
+ "creation": "2026-07-17 14:51:48.461807",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "shift_information",
+  "organization",
+  "branch",
+  "shift_code",
+  "shift_name",
+  "start_time",
+  "end_time",
+  "grace_time",
+  "half_day_after_time",
+  "status_information",
+  "is_active",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "shift_information",
+   "fieldtype": "Section Break",
+   "label": "Shift Information"
+  },
+  {
+   "fieldname": "organization",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "TimeBridge Organization",
+   "options": "TimeBridge Organization",
+   "reqd": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "TimeBridge Branch",
+   "options": "TimeBridge Branch",
+   "reqd": 1
+  },
+  {
+   "fieldname": "shift_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Shift Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "shift_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Shift Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "label": "Start Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "grace_time",
+   "fieldtype": "Int",
+   "label": "Grace Time (Minutes)"
+  },
+  {
+   "description": "Arriving later than this counts the day as Half Day, however many hours are then worked. Leave blank to fall back to the single time in TimeBridge Settings; leave both blank to switch the rule off entirely.",
+   "fieldname": "half_day_after_time",
+   "fieldtype": "Time",
+   "label": "Half Day If Arriving After"
+  },
+  {
+   "fieldname": "status_information",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-18 15:55:40.452694",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Shift",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "shift_code",
+ "show_title_field_in_link": 1,
+ "sort_field": "shift_name",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "shift_name",
+ "track_changes": 1
+}

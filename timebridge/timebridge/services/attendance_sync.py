@@ -81,7 +81,7 @@ def half_day_hours():
 
 def half_day_after():
     """
-    Company-wide fallback cutoff, used only when a Shift has not set its own.
+    Company-wide fallback cutoff, used only when a TimeBridge Shift has not set its own.
 
     Deliberately optional and off by default: with both blank, every day is
     counted exactly as it was before this rule existed, so switching it on is
@@ -128,11 +128,11 @@ def shift_bounds(shift):
     """
     Start, end, grace and half-day cutoff for a shift.
 
-    grace_time is a field the Shift DocType has always had and nothing used.
+    grace_time is a field the TimeBridge Shift DocType has always had and nothing used.
     Without it someone arriving at 11:02 on an 11:00 shift is recorded as
     late, which is technically true and practically useless.
 
-    The cutoff lives on the Shift because shifts already group people by when
+    The cutoff lives on the TimeBridge Shift because shifts already group people by when
     they start — a single company-wide time cannot be right for a 10:30 shift
     and an 11:30 one at once.
     """
@@ -141,7 +141,7 @@ def shift_bounds(shift):
         return None, None, 0, None
 
     row = frappe.db.get_value(
-        "Shift",
+        "TimeBridge Shift",
         shift,
         ["start_time", "end_time", "grace_time", "half_day_after_time"],
         as_dict=True,
@@ -227,7 +227,7 @@ def build_day(employee, day, punches, window):
     last = kept[-1] if len(kept) > 1 else None
 
     employee_name = first.employee_name or frappe.db.get_value(
-        "Employee", employee, "employee_name"
+        "TimeBridge Employee", employee, "employee_name"
     )
 
     key = build_attendance_key(employee, day)
@@ -235,7 +235,7 @@ def build_day(employee, day, punches, window):
         "TimeBridge Attendance", {"attendance_key": key}, ["name", "shift"], as_dict=True
     )
 
-    shift = frappe.db.get_value("Employee", employee, "shift")
+    shift = frappe.db.get_value("TimeBridge Employee", employee, "shift")
 
     # A shift set by hand on this row wins over the employee's default. The
     # scheduler reruns the last few days every 15 minutes, and without this it
@@ -406,7 +406,7 @@ def mark_absentees(from_date, to_date, employee=None):
         filters["name"] = employee
 
     employees = frappe.get_all(
-        "Employee",
+        "TimeBridge Employee",
         filters=filters,
         fields=["name", "employee_name", "shift", "date_of_joining"],
     )
@@ -554,7 +554,7 @@ def refresh_push_device_status():
     changed = 0
 
     for machine in frappe.get_all(
-        "Biometric Machine",
+        "TimeBridge Machine",
         filters={"sdk_type": ["in", list(PUSH_SDK_TYPES)]},
         fields=["name", "status"],
     ):
@@ -562,7 +562,7 @@ def refresh_push_device_status():
         should_be = push_device_status(machine.name)
 
         if machine.status != should_be:
-            frappe.db.set_value("Biometric Machine", machine.name, "status", should_be)
+            frappe.db.set_value("TimeBridge Machine", machine.name, "status", should_be)
             changed += 1
 
     if changed:

@@ -36,8 +36,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Biometric Machine",
-   "options": "Biometric Machine",
+   "label": "TimeBridge Machine",
+   "options": "TimeBridge Machine",
    "reqd": 1
   },
   {
@@ -74,15 +74,15 @@
    "description": "Resolved by matching Device User ID on this machine. Left blank when there is no match.",
    "fieldname": "machine_user",
    "fieldtype": "Link",
-   "label": "Machine User",
-   "options": "Machine User"
+   "label": "TimeBridge Machine User",
+   "options": "TimeBridge Machine User"
   },
   {
    "fetch_from": "machine_user.employee",
    "fieldname": "employee",
    "fieldtype": "Link",
-   "label": "Employee",
-   "options": "Employee"
+   "label": "TimeBridge Employee",
+   "options": "TimeBridge Employee"
   },
   {
    "fetch_from": "employee.employee_name",

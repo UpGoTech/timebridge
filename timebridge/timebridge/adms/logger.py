@@ -4,7 +4,7 @@
 """
 Persistence for records that arrived over ADMS push.
 
-Writes into the same TimeBridge Punch Log / Machine User tables the pull path
+Writes into the same TimeBridge Punch Log / TimeBridge Machine User tables the pull path
 will use, so push and pull are only a transport difference. Idempotency comes
 from the unique punch_key column, checked here before insert and enforced by
 the database if two requests race.
@@ -32,7 +32,7 @@ def get_machine_by_serial(serial):
         return None
 
     return frappe.db.get_value(
-        "Biometric Machine",
+        "TimeBridge Machine",
         {"serial_number": serial},
         "name",
     )
@@ -43,7 +43,7 @@ def save_punches(machine, records, sync_batch=None, save_raw=None, source=SOURCE
     Insert punch records, skipping any already stored.
 
     Returns a dict of counts. Unmatched users are stored anyway — a punch whose
-    device_user_id has no Machine User yet is still evidence someone was at the
+    device_user_id has no TimeBridge Machine User yet is still evidence someone was at the
     door, and dropping it would lose data permanently.
 
     `source` names the transport that delivered these records. It defaults to
@@ -79,9 +79,9 @@ def save_punches(machine, records, sync_batch=None, save_raw=None, source=SOURCE
 
         # Both links are resolved here, not just the machine user. Attendance,
         # the reports and every per-person view join on employee — a punch that
-        # only knows its Machine User is invisible to all of them.
+        # only knows its TimeBridge Machine User is invisible to all of them.
         mapping = frappe.db.get_value(
-            "Machine User",
+            "TimeBridge Machine User",
             {"machine": machine, "user_id": record["device_user_id"]},
             ["name", "employee"],
             as_dict=True,
@@ -100,7 +100,7 @@ def save_punches(machine, records, sync_batch=None, save_raw=None, source=SOURCE
             "machine_user": machine_user,
             "employee": employee,
             "employee_name": (
-                frappe.db.get_value("Employee", employee, "employee_name")
+                frappe.db.get_value("TimeBridge Employee", employee, "employee_name")
                 if employee else None
             ),
             "timestamp": timestamp,
@@ -132,7 +132,7 @@ def save_punches(machine, records, sync_batch=None, save_raw=None, source=SOURCE
 
 def save_users(machine, records):
     """
-    Upsert Machine User rows on (machine, user_id) — the pair the DocType
+    Upsert TimeBridge Machine User rows on (machine, user_id) — the pair the DocType
     already guards against duplicates.
 
     Only fields the device actually reported are written, so a later pull sync
@@ -146,7 +146,7 @@ def save_users(machine, records):
     for record in records:
 
         existing = frappe.db.get_value(
-            "Machine User",
+            "TimeBridge Machine User",
             {"machine": machine, "user_id": record["user_id"]},
             "name",
         )
@@ -155,7 +155,7 @@ def save_users(machine, records):
 
             changes = {}
             current = frappe.db.get_value(
-                "Machine User", existing, ["user_name", "card_number", "privilege"], as_dict=True
+                "TimeBridge Machine User", existing, ["user_name", "card_number", "privilege"], as_dict=True
             )
 
             if record.get("user_name") and record["user_name"] != current.user_name:
@@ -168,13 +168,13 @@ def save_users(machine, records):
                 changes["privilege"] = record["privilege"]
 
             if changes:
-                frappe.db.set_value("Machine User", existing, changes)
+                frappe.db.set_value("TimeBridge Machine User", existing, changes)
                 updated += 1
 
             continue
 
         frappe.get_doc({
-            "doctype": "Machine User",
+            "doctype": "TimeBridge Machine User",
             "machine": machine,
             "user_id": record["user_id"],
             "user_name": record["user_name"],
@@ -194,7 +194,7 @@ def link_unmatched_punches(machine):
 
     ADMS devices commonly upload punches before USERINFO, so this backfill is
     the normal path rather than a repair job. It also catches punches stored
-    before their Machine User was mapped to an Employee — that mapping usually
+    before their TimeBridge Machine User was mapped to a TimeBridge Employee — that mapping usually
     happens later, and without this those punches stay invisible to attendance
     and every report forever.
     """
@@ -214,7 +214,7 @@ def link_unmatched_punches(machine):
     for punch in unmatched:
 
         mapping = frappe.db.get_value(
-            "Machine User",
+            "TimeBridge Machine User",
             {"machine": machine, "user_id": punch.device_user_id},
             ["name", "employee"],
             as_dict=True,
@@ -231,7 +231,7 @@ def link_unmatched_punches(machine):
         if mapping.employee:
             updates["employee"] = mapping.employee
             updates["employee_name"] = frappe.db.get_value(
-                "Employee", mapping.employee, "employee_name"
+                "TimeBridge Employee", mapping.employee, "employee_name"
             )
 
         if updates:
