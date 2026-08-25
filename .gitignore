@@ -5,6 +5,8 @@
 tags
 node_modules
 __pycache__
+AGENTS.md
+CLIENTS.md
 
 # Local config / environment
 .env
