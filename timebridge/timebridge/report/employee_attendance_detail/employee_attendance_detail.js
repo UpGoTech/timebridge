@@ -1,14 +1,14 @@
 // Copyright (c) 2026, UPGO and contributors
 // For license information, please see license.txt
 
-frappe.query_reports["Employee Attendance Detail"] = {
+frappe.query_reports["TimeBridge Employee Attendance Detail"] = {
 
     filters: [
         {
             fieldname: "employee",
-            label: __("Employee"),
+            label: __("TimeBridge Employee"),
             fieldtype: "Link",
-            options: "Employee"
+            options: "TimeBridge Employee"
             // Deliberately not reqd. Frappe answers a missing mandatory filter
             // with "Please set filters", which is both blunt and — on the way
             // in from the register — wrong, since an employee was in fact
@@ -52,7 +52,7 @@ frappe.query_reports["Employee Attendance Detail"] = {
 
         // Returned so Frappe waits: onload sits between set_route_filters and
         // refresh in query_report.js, and run_serially honours a promise.
-        return settle_link_filter(report, "employee", "Employee");
+        return settle_link_filter(report, "employee", "TimeBridge Employee");
     },
 
     get_datatable_options: function (options) {
@@ -180,7 +180,7 @@ function open_print_settings(report, run) {
 /**
  * Wait for a Link filter's box to catch up with the value it was given.
  *
- * Employee is shown by name rather than id, so its control fetches the title
+ * TimeBridge Employee is shown by name rather than id, so its control fetches the title
  * from the server before it can fill the box (link.js, set_link_title). That
  * fetch is not awaited: set_value stores the real value on the control and
  * returns immediately, leaving the box briefly empty.

@@ -291,14 +291,14 @@ def report_summary(totals):
 def heading(employee, month, year):
 
     emp = frappe.db.get_value(
-        "Employee", employee, ["employee_name", "employee_code", "shift"], as_dict=True
+        "TimeBridge Employee", employee, ["employee_name", "employee_code", "shift"], as_dict=True
     ) or frappe._dict()
 
     shift = ""
 
     if emp.shift:
 
-        bounds = frappe.db.get_value("Shift", emp.shift, ["shift_name", "start_time", "end_time"],
+        bounds = frappe.db.get_value("TimeBridge Shift", emp.shift, ["shift_name", "start_time", "end_time"],
                                      as_dict=True)
 
         if bounds:

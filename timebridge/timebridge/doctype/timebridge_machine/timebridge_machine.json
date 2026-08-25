@@ -1,0 +1,205 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:BM-{#####}",
+ "creation": "2026-07-17 13:35:36.011348",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "machine_information",
+  "machine_id",
+  "machine_name",
+  "device_brand",
+  "device_model",
+  "serial_number",
+  "connection_information",
+  "ip_address",
+  "port",
+  "communication_type",
+  "sdk_type",
+  "communication_password",
+  "force_udp",
+  "status_information",
+  "status",
+  "last_contact_at",
+  "sync_enabled",
+  "last_sync",
+  "last_user_sync",
+  "other_information",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "machine_information",
+   "fieldtype": "Tab Break",
+   "label": "Machine"
+  },
+  {
+   "fieldname": "machine_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Machine ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "machine_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Machine Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "device_brand",
+   "fieldtype": "Select",
+   "label": "Device Brand",
+   "options": "ZKTeco\neSSL\nMatrix\nSuprema\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "device_model",
+   "fieldtype": "Data",
+   "label": "Device Model"
+  },
+  {
+   "fieldname": "serial_number",
+   "fieldtype": "Data",
+   "label": "Serial Number"
+  },
+  {
+   "fieldname": "connection_information",
+   "fieldtype": "Tab Break",
+   "label": "Connection"
+  },
+  {
+   "description": "The device's own address on the network. For push devices this is informational \u2014 the device reaches us, not the other way round.",
+   "fieldname": "ip_address",
+   "fieldtype": "Data",
+   "label": "IP Address",
+   "reqd": 1
+  },
+  {
+   "default": "4370",
+   "depends_on": "eval:doc.sdk_type != 'ADMS'",
+   "description": "Port we dial to reach the device. Not used by ADMS/push devices \u2014 those send to the app's own port instead.",
+   "fieldname": "port",
+   "fieldtype": "Int",
+   "label": "Port",
+   "reqd": 1
+  },
+  {
+   "default": "TCP/IP",
+   "depends_on": "eval:doc.sdk_type != 'ADMS'",
+   "fieldname": "communication_type",
+   "fieldtype": "Select",
+   "label": "Communication Type",
+   "options": "TCP/IP\nUSB\nCloud API"
+  },
+  {
+   "default": "PyZK",
+   "description": "PyZK = we ask the device for data. ADMS = the device sends data to us on its own. Pick ADMS for eSSL push devices.",
+   "fieldname": "sdk_type",
+   "fieldtype": "Select",
+   "label": "SDK Type",
+   "options": "PyZK\nADMS\nMatrix\nCustom",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type != 'ADMS'",
+   "description": "ZK comm key, used only when dialling the device. Not used by ADMS/push devices.",
+   "fieldname": "communication_password",
+   "fieldtype": "Int",
+   "label": "Communication Password (Comm Key)"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type != 'ADMS'",
+   "description": "Leave off for normal ZK devices (TCP). Tick only when the device refuses TCP but answers UDP on the same port \u2014 some K300 units do this on 4370.",
+   "fieldname": "force_udp",
+   "fieldtype": "Check",
+   "label": "Use UDP"
+  },
+  {
+   "fieldname": "status_information",
+   "fieldtype": "Tab Break",
+   "label": "Status"
+  },
+  {
+   "default": "Disconnected",
+   "description": "Set automatically. For push devices it reflects whether the device has been in touch recently, not whether it can be dialled.",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Connected\nDisconnected\nInactive"
+  },
+  {
+   "description": "When this device last spoke to us. Written to the database rather than kept only in the cache, because clearing the cache would otherwise make a perfectly healthy device look as though it had never connected.",
+   "fieldname": "last_contact_at",
+   "fieldtype": "Datetime",
+   "label": "Last Contact",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "description": "Clear this to park one machine without disabling the scheduler for all of them.",
+   "fieldname": "sync_enabled",
+   "fieldtype": "Check",
+   "label": "Sync Enabled"
+  },
+  {
+   "description": "Watermark for attendance sync. Punches at or before this time are not re-read.",
+   "fieldname": "last_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Attendance Sync",
+   "read_only": 1
+  },
+  {
+   "description": "Watermark for user sync, tracked separately from attendance.",
+   "fieldname": "last_user_sync",
+   "fieldtype": "Datetime",
+   "label": "Last User Sync",
+   "read_only": 1
+  },
+  {
+   "fieldname": "other_information",
+   "fieldtype": "Section Break",
+   "label": "Other Information"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-21 18:20:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Machine",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "machine_id,ip_address,serial_number",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "machine_name",
+ "track_changes": 1
+}

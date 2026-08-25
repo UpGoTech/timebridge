@@ -170,7 +170,7 @@ def photo_query_round(machine, round_no):
         ]
 
     pins = frappe.get_all(
-        "Machine User",
+        "TimeBridge Machine User",
         filters={"machine": machine},
         pluck="user_id",
     )
@@ -268,7 +268,7 @@ def record_contact(machine, kind):
     )
 
     frappe.db.set_value(
-        "Biometric Machine", machine, "last_contact_at", stamp, update_modified=False
+        "TimeBridge Machine", machine, "last_contact_at", stamp, update_modified=False
     )
     frappe.db.commit()
 
@@ -284,7 +284,7 @@ def last_contact(machine):
     if cached:
         return cached
 
-    stored = frappe.db.get_value("Biometric Machine", machine, "last_contact_at")
+    stored = frappe.db.get_value("TimeBridge Machine", machine, "last_contact_at")
 
     if not stored:
         return {}

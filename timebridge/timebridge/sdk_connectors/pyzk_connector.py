@@ -174,7 +174,7 @@ class PyZKConnector:
         Everyone enrolled on the device, shaped for logger.save_users.
 
         A device will happily hold a user with no name, but user_name is
-        mandatory on Machine User. Such a record is labelled by its id instead
+        mandatory on TimeBridge Machine User. Such a record is labelled by its id instead
         of being dropped: without the mapping every punch that person ever
         makes would stay unattached to an employee.
         """

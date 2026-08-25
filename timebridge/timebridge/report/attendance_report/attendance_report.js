@@ -44,19 +44,19 @@ frappe.query_reports["Attendance Report"] = {
             fieldname: "biometric_machine",
             label: __("Machine"),
             fieldtype: "Link",
-            options: "Biometric Machine"
+            options: "TimeBridge Machine"
         },
         {
             fieldname: "organization",
-            label: __("Organization"),
+            label: __("TimeBridge Organization"),
             fieldtype: "Link",
-            options: "Organization"
+            options: "TimeBridge Organization"
         },
         {
             fieldname: "branch",
-            label: __("Branch"),
+            label: __("TimeBridge Branch"),
             fieldtype: "Link",
-            options: "Branch",
+            options: "TimeBridge Branch",
             get_query: function () {
                 const organization = frappe.query_report.get_filter_value("organization");
                 return organization ? { filters: { organization: organization } } : {};
@@ -64,9 +64,9 @@ frappe.query_reports["Attendance Report"] = {
         },
         {
             fieldname: "department",
-            label: __("Department"),
+            label: __("TimeBridge Department"),
             fieldtype: "Link",
-            options: "Department",
+            options: "TimeBridge Department",
             get_query: function () {
                 const branch = frappe.query_report.get_filter_value("branch");
                 return branch ? { filters: { branch: branch } } : {};
@@ -74,15 +74,15 @@ frappe.query_reports["Attendance Report"] = {
         },
         {
             fieldname: "shift",
-            label: __("Shift"),
+            label: __("TimeBridge Shift"),
             fieldtype: "Link",
-            options: "Shift"
+            options: "TimeBridge Shift"
         },
         {
             fieldname: "employee",
-            label: __("Employee"),
+            label: __("TimeBridge Employee"),
             fieldtype: "Link",
-            options: "Employee"
+            options: "TimeBridge Employee"
         },
         {
             fieldname: "include_inactive",
@@ -146,7 +146,7 @@ frappe.query_reports["Attendance Report"] = {
 
         // Two destinations, because they answer different questions. The name
         // opens the day-by-day detail — the times behind these letters, for
-        // the month already on screen. The code opens the Employee record
+        // the month already on screen. The code opens the TimeBridge Employee record
         // itself, for the shift, phone number and device mapping.
         //
         // The row carries the employee id; the name alone could not be used,
@@ -160,7 +160,7 @@ frappe.query_reports["Attendance Report"] = {
 
             // Hand the name over before anyone clicks.
             //
-            // Employee is shown by title rather than id, so the detail report's
+            // TimeBridge Employee is shown by title rather than id, so the detail report's
             // Link filter would otherwise have to fetch that title from the
             // server — and it does so without waiting, leaving the filter box
             // empty for a moment. The report reads its filters out of the DOM,
@@ -170,7 +170,7 @@ frappe.query_reports["Attendance Report"] = {
             // This row already holds both halves, and navigation is in-page, so
             // seeding the cache here means the filter fills in synchronously
             // and there is no moment to lose the race in.
-            frappe.utils.add_link_title("Employee", data.employee, data.employee_name);
+            frappe.utils.add_link_title("TimeBridge Employee", data.employee, data.employee_name);
 
             if (column.fieldname === "employee_name") {
 
@@ -215,7 +215,7 @@ function detail_route(employee) {
         year: filters.year || new Date().getFullYear()
     });
 
-    return `/app/query-report/Employee Attendance Detail?${params.toString()}`;
+    return `/app/query-report/TimeBridge Employee Attendance Detail?${params.toString()}`;
 }
 
 

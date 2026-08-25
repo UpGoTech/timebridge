@@ -19,7 +19,7 @@ ADMSRenderer page_renderer hook rather than /api/method/... See renderer.py.
 
 Security note: these endpoints are necessarily unauthenticated — the device
 cannot log in or carry a CSRF token. Pushes whose SN does not match a
-registered Biometric Machine are rejected and logged, so an unknown sender
+registered TimeBridge Machine are rejected and logged, so an unknown sender
 cannot create records.
 """
 
@@ -90,7 +90,7 @@ def handle_cdata(serial, args, body, method, raw=None):
         # payload so the serial can be matched up afterwards.
         frappe.log_error(
             title="TimeBridge ADMS: unknown device serial",
-            message=f"Serial {serial!r} matches no Biometric Machine.\n\nBody:\n{body[:2000]}",
+            message=f"Serial {serial!r} matches no TimeBridge Machine.\n\nBody:\n{body[:2000]}",
         )
         return "OK"
 
@@ -131,7 +131,7 @@ def _receive_attlog(machine, body):
             skipped=result["duplicates"] + result["invalid"] + len(skipped),
             error=(
                 f"{len(skipped)} unparseable line(s), {result['invalid']} bad timestamp(s), "
-                f"{result['unmatched']} punch(es) with no Machine User"
+                f"{result['unmatched']} punch(es) with no TimeBridge Machine User"
                 if (skipped or result["invalid"] or result["unmatched"]) else None
             ),
         )
@@ -181,7 +181,7 @@ def _receive_userinfo(machine, body):
                 error=(f"{linked} earlier punch(es) linked" if linked else None),
             )
 
-            frappe.db.set_value("Biometric Machine", machine, "last_user_sync",
+            frappe.db.set_value("TimeBridge Machine", machine, "last_user_sync",
                                 frappe.utils.now_datetime())
             frappe.db.commit()
 
@@ -272,7 +272,7 @@ def handle_fdata(serial, args, body, method, raw=None):
 
         frappe.log_error(
             title="TimeBridge ADMS: photo from unknown device serial",
-            message=f"Serial {serial!r} matches no Biometric Machine.",
+            message=f"Serial {serial!r} matches no TimeBridge Machine.",
         )
 
         return "OK"

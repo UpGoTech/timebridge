@@ -45,7 +45,7 @@ def request_all_data(machine_id, days=30):
     from timebridge.timebridge.services.connection import is_push_device
     from timebridge.timebridge.services.pull_sync import enqueue_pull_sync
 
-    machine = frappe.get_doc("Biometric Machine", machine_id)
+    machine = frappe.get_doc("TimeBridge Machine", machine_id)
 
     # Serial number is how a pushed batch is matched back to its machine. A
     # dialed device needs no such match — we know who we called — so the check
@@ -125,7 +125,7 @@ def bulk_device_action(action, machines):
 
         row = {
             "machine": machine_id,
-            "machine_name": frappe.db.get_value("Biometric Machine", machine_id, "machine_name"),
+            "machine_name": frappe.db.get_value("TimeBridge Machine", machine_id, "machine_name"),
         }
 
         row.update(_today_counts(machine_id))
@@ -163,7 +163,7 @@ def _bulk_test_connection(machine_id):
 
     from timebridge.timebridge.services.connection import get_connector, is_push_device
 
-    machine = frappe.get_doc("Biometric Machine", machine_id)
+    machine = frappe.get_doc("TimeBridge Machine", machine_id)
 
     if not is_push_device(machine):
         # Dialling a device can take the better part of two minutes, which is
@@ -173,7 +173,7 @@ def _bulk_test_connection(machine_id):
 
     health = get_connector(machine).health(machine)
 
-    frappe.db.set_value("Biometric Machine", machine_id, "status", health["machine_status"])
+    frappe.db.set_value("TimeBridge Machine", machine_id, "status", health["machine_status"])
     frappe.db.commit()
 
     return {"ok": health["status"] == "success", "message": health["message"]}
@@ -233,7 +233,7 @@ def match_photos(machine_id, file_urls):
         return re.sub(r"[^a-z0-9]", "", (value or "").lower())
 
     users = frappe.get_all(
-        "Machine User",
+        "TimeBridge Machine User",
         filters={"machine": machine_id},
         fields=["name", "user_id", "user_name", "employee"],
     )
@@ -243,7 +243,7 @@ def match_photos(machine_id, file_urls):
 
     by_code = {}
 
-    for emp in frappe.get_all("Employee", fields=["name", "employee_code", "employee_name"]):
+    for emp in frappe.get_all("TimeBridge Employee", fields=["name", "employee_code", "employee_name"]):
         for user in users:
             if user.employee == emp.name:
                 by_code[normalise(emp.employee_code)] = user
@@ -262,12 +262,12 @@ def match_photos(machine_id, file_urls):
             unmatched.append(file_name)
             continue
 
-        frappe.db.set_value("Machine User", user.name, "photo", url)
+        frappe.db.set_value("TimeBridge Machine User", user.name, "photo", url)
 
-        # The Employee record is what most people actually open, so the picture
+        # The TimeBridge Employee record is what most people actually open, so the picture
         # is put on both rather than only where it happened to be uploaded.
         if user.employee:
-            frappe.db.set_value("Employee", user.employee, "photo", url)
+            frappe.db.set_value("TimeBridge Employee", user.employee, "photo", url)
 
         matched.append({
             "file": file_name,
@@ -282,7 +282,7 @@ def match_photos(machine_id, file_urls):
         "matched": matched,
         "unmatched": unmatched,
         "total": len(file_rows),
-        "with_photo": frappe.db.count("Machine User", {"machine": machine_id, "photo": ["is", "set"]}),
+        "with_photo": frappe.db.count("TimeBridge Machine User", {"machine": machine_id, "photo": ["is", "set"]}),
         "users": len(users),
     }
 
@@ -305,7 +305,7 @@ def request_photos(machine_id):
 
     from timebridge.timebridge.adms import commands
 
-    machine = frappe.get_doc("Biometric Machine", machine_id)
+    machine = frappe.get_doc("TimeBridge Machine", machine_id)
 
     if not machine.serial_number:
         return {
@@ -326,7 +326,7 @@ def request_photos(machine_id):
     frappe.db.set_single_value("TimeBridge Settings", "enable_photo_transfer", 1)
 
     baseline = frappe.db.count(
-        "Machine User",
+        "TimeBridge Machine User",
         {"machine": machine_id, "photo": ["is", "set"]},
     )
 
@@ -377,7 +377,7 @@ def photo_fetch_status(machine_id, last_contact_before=None):
         reverted = True
 
     photos_now = frappe.db.count(
-        "Machine User",
+        "TimeBridge Machine User",
         {"machine": machine_id, "photo": ["is", "set"]},
     )
 
@@ -389,7 +389,7 @@ def photo_fetch_status(machine_id, last_contact_before=None):
     return {
         "photos": photos_now,
         "with_photo": photos_now,
-        "users": frappe.db.count("Machine User", {"machine": machine_id}),
+        "users": frappe.db.count("TimeBridge Machine User", {"machine": machine_id}),
         "pending_commands": commands.pending_count(machine_id),
         "fetch_round": cint(fetch_state.get("round")),
         "last_contact": contact.get("at"),
@@ -428,7 +428,7 @@ def connection_health(machine_id):
 
     from timebridge.timebridge.adms import commands
 
-    machine = frappe.get_doc("Biometric Machine", machine_id)
+    machine = frappe.get_doc("TimeBridge Machine", machine_id)
 
     contact = commands.last_contact(machine_id) or {}
 
@@ -482,7 +482,7 @@ def connection_health(machine_id):
             "TimeBridge Punch Log",
             {"machine": machine_id, "timestamp": [">=", frappe.utils.today()]},
         ),
-        "users": frappe.db.count("Machine User", {"machine": machine_id}),
+        "users": frappe.db.count("TimeBridge Machine User", {"machine": machine_id}),
         "pending_commands": commands.pending_count(machine_id),
     }
 
@@ -533,7 +533,7 @@ def fetch_status(machine_id):
 
     return {
         "punches": frappe.db.count("TimeBridge Punch Log", {"machine": machine_id}),
-        "users": frappe.db.count("Machine User", {"machine": machine_id}),
+        "users": frappe.db.count("TimeBridge Machine User", {"machine": machine_id}),
         "sync_logs": frappe.db.count("TimeBridge Sync Log", {"machine": machine_id}),
         "recent_syncs": recent,
         "pending_commands": commands.pending_count(machine_id),
@@ -544,7 +544,7 @@ def fetch_status(machine_id):
 @frappe.whitelist()
 def preview_employee_link(machine_id, skip_non_person=1, merge_same_name=1):
     """
-    What would attaching this machine's users to Employees do?
+    What would attaching this machine's users to TimeBridge Employees do?
 
     Read-only on purpose. Names are the only evidence a device gives, so the
     operator sees the whole plan — who is matched, who would be created under
@@ -571,7 +571,7 @@ def create_and_link_employees(
     merge_same_name=1,
 ):
     """
-    Create the Employees this machine's users need, attach them, and backfill.
+    Create the TimeBridge Employees this machine's users need, attach them, and backfill.
 
     Synchronous: a few hundred inserts finish well inside a request, and the
     operator is waiting on the answer to decide whether to rebuild attendance.
@@ -592,7 +592,7 @@ def create_and_link_employees(
 
 @frappe.whitelist()
 def employee_assignment_summary(machine_id):
-    """What Organization, Branch and Shift this machine's Employees carry now."""
+    """What TimeBridge Organization, TimeBridge Branch and TimeBridge Shift this machine's TimeBridge Employees carry now."""
 
     from timebridge.timebridge.services.employee_link import assignment_summary
 
@@ -602,7 +602,7 @@ def employee_assignment_summary(machine_id):
 @frappe.whitelist()
 def update_employee_assignment(machine_id, organization=None, branch=None, shift=None):
     """
-    Change Organization / Branch / Shift on this machine's existing Employees.
+    Change TimeBridge Organization / TimeBridge Branch / TimeBridge Shift on this machine's existing TimeBridge Employees.
 
     Separate from create_and_link_employees on purpose: that one only ever fills
     in people who have none, so it cannot be used to correct the people it
@@ -653,7 +653,7 @@ def get_device_info_progress(machine_id):
 def test_connection(machine_id):
 
     machine = frappe.get_doc(
-        "Biometric Machine",
+        "TimeBridge Machine",
         machine_id
     )
 
@@ -679,7 +679,7 @@ def test_connection(machine_id):
         if result == 0:
 
             frappe.db.set_value(
-                "Biometric Machine",
+                "TimeBridge Machine",
                 machine.name,
                 "status",
                 "Connected"
@@ -694,7 +694,7 @@ def test_connection(machine_id):
         else:
 
             frappe.db.set_value(
-                "Biometric Machine",
+                "TimeBridge Machine",
                 machine.name,
                 "status",
                 "Disconnected"
@@ -751,7 +751,7 @@ def find_device_port(machine_id):
     from timebridge.timebridge.services.device_info import probe_socket
 
     machine = frappe.db.get_value(
-        "Biometric Machine", machine_id, ["ip_address", "port"], as_dict=True
+        "TimeBridge Machine", machine_id, ["ip_address", "port"], as_dict=True
     )
 
     if not machine or not machine.ip_address:
@@ -833,8 +833,8 @@ def photo_collection_status(machine_id):
         """
         SELECT mu.name, mu.user_id, mu.user_name, mu.photo, mu.retake_photo,
                emp.employee_name
-        FROM `tabMachine User` mu
-        LEFT JOIN `tabEmployee` emp ON emp.name = mu.employee
+        FROM `tabTimeBridge Machine User` mu
+        LEFT JOIN `tabTimeBridge Employee` emp ON emp.name = mu.employee
         WHERE mu.machine = %(machine)s
         ORDER BY CAST(mu.user_id AS UNSIGNED), mu.user_id
         """,
@@ -877,7 +877,7 @@ def request_photo_retake(machine_user):
     poor photo is still better than none while waiting for the next punch.
     """
 
-    frappe.db.set_value("Machine User", machine_user, "retake_photo", 1)
+    frappe.db.set_value("TimeBridge Machine User", machine_user, "retake_photo", 1)
     frappe.db.commit()
 
     return {"machine_user": machine_user, "retake": True}
