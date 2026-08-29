@@ -290,3 +290,205 @@ def last_contact(machine):
         return {}
 
     return {"at": str(stored)[:19], "kind": "recorded"}
+
+
+# --- Device Mirror verify (ADMS async probe) ---
+
+MIRROR_VERIFY_TTL = 3600
+MIRROR_VERIFY_QUIET_SECONDS = 90
+
+
+def mirror_verify_key(machine):
+
+    return f"timebridge_mirror_verify_adms::{machine}"
+
+
+def start_mirror_verify(machine, window_days=45, start_dt=None, end_dt=None, run_id=None, server_counts=None):
+    """
+    Queue ADMS commands for a mirror verify run.
+
+    Count probe first (GET OPTIONS + DATA COUNT); punch window via DATA QUERY ATTLOG.
+    """
+
+    from timebridge.timebridge.services.device_mirror import window_bounds
+
+    if not start_dt or not end_dt:
+        _, _, start_dt_obj, end_dt_obj = window_bounds(window_days)
+        start_dt = start_dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+        end_dt = end_dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+
+    state = {
+        "active": True,
+        "run_id": run_id,
+        "window_days": cint(window_days),
+        "window_start": start_dt[:10],
+        "window_end": end_dt[:10],
+        "started_at": now_datetime().strftime("%Y-%m-%d %H:%M:%S"),
+        "stage": "Queued",
+        "server_counts": server_counts or {},
+        "device_counts": {},
+        "steps_done": [],
+        "attlog_batches": 0,
+        "attlog_records": 0,
+        "last_batch_at": None,
+        "pending_count_probe": None,
+    }
+
+    frappe.cache().set_value(mirror_verify_key(machine), state, expires_in_sec=MIRROR_VERIFY_TTL)
+
+    queue_command(machine, "GET OPTIONS")
+    queue_command(machine, "DATA COUNT biodata")
+    queue_command(machine, "DATA COUNT biophoto")
+    queue_command(machine, resend_attendance_between(start_dt, end_dt))
+
+    state["stage"] = "Waiting for device"
+    frappe.cache().set_value(mirror_verify_key(machine), state, expires_in_sec=MIRROR_VERIFY_TTL)
+
+
+def mirror_verify_progress(machine):
+    """Poll ADMS mirror verify state."""
+
+    from frappe.utils import time_diff_in_seconds
+
+    state = frappe.cache().get_value(mirror_verify_key(machine)) or {}
+
+    if not state.get("active"):
+        return {"active": False}
+
+    now = now_datetime()
+    last_batch = state.get("last_batch_at")
+    seconds_quiet = None
+
+    if last_batch:
+        seconds_quiet = time_diff_in_seconds(now, get_datetime(last_batch))
+
+    pending = pending_count(machine)
+    attlog_done = "attlog" in (state.get("steps_done") or [])
+    batches = cint(state.get("attlog_batches"))
+
+    complete = (
+        pending == 0
+        and "options" in (state.get("steps_done") or [])
+        and (attlog_done or batches == 0)
+        and (
+            (batches > 0 and seconds_quiet is not None and seconds_quiet >= MIRROR_VERIFY_QUIET_SECONDS)
+            or (batches == 0 and seconds_quiet is not None and seconds_quiet >= 30)
+        )
+    )
+
+    if complete and state.get("status") != "complete":
+        _finish_mirror_verify(machine, state)
+
+    return {
+        "active": True,
+        "run_id": state.get("run_id"),
+        "status": state.get("status", "running"),
+        "stage": state.get("stage"),
+        "window_days": state.get("window_days"),
+        "window_start": state.get("window_start"),
+        "window_end": state.get("window_end"),
+        "server_counts": state.get("server_counts"),
+        "device_counts": state.get("device_counts"),
+        "attlog_batches": batches,
+        "attlog_records": cint(state.get("attlog_records")),
+        "seconds_quiet": seconds_quiet,
+        "pending_commands": pending,
+        "complete": complete or state.get("status") == "complete",
+        "error_message": state.get("error_message"),
+    }
+
+
+def clear_mirror_verify(machine):
+
+    frappe.cache().delete_value(mirror_verify_key(machine))
+
+
+def note_mirror_options(machine, counts):
+    """Merge GET OPTIONS / options POST counts into mirror state."""
+
+    state = frappe.cache().get_value(mirror_verify_key(machine)) or {}
+
+    if not state.get("active"):
+        return
+
+    device = state.setdefault("device_counts", {})
+
+    if counts.get("users") is not None:
+        device["users"] = cint(counts["users"])
+
+    if counts.get("fingerprints") is not None:
+        device["fingerprints"] = cint(counts["fingerprints"])
+
+    if counts.get("faces") is not None:
+        device["faces"] = cint(counts["faces"])
+
+    if counts.get("photos") is not None:
+        device["photos"] = cint(counts["photos"])
+
+    steps = state.setdefault("steps_done", [])
+
+    if "options" not in steps:
+        steps.append("options")
+
+    state["stage"] = "Options received"
+    frappe.cache().set_value(mirror_verify_key(machine), state, expires_in_sec=MIRROR_VERIFY_TTL)
+
+
+def note_mirror_count(machine, probe_kind, count):
+    """Record a DATA COUNT response."""
+
+    state = frappe.cache().get_value(mirror_verify_key(machine)) or {}
+
+    if not state.get("active"):
+        return
+
+    device = state.setdefault("device_counts", {})
+    count = cint(count)
+
+    if probe_kind == "biodata":
+        if device.get("fingerprints") is None:
+            device["fingerprints"] = count
+    elif probe_kind == "biophoto":
+        if device.get("photos") is None:
+            device["photos"] = count
+
+    state["stage"] = f"Count {probe_kind}"
+    frappe.cache().set_value(mirror_verify_key(machine), state, expires_in_sec=MIRROR_VERIFY_TTL)
+
+
+def note_mirror_attlog_batch(machine, record_count):
+    """Bump punch count during mirror verify ATTLOG query."""
+
+    state = frappe.cache().get_value(mirror_verify_key(machine)) or {}
+
+    if not state.get("active"):
+        return
+
+    state["attlog_batches"] = cint(state.get("attlog_batches")) + 1
+    state["attlog_records"] = cint(state.get("attlog_records")) + cint(record_count)
+    state["last_batch_at"] = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+    state["device_counts"]["punches"] = cint(state.get("attlog_records"))
+    state["stage"] = "Reading punches"
+
+    steps = state.setdefault("steps_done", [])
+
+    if "attlog" not in steps:
+        steps.append("attlog")
+
+    frappe.cache().set_value(mirror_verify_key(machine), state, expires_in_sec=MIRROR_VERIFY_TTL)
+
+
+def _finish_mirror_verify(machine, state):
+    """Write snapshot when ADMS verify completes."""
+
+    from timebridge.timebridge.services import device_mirror
+
+    state["status"] = "complete"
+    device_mirror.on_adms_mirror_complete(machine, state)
+
+
+def queue_template_fetch(machine):
+    """Queue template DATA QUERY commands for manual fetch."""
+
+    queue_command(machine, "DATA QUERY tablename=templatev10\tfielddesc=*\tfilter=*")
+    queue_command(machine, "DATA QUERY tablename=biodata\tfielddesc=*\tfilter=*")

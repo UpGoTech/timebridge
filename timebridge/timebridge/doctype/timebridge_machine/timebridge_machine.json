@@ -21,6 +21,7 @@
   "force_udp",
   "status_information",
   "status",
+  "mirror_status",
   "last_contact_at",
   "sync_enabled",
   "last_sync",
@@ -133,6 +134,15 @@
    "in_list_view": 1,
    "label": "Status",
    "options": "Connected\nDisconnected\nInactive"
+  },
+  {
+   "description": "Overall device mirror status from the latest verify snapshot.",
+   "fieldname": "mirror_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Mirror",
+   "options": "\nIn sync\nDrift\nStale\nUnknown\nError",
+   "read_only": 1
   },
   {
    "description": "When this device last spoke to us. Written to the database rather than kept only in the cache, because clearing the cache would otherwise make a perfectly healthy device look as though it had never connected.",

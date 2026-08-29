@@ -173,7 +173,10 @@ scheduler_events = {
 		# show as Disconnected quickly, not up to fifteen minutes later.
 		"*/2 * * * *": [
 			"timebridge.timebridge.services.attendance_sync.refresh_push_device_status"
-		]
+		],
+		"0 * * * *": [
+			"timebridge.timebridge.services.device_mirror.run_scheduled_verify"
+		],
 	}
 }
 

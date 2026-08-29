@@ -17,6 +17,8 @@ USERINFO lines are `key=value` pairs rather than positional:
     PIN=1\tName=Asha\tPri=0\tCard=123\tPasswd=\tGrp=1
 """
 
+import re
+
 # Punch direction by device status code, reusing the mapping already proven in
 # biometric_attendance/biometric_puller.py::get_punch_type — 0/4 are entry
 # readers, 1/5 are exit readers. Unknown codes stay "Unknown" rather than being
@@ -36,6 +38,8 @@ VERIFY_MODE_MAP = {
     "2": "Card",
     "15": "Face",
 }
+
+_KV_SPACED = re.compile(r"(\w+)\s*=\s*([^=\t]+)")
 
 
 def parse_attlog(body):
@@ -77,6 +81,170 @@ def parse_attlog(body):
             "punch_direction": PUNCH_DIRECTION_MAP.get(status, "Unknown"),
             "verify_mode": VERIFY_MODE_MAP.get(verify, "Other" if verify else None),
             "device_status": status or None,
+            "raw": line,
+        })
+
+    return records, skipped
+
+
+# --- Device options (Push SDK §4.6) ---
+
+
+def parse_options(body):
+    """
+    Parse device parameter push or GET OPTIONS response.
+
+    Returns dict with normalised keys: users, punches, fingerprints, faces, …
+    """
+
+    result = {}
+
+    for line in (body or "").splitlines():
+        line = line.strip()
+
+        if not line or "=" not in line:
+            continue
+
+        for chunk in line.replace("\t", "\n").split("\n"):
+            if "=" not in chunk:
+                continue
+
+            key, _, value = chunk.partition("=")
+            key = key.strip()
+            value = value.strip()
+
+            if not key:
+                continue
+
+            upper = key.upper()
+
+            if upper in ("USERCOUNT", "USERS"):
+                result["users"] = _int_or_none(value)
+            elif upper in ("TRANSACTIONCOUNT", "ATTLOGCOUNT", "RECORDS"):
+                result["punches_total"] = _int_or_none(value)
+            elif upper in ("FPCOUNT", "FINGERCOUNT", "FINGERPRINTCOUNT"):
+                result["fingerprints"] = _int_or_none(value)
+            elif upper in ("FACECOUNT", "FACECOUNT10"):
+                result["faces"] = _int_or_none(value)
+            elif upper in ("BIOPHOTOCOUNT", "USERPICCOUNT"):
+                result["photos"] = _int_or_none(value)
+            elif upper in ("BIODATACOUNT",):
+                result["biodata"] = _int_or_none(value)
+
+    return result
+
+
+def _int_or_none(value):
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_count_response(body):
+    """Parse DATA COUNT response — tab-separated count=N or plain integer."""
+
+    text = (body or "").strip()
+
+    if not text:
+        return None
+
+    for chunk in text.replace("\t", "\n").split("\n"):
+        chunk = chunk.strip()
+
+        if "=" in chunk:
+            _, _, value = chunk.partition("=")
+            parsed = _int_or_none(value)
+            if parsed is not None:
+                return parsed
+
+    return _int_or_none(text)
+
+
+# --- Biometric templates (Push SDK §7.7 / §7.11) ---
+
+
+def is_template_table(args, table):
+    """Whether this upload carries biometric templates."""
+
+    tablename = (args.get("tablename") or "").strip().lower()
+
+    if table == "TABLEDATA" and tablename in ("biodata", "templatev10"):
+        return True
+
+    return (table or "").upper() in ("TEMPLATEV10", "BIODATA")
+
+
+def template_upload_source(args, table):
+    tablename = (args.get("tablename") or "").strip().lower()
+
+    if table == "TABLEDATA" and tablename:
+        return tablename.lower()
+
+    if table:
+        return table.lower()
+
+    return "biodata"
+
+
+def parse_templatev10(body):
+    """Parse templatev10 lines: Pin=… FingerID=… Template=… Size=… Valid=…"""
+
+    return _parse_template_body(body, default_bio_type="Fingerprint", source_table="templatev10")
+
+
+def parse_biodata(body):
+    """Parse unified biodata lines: pin=… type=… index=… tmp=… majorver=… minorver=…"""
+
+    return _parse_template_body(body, source_table="biodata")
+
+
+def _parse_template_body(body, default_bio_type=None, source_table=None):
+    records = []
+    skipped = []
+
+    for line in (body or "").splitlines():
+        line = line.rstrip("\r").strip()
+
+        if not line or "=" not in line:
+            continue
+
+        fields = {}
+
+        for chunk in line.split("\t") if "\t" in line else [line]:
+            for match in _KV_SPACED.finditer(chunk):
+                fields[match.group(1).upper()] = match.group(2).strip()
+
+            if "=" in chunk and "\t" not in chunk:
+                key, _, value = chunk.partition("=")
+                fields[key.strip().upper()] = value.strip()
+
+        user_id = fields.get("PIN") or fields.get("USERID") or fields.get("UID")
+
+        template_data = (
+            fields.get("TEMPLATE")
+            or fields.get("TMP")
+            or fields.get("CONTENT")
+            or fields.get("DATA")
+        )
+
+        if not user_id or not template_data:
+            skipped.append(line)
+            continue
+
+        bio_type = fields.get("TYPE") or default_bio_type or "Other"
+        template_index = fields.get("FINGERID") or fields.get("INDEX") or fields.get("NO") or "0"
+
+        records.append({
+            "user_id": user_id,
+            "bio_type": bio_type,
+            "template_index": template_index,
+            "template_data": template_data,
+            "algorithm_major": fields.get("MAJORVER") or fields.get("MAJOR") or 10,
+            "algorithm_minor": fields.get("MINORVER") or fields.get("MINOR") or 0,
+            "template_format": fields.get("FORMAT"),
+            "valid": 0 if fields.get("VALID") in ("0", "false", "False") else 1,
+            "size": fields.get("SIZE"),
             "raw": line,
         })
 
