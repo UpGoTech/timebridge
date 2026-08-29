@@ -1,0 +1,141 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:SNAP-{machine}-{#####}",
+ "creation": "2026-08-28 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "machine",
+  "verified_at",
+  "status",
+  "transport",
+  "column_break_meta",
+  "window_days",
+  "window_start",
+  "window_end",
+  "duration_seconds",
+  "counts_section",
+  "device_counts",
+  "server_counts",
+  "asset_status",
+  "error_section",
+  "error_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "machine",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "TimeBridge Machine",
+   "options": "TimeBridge Machine",
+   "reqd": 1
+  },
+  {
+   "fieldname": "verified_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Verified At",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "In sync\nDrift\nStale\nUnknown\nError",
+   "reqd": 1
+  },
+  {
+   "fieldname": "transport",
+   "fieldtype": "Data",
+   "label": "Transport",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "window_days",
+   "fieldtype": "Int",
+   "label": "Window Days"
+  },
+  {
+   "fieldname": "window_start",
+   "fieldtype": "Date",
+   "label": "Window Start"
+  },
+  {
+   "fieldname": "window_end",
+   "fieldtype": "Date",
+   "label": "Window End"
+  },
+  {
+   "fieldname": "duration_seconds",
+   "fieldtype": "Float",
+   "label": "Duration (Seconds)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "counts_section",
+   "fieldtype": "Section Break",
+   "label": "Counts"
+  },
+  {
+   "fieldname": "device_counts",
+   "fieldtype": "JSON",
+   "label": "Device Counts"
+  },
+  {
+   "fieldname": "server_counts",
+   "fieldtype": "JSON",
+   "label": "Server Counts"
+  },
+  {
+   "fieldname": "asset_status",
+   "fieldtype": "JSON",
+   "label": "Asset Status"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "error_section",
+   "fieldtype": "Section Break",
+   "label": "Error"
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error Message",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-28 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Device Snapshot",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

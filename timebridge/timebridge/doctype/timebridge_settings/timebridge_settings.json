@@ -34,6 +34,15 @@
   "paid_leave_quota",
   "photo_settings",
   "enable_photo_transfer",
+  "mirror_settings",
+  "enable_mirror_schedule",
+  "mirror_schedule_frequency",
+  "mirror_schedule_time",
+  "column_break_mirror",
+  "mirror_default_window_days",
+  "mirror_stale_hours",
+  "mirror_notify_on_drift",
+  "mirror_machines",
   "debug_settings",
   "enable_debug_log"
  ],
@@ -212,6 +221,63 @@
    "fieldname": "enable_photo_transfer",
    "fieldtype": "Check",
    "label": "Ask Devices To Send Photos"
+  },
+  {
+   "fieldname": "mirror_settings",
+   "fieldtype": "Tab Break",
+   "label": "Device Mirror"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_mirror_schedule",
+   "fieldtype": "Check",
+   "label": "Enable Scheduled Mirror Verify"
+  },
+  {
+   "default": "Every Night",
+   "depends_on": "eval:doc.enable_mirror_schedule",
+   "fieldname": "mirror_schedule_frequency",
+   "fieldtype": "Select",
+   "label": "Schedule Frequency",
+   "options": "Every Night\nEvery Monday\nEvery Sunday\nCustom"
+  },
+  {
+   "default": "02:00:00",
+   "depends_on": "eval:doc.enable_mirror_schedule",
+   "fieldname": "mirror_schedule_time",
+   "fieldtype": "Time",
+   "label": "Schedule Time"
+  },
+  {
+   "fieldname": "column_break_mirror",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "45",
+   "fieldname": "mirror_default_window_days",
+   "fieldtype": "Int",
+   "label": "Default Punch Window (Days)"
+  },
+  {
+   "default": "48",
+   "fieldname": "mirror_stale_hours",
+   "fieldtype": "Int",
+   "label": "Stale After (Hours)"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.enable_mirror_schedule",
+   "fieldname": "mirror_notify_on_drift",
+   "fieldtype": "Check",
+   "label": "Notify on Drift"
+  },
+  {
+   "depends_on": "eval:doc.enable_mirror_schedule",
+   "description": "Leave empty to verify all active machines.",
+   "fieldname": "mirror_machines",
+   "fieldtype": "Table",
+   "label": "Machines",
+   "options": "TimeBridge Mirror Machine"
   },
   {
    "fieldname": "debug_settings",

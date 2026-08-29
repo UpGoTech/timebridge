@@ -536,6 +536,42 @@ def fetch_status(machine_id):
 
 
 @frappe.whitelist()
+def get_device_mirror(machine_id, window_days=None):
+	"""Latest snapshot and live server counts for the Device Mirror page."""
+
+	from timebridge.timebridge.services.device_mirror import get_device_mirror as _get
+
+	return _get(machine_id, window_days=window_days)
+
+
+@frappe.whitelist()
+def start_mirror_verify(machine_id, window_days=None):
+	"""Start async device mirror verify."""
+
+	from timebridge.timebridge.services.device_mirror import start_mirror_verify as _start
+
+	return _start(machine_id, window_days=window_days)
+
+
+@frappe.whitelist()
+def mirror_verify_progress(machine_id):
+	"""Poll mirror verify progress."""
+
+	from timebridge.timebridge.services.device_mirror import mirror_verify_progress as _progress
+
+	return _progress(machine_id)
+
+
+@frappe.whitelist()
+def request_template_fetch(machine_id):
+	"""Queue ADMS template pull for manual Fetch templates action."""
+
+	from timebridge.timebridge.services.device_mirror import request_template_fetch as _fetch
+
+	return _fetch(machine_id)
+
+
+@frappe.whitelist()
 def preview_employee_link(machine_id, skip_non_person=1, merge_same_name=1):
     """
     What would attaching this machine's users to TimeBridge Employees do?

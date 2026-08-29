@@ -23,14 +23,14 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 
 ```
 001 ADMS Device Discovery     ████████████████████░  ~96%   Merged (PR #3) — B7 deferred
-002 Device Mirror (v1)        █░░░░░░░░░░░░░░░░░░░   ~2%   Spec written — review pending
+002 Device Mirror (v1)        ███████████████████░  ~95%   Implemented on feat/device-mirror
 002 Device Mirror (v2 restore) ░░░░░░░░░░░░░░░░░░░░    0%   Planned inside 002 Phase H
 ```
 
 | Spec | Title | Branch | Status | v1 progress | Next action |
 |------|-------|--------|--------|-------------|-------------|
 | [**001**](001-adms-device-discovery.md) | ADMS Device Discovery & Registration | — (merged) | **Merged** PR #3 | **25 / 26** items · B7 deferred | Post-merge: e2e (B7) |
-| [**002**](002-device-mirror.md) | Device Mirror (device ↔ server parity) | `feat/device-mirror` (TBD) | Spec written — awaiting review | **1 / 56** v1 items · Phase H separate | Product review §12; then implement B→G |
+| [**002**](002-device-mirror.md) | Device Mirror (device ↔ server parity) | `feat/device-mirror` | **Implemented** — QA + PR pending | **~45 / 49** v1 items · Phase H separate | Manual QA §10; open PR |
 | — | Device Restore (backup machine) | — | Planned as **002 Phase H** / future `003` | **0 / 6** | After 002 v1 merge |
 
 **Programme totals (v1 scope only):** **23 / 82** checklist items complete · **0** partial · **59** not started
@@ -69,7 +69,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 |-------|-------|
 | **Doc** | [002-device-mirror.md](002-device-mirror.md) |
 | **One-liner** | Compare device vs server inventory; store biometric templates; Verify + manual Fetch; 45-day punch window |
-| **Status** | **Spec only** — no implementation branch yet |
+| **Status** | **Implemented** on `feat/device-mirror` — manual QA pending |
 
 ### Locked decisions (summary)
 

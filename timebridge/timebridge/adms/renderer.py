@@ -30,6 +30,7 @@ HANDLERS = {
     "getrequest": api.handle_getrequest,
     "devicecmd": api.handle_devicecmd,
     "ping": api.handle_ping,
+    "querydata": api.handle_querydata,
     # Photographs arrive here on most firmwares, as raw JPEG bytes rather than
     # the tab-delimited text everything else uses.
     "fdata": api.handle_fdata,

@@ -26,7 +26,22 @@ frappe.listview_settings["TimeBridge Machine"] = {
             );
         });
 
-    }
+    },
+
+    /** Row click and subject link → Device Mirror (spec 002). */
+    get_form_link(doc) {
+        return `/app/device-mirror?machine=${encodeURIComponent(doc.name)}`;
+    },
+
+    formatters: {
+        mirror_status(value) {
+            if (!value) return `<span class="text-muted">—</span>`;
+            const cls = String(value).toLowerCase().replace(/\s+/g, "-");
+            return `<span class="indicator-pill ${cls} filterable ellipsis">${frappe.utils.escape_html(value)}</span>`;
+        },
+    },
+
+    primary_action: null,
 
 };
 
