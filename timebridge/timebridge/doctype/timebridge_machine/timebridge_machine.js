@@ -1507,28 +1507,34 @@ function show_connection_health(frm) {
 function build_health_html(h) {
 
     const mins = h.minutes_since_contact;
+    const port_label = h.web_port ? String(h.web_port) : __("your Frappe web port");
 
     // The device polls us every 30 seconds, so silence beyond a couple of
     // minutes is genuinely wrong rather than just quiet.
     let state, colour, headline, advice;
 
-    if (!h.receiver_ok) {
-        state = "down";
-        colour = "red";
-        headline = __("The app itself is not listening");
-        advice = __("Frappe is not serving on port 8000. Run <code>bench start</code> in the WSL terminal.");
-
-    } else if (mins === null || mins === undefined) {
+    if (mins === null || mins === undefined) {
         state = "silent";
         colour = "orange";
         headline = __("The device has never contacted us");
-        advice = __("Enter the server address on the device: <b>Menu → Comm → Cloud Server Setting</b>, with Enable Domain Name and Enable Proxy Server both OFF. If it is already set, run <b>Fix TimeBridge Network.bat</b> on the Desktop — the WSL address changes on every restart.");
+        advice = __(
+            "On the device open <b>Menu → Comm → Cloud Server Setting</b> (or ADMS). " +
+            "Set <b>Server Port</b> to <b>{0}</b>, turn <b>Enable Domain Name</b> and " +
+            "<b>Enable Proxy Server</b> OFF, and point <b>Server Address</b> at the " +
+            "host where this Frappe site is reachable from the device network.",
+            [port_label]
+        );
 
     } else if (mins > 5) {
         state = "stale";
         colour = "orange";
         headline = __("The device has gone quiet — last heard {0} minutes ago", [mins]);
-        advice = __("It normally checks in every 30 seconds. Usually the PC restarted and the forwarding broke: run <b>Fix TimeBridge Network.bat</b> on the Desktop.");
+        advice = __(
+            "It normally checks in every 30 seconds on port <b>{0}</b>. " +
+            "Check that the device can still reach this server — network, firewall, " +
+            "or port forwarding may have changed since it last worked.",
+            [port_label]
+        );
 
     } else {
         state = "ok";
@@ -1540,6 +1546,7 @@ function build_health_html(h) {
     const icon = { ok: "&#10003;", stale: "!", silent: "?", down: "&#10007;" }[state];
 
     const rows = [
+        [__("ADMS server port"), h.web_port || __("unknown")],
         [__("Device last spoke"),
          h.last_contact ? `${h.last_contact} (${h.last_contact_kind || ""})` : __("never")],
         [__("Serial number"), h.serial_number || `<span style="color:var(--red-500)">${__("not set — pushes cannot be matched")}</span>`],

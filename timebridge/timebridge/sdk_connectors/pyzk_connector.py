@@ -3,8 +3,6 @@ import time
 import frappe
 
 from frappe.utils import cint
-from zk import ZK
-from zk.exception import ZKErrorResponse
 
 # Used when TimeBridge Settings has never been saved and so reports
 # nothing, mirroring the defaults declared in its schema.
@@ -24,6 +22,24 @@ RETRY_BACKOFF_SECONDS = 2
 PUNCH_DIRECTION_MAP = {0: "In", 1: "Out", 4: "In", 5: "Out"}
 
 VERIFY_MODE_MAP = {0: "Password", 1: "Fingerprint", 2: "Card", 15: "Face"}
+
+
+def _pyzk():
+    """Import pyzk only when a PyZK device is actually used."""
+
+    try:
+        from zk import ZK
+        from zk.exception import ZKErrorResponse
+    except ImportError as exc:
+        frappe.throw(
+            "The pyzk library is not installed. Run "
+            "<code>bench setup requirements --python</code> or "
+            "<code>bench pip install pyzk</code> to connect PyZK pull devices.",
+            title="PyZK Not Available",
+            exc=exc,
+        )
+
+    return ZK, ZKErrorResponse
 
 
 class PyZKConnector:
@@ -55,6 +71,8 @@ class PyZKConnector:
         ) or DEFAULT_RETRY_COUNT
 
         attempts = max(attempts, 1)
+
+        ZK, ZKErrorResponse = _pyzk()
 
         last_error = None
 
