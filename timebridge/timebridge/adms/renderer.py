@@ -19,7 +19,7 @@ import frappe
 
 from frappe.website.page_renderers.base_renderer import BaseRenderer
 
-from timebridge.timebridge.adms import api
+from timebridge.timebridge.adms import api, logger, pending
 
 ADMS_PREFIX = "iclock"
 
@@ -71,6 +71,15 @@ class ADMSRenderer(BaseRenderer):
             except Exception:
                 frappe.log_error(
                     title="TimeBridge ADMS: could not read request body",
+                    message=frappe.get_traceback(),
+                )
+
+        if serial and not logger.get_machine_by_serial(serial):
+            try:
+                pending.record_signal(serial, endpoint, request.method, args)
+            except Exception:
+                frappe.log_error(
+                    title="TimeBridge ADMS: could not record pending signal",
                     message=frappe.get_traceback(),
                 )
 

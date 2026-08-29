@@ -11,11 +11,11 @@ import socket
 
 from frappe.utils import add_days, cint, now_datetime
 
-from timebridge.timebridge.services.device_info import enqueue_device_info, get_progress
-
 
 @frappe.whitelist()
 def get_device_info(machine_id):
+
+    from timebridge.timebridge.services.device_info import enqueue_device_info
 
     return enqueue_device_info(machine_id)
 
@@ -168,6 +168,8 @@ def _bulk_test_connection(machine_id):
     if not is_push_device(machine):
         # Dialling a device can take the better part of two minutes, which is
         # far too long to do serially across a list. Queue it instead.
+        from timebridge.timebridge.services.device_info import enqueue_device_info
+
         enqueue_device_info(machine_id)
         return {"ok": True, "message": "Connection test queued"}
 
@@ -423,10 +425,10 @@ def connection_health(machine_id):
     arriving, which is the only thing that really matters anyway.
     """
 
-    import socket
     import subprocess
 
     from timebridge.timebridge.adms import commands
+    from timebridge.timebridge.adms.server import web_port
 
     machine = frappe.get_doc("TimeBridge Machine", machine_id)
 
@@ -439,9 +441,8 @@ def connection_health(machine_id):
         machine_id,
     )[0][0]
 
-    # The address the device must be pointed at is the Windows LAN IP, which
-    # this process cannot see from inside WSL — it only knows the gateway it
-    # routes through. Reported as "ask the fixer" rather than guessed at.
+    # The LAN address the device must reach varies by deployment; only the
+    # port is knowable from bench config. Host/IP hints stay with the operator.
     wsl_ip = None
 
     try:
@@ -451,15 +452,6 @@ def connection_health(machine_id):
     except Exception:
         pass
 
-    # Does our own receiver answer? If this fails nothing else matters.
-    receiver_ok = False
-
-    try:
-        with socket.create_connection(("127.0.0.1", 8000), timeout=3):
-            receiver_ok = True
-    except OSError:
-        pass
-
     minutes_since = None
 
     if contact.get("at"):
@@ -467,11 +459,13 @@ def connection_health(machine_id):
             frappe.utils.time_diff_in_seconds(frappe.utils.now_datetime(), contact["at"]) / 60
         )
 
+    port = web_port()
+
     return {
         "machine_name": machine.machine_name,
         "serial_number": machine.serial_number,
         "ip_address": machine.ip_address,
-        "receiver_ok": receiver_ok,
+        "web_port": port,
         "wsl_ip": wsl_ip,
         "last_contact": contact.get("at"),
         "last_contact_kind": contact.get("kind"),
@@ -645,6 +639,8 @@ def get_device_info_progress(machine_id):
     web port, which does work — and keeps the fix inside this app rather than
     patching Frappe.
     """
+
+    from timebridge.timebridge.services.device_info import get_progress
 
     return get_progress(machine_id)
 

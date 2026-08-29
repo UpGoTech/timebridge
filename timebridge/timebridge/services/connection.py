@@ -14,7 +14,6 @@ So the two that are not built say exactly that, by name, instead of throwing
 import frappe
 
 from timebridge.timebridge.sdk_connectors.essl_connector import ADMSConnector
-from timebridge.timebridge.sdk_connectors.pyzk_connector import PyZKConnector
 
 # SDK types whose devices dial out to us rather than answering us. Nothing
 # may try to open a connection to these.
@@ -44,6 +43,8 @@ def get_connector(device):
     sdk_type = device.sdk_type or ""
 
     if sdk_type == "PyZK":
+        from timebridge.timebridge.sdk_connectors.pyzk_connector import PyZKConnector
+
         return PyZKConnector()
 
     if sdk_type == "ADMS":

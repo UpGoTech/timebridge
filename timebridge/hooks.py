@@ -92,7 +92,7 @@ page_renderer = [
 # Installation
 # ------------
 
-# before_install = "timebridge.install.before_install"
+before_install = "timebridge.install.before_install"
 # after_install = "timebridge.install.after_install"
 
 # Uninstallation
@@ -221,7 +221,7 @@ scheduler_events = {
 # Ignore links to specified DocTypes when deleting documents
 # -----------------------------------------------------------
 
-# ignore_links_on_delete = ["Communication", "ToDo"]
+ignore_links_on_delete = ["TimeBridge Pending Device Signal"]
 
 # Request Events
 # ----------------
