@@ -213,6 +213,115 @@ def rebuild_for_range(from_date=None, to_date=None, employee=None):
     }
 
 
+def punches_grouped_by_day(employee=None, from_date=None, to_date=None, machine_user=None):
+    """Punch Log rows for one person, grouped by calendar day."""
+
+    if machine_user:
+        condition = "p.machine_user = %(machine_user)s"
+        values = {
+            "machine_user": machine_user,
+            "from_date": getdate(from_date),
+            "to_date": getdate(to_date),
+        }
+    elif employee:
+        condition = "p.employee = %(employee)s AND p.employee IS NOT NULL"
+        values = {
+            "employee": employee,
+            "from_date": getdate(from_date),
+            "to_date": getdate(to_date),
+        }
+    else:
+        return {}
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT p.name, p.employee, p.employee_name, p.timestamp, DATE(p.timestamp) AS day
+        FROM `tabTimeBridge Punch Log` p
+        WHERE {condition}
+          AND DATE(p.timestamp) BETWEEN %(from_date)s AND %(to_date)s
+        ORDER BY p.timestamp
+        """,
+        values,
+        as_dict=True,
+    )
+
+    grouped = {}
+
+    for row in rows:
+        grouped.setdefault(getdate(row.day), []).append(row)
+
+    return grouped
+
+
+def summarize_punch_day(employee, day, punches, shift=None, window=None):
+    """
+    Derive in/out/hours/status from raw punches without writing anything.
+
+    Same rules as build_day — duplicate collapse, first punch in, last out,
+    half-day thresholds — so a report reading Punch Log directly cannot
+    disagree with the attendance row the scheduler would build.
+    """
+
+    if not punches:
+        return None
+
+    window = window if window is not None else duplicate_window()
+    kept = collapse_duplicates(punches, window)
+
+    first = kept[0]
+    last = kept[-1] if len(kept) > 1 else None
+
+    if shift is None and employee:
+        shift = frappe.db.get_value("TimeBridge Employee", employee, "shift")
+
+    start_time, end_time, grace, shift_cutoff = shift_bounds(shift)
+
+    total_hours = 0.0
+
+    if last:
+        total_hours = flt(
+            time_diff_in_seconds(last.timestamp, first.timestamp) / 3600.0, 2
+        )
+
+    status = "Present"
+    remarks = None
+
+    if not last:
+        if getdate(day) == getdate(frappe.utils.today()):
+            status = "In Office"
+            remarks = IN_OFFICE_REMARK
+        else:
+            status = "Needs Review"
+            remarks = SINGLE_PUNCH_REMARK
+
+    elif total_hours < half_day_hours():
+        status = "Half Day"
+
+    cutoff = shift_cutoff or half_day_after()
+
+    if cutoff and status == "Present":
+        latest_full_day_start = get_datetime(f"{day} 00:00:00") + cutoff
+
+        if first.timestamp > latest_full_day_start:
+            status = "Half Day"
+            remarks = (
+                f"Arrived {first.timestamp.strftime('%H:%M')}, after the "
+                f"half-day cutoff — counted as half a day regardless of hours worked."
+            )
+
+    return frappe._dict(
+        first_in=first.timestamp,
+        last_out=last.timestamp if last else None,
+        total_hours=total_hours,
+        punch_count=len(kept),
+        status=status,
+        remarks=remarks,
+        first=first,
+        last=last,
+        kept=kept,
+    )
+
+
 def build_day(employee, day, punches, window):
     """
     Write one attendance row. Returns True if it was newly created.
@@ -220,15 +329,6 @@ def build_day(employee, day, punches, window):
     Also stamps direction back onto the punches themselves, so the Punch Log
     stops showing "Unknown" for the two that we can actually name.
     """
-
-    kept = collapse_duplicates(punches, window)
-
-    first = kept[0]
-    last = kept[-1] if len(kept) > 1 else None
-
-    employee_name = first.employee_name or frappe.db.get_value(
-        "TimeBridge Employee", employee, "employee_name"
-    )
 
     key = build_attendance_key(employee, day)
     existing = frappe.db.get_value(
@@ -247,14 +347,13 @@ def build_day(employee, day, punches, window):
     if existing and existing.shift and existing.shift != shift:
         shift = existing.shift
 
-    start_time, end_time, grace, shift_cutoff = shift_bounds(shift)
+    summary = summarize_punch_day(employee, day, punches, shift=shift, window=window)
 
-    total_hours = 0.0
+    employee_name = summary.first.employee_name or frappe.db.get_value(
+        "TimeBridge Employee", employee, "employee_name"
+    )
 
-    if last:
-        total_hours = flt(
-            time_diff_in_seconds(last.timestamp, first.timestamp) / 3600.0, 2
-        )
+    start_time, end_time, grace, _shift_cutoff = shift_bounds(shift)
 
     late_by = early_exit = 0
 
@@ -263,70 +362,29 @@ def build_day(employee, day, punches, window):
         # simply on time, so late_by is 0 rather than a small positive number
         # that still reads as "late" in a report.
         scheduled_in = get_datetime(f"{day} 00:00:00") + start_time
-        minutes_late = int(time_diff_in_seconds(first.timestamp, scheduled_in) // 60)
+        minutes_late = int(time_diff_in_seconds(summary.first.timestamp, scheduled_in) // 60)
         late_by = max(minutes_late - grace, 0)
 
-    if end_time is not None and last:
+    if end_time is not None and summary.last:
         scheduled_out = get_datetime(f"{day} 00:00:00") + end_time
-        early_exit = max(int(time_diff_in_seconds(scheduled_out, last.timestamp) // 60), 0)
-
-    status = "Present"
-    remarks = None
-
-    if not last:
-
-        # Today with one punch means the person is still here — the day simply
-        # is not over. Flagging that for review would put every present
-        # employee on a problem list every morning.
-        if getdate(day) == getdate(frappe.utils.today()):
-            status = "In Office"
-            remarks = IN_OFFICE_REMARK
-
-        else:
-            # A past day with one punch is different: the out time is genuinely
-            # missing. Still not "Half Day" — we have no evidence they left
-            # early, only that they did not scan.
-            status = "Needs Review"
-            remarks = SINGLE_PUNCH_REMARK
-
-    elif total_hours < half_day_hours():
-        status = "Half Day"
-
-    # Second, independent half-day rule: too late to count as a full day, no
-    # matter how long they then stayed. Applied only to a day that would
-    # otherwise be Present, so it can never upgrade a Half Day or disturb the
-    # In Office / Needs Review states, whose outcome is not known yet.
-    # The shift's own cutoff wins; the company-wide one is only a fallback
-    # for shifts that have not set theirs.
-    cutoff = shift_cutoff or half_day_after()
-
-    if cutoff and status == "Present":
-
-        latest_full_day_start = get_datetime(f"{day} 00:00:00") + cutoff
-
-        if first.timestamp > latest_full_day_start:
-            status = "Half Day"
-            remarks = (
-                f"Arrived {first.timestamp.strftime('%H:%M')}, after the "
-                f"half-day cutoff — counted as half a day regardless of hours worked."
-            )
+        early_exit = max(int(time_diff_in_seconds(scheduled_out, summary.last.timestamp) // 60), 0)
 
     payload = {
         "employee": employee,
         "employee_name": employee_name,
         "attendance_date": day,
         "shift": shift,
-        "status": status,
+        "status": summary.status,
         # A day with punches is not a leave day, so this is cleared rather than
         # left holding a stale value from before someone actually turned up.
         "leave_type": None,
-        "first_in": first.timestamp,
-        "last_out": last.timestamp if last else None,
-        "total_hours": total_hours,
+        "first_in": summary.first_in,
+        "last_out": summary.last_out,
+        "total_hours": summary.total_hours,
         "late_by": late_by,
         "early_exit": early_exit,
-        "punch_count": len(kept),
-        "remarks": remarks,
+        "punch_count": summary.punch_count,
+        "remarks": summary.remarks,
         "attendance_key": key,
     }
 
@@ -340,7 +398,7 @@ def build_day(employee, day, punches, window):
         )
         is_new = True
 
-    stamp_directions(punches, first, last)
+    stamp_directions(punches, summary.first, summary.last)
 
     return is_new
 

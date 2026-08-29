@@ -4,7 +4,7 @@
 |-------|-------|
 | **Spec ID** | `001` |
 | **Branch** | `feat/adms-device-discovery` |
-| **Status** | Ready to merge — product decisions shipped as recommended (§6) |
+| **Status** | **Merged** — PR #3 into `develop` (2026-08-29) |
 | **Authority** | [`ZKteco Push SDK.pdf`](./ZKteco%20Push%20SDK.pdf) for protocol; this doc for product behaviour |
 | **Created** | 2026-08-27 |
 | **Last updated** | 2026-08-29 |
@@ -90,10 +90,10 @@ Legend: `[x]` done · `[~]` partial / needs review · `[ ]` not started
 |---|------|--------|-------|
 | E1 | Numbered spec in `spec/` with tracker | `[x]` | This file |
 | E2 | Product review of open questions (§6) | `[x]` | Shipped with spec recommendations |
-| E3 | Commit phases + PR to `develop` | `[~]` | In progress |
-| E4 | CI green + merge | `[ ]` | |
+| E3 | Commit phases + PR to `develop` | `[x]` | PR #3 |
+| E4 | CI green + merge | `[x]` | Merged 2026-08-29 |
 
-**Overall:** Tracer bullet **complete** — PR + merge pending.
+**Overall:** Tracer bullet **shipped** — branch closed.
 
 ---
 
@@ -222,4 +222,4 @@ After you review this spec:
 - [x] OK to proceed with commits + PR as in §7
 - [x] Any rename / field / copy changes before merge
 
-**Next step:** reply with Q1–Q6 decisions (or “ship as-is”) and whether to commit + open the PR.
+**Shipped** — merged via PR #3. Post-merge follow-ups: Playwright e2e (B7), optional realtime.

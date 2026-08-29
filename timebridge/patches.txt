@@ -6,3 +6,4 @@ timebridge.patches.v1_0.rename_conflicting_doctypes
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 timebridge.patches.v1_0.add_device_registration_workspace_link
+timebridge.patches.v1_0.add_employee_working_hours_workspace_link

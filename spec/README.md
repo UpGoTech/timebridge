@@ -22,18 +22,18 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 ## Overall roadmap
 
 ```
-001 ADMS Device Discovery     ████████████████████░  ~96%   PR open — merge pending
+001 ADMS Device Discovery     ████████████████████░  ~96%   Merged (PR #3) — B7 deferred
 002 Device Mirror (v1)        █░░░░░░░░░░░░░░░░░░░   ~2%   Spec written — review pending
 002 Device Mirror (v2 restore) ░░░░░░░░░░░░░░░░░░░░    0%   Planned inside 002 Phase H
 ```
 
 | Spec | Title | Branch | Status | v1 progress | Next action |
 |------|-------|--------|--------|-------------|-------------|
-| [**001**](001-adms-device-discovery.md) | ADMS Device Discovery & Registration | `feat/adms-device-discovery` | PR open — merge pending | **24 / 26** items · B7 deferred | CI + merge |
+| [**001**](001-adms-device-discovery.md) | ADMS Device Discovery & Registration | — (merged) | **Merged** PR #3 | **25 / 26** items · B7 deferred | Post-merge: e2e (B7) |
 | [**002**](002-device-mirror.md) | Device Mirror (device ↔ server parity) | `feat/device-mirror` (TBD) | Spec written — awaiting review | **1 / 56** v1 items · Phase H separate | Product review §12; then implement B→G |
 | — | Device Restore (backup machine) | — | Planned as **002 Phase H** / future `003` | **0 / 6** | After 002 v1 merge |
 
-**Programme totals (v1 scope only):** **22 / 82** checklist items complete · **1** partial · **59** not started
+**Programme totals (v1 scope only):** **23 / 82** checklist items complete · **0** partial · **59** not started
 
 ---
 
@@ -43,7 +43,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 |-------|-------|
 | **Doc** | [001-adms-device-discovery.md](001-adms-device-discovery.md) |
 | **One-liner** | Capture unknown ADMS serials; Device Registration Desk page; Register / Dismiss |
-| **Status** | Tracer bullet **implemented** — finalize after product review |
+| **Status** | **Merged** — PR #3 (2026-08-29) |
 
 ### Phase rollup
 
@@ -53,14 +53,12 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | B | Device Registration page | 6 | 0 | 1 | `[~]` |
 | C | Lifecycle & links | 4 | 0 | 0 | `[x]` |
 | D | Supporting fixes (pyzk, web port) | 5 | 0 | 0 | `[x]` |
-| E | Spec / docs / merge | 2 | 1 | 1 | `[~]` |
+| E | Spec / docs / merge | 4 | 0 | 0 | `[x]` |
 
 ### Still open (001)
 
 | # | Item | Owner |
 |---|------|-------|
-| E3 | Commit phases + PR to `develop` | Dev |
-| E4 | CI green + merge | Dev |
 | B7 | Playwright e2e | Dev (deferred post-merge) |
 
 ---
@@ -137,7 +135,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 
 | Order | Spec | Rationale |
 |-------|------|-----------|
-| 1 | **001** merge | Unblocks ADMS onboarding; already implemented |
+| 1 | **001** ✓ merged | ADMS onboarding shipped (PR #3) |
 | 2 | **002 v1** | Core “trust the copy” story; templates + Mirror page |
 | 3 | **002 Phase H** (or **003**) | Backup / addition machine restore |
 
@@ -147,8 +145,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 
 | Spec | Section | Waiting for |
 |------|---------|-------------|
-| 001 | §6 Open questions | Q1–Q6 decisions or “ship as-is” |
-| 001 | §9 Review checklist | Sign-off to commit + PR |
+| 001 | §6 Open questions | ✓ Shipped as recommended |
+| 001 | §9 Review checklist | ✓ Merged PR #3 |
 | 002 | §11 Open questions | Q1–Q6 or “ship with recommendations” |
 | 002 | §12 Review checklist | Sign-off to start implementation |
 
@@ -168,3 +166,4 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | Date | Change |
 |------|--------|
 | 2026-08-28 | Initial index: 001 + 002 rollup |
+| 2026-08-29 | 001 merged (PR #3); reconcile tracker |
