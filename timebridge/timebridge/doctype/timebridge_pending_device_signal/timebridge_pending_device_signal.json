@@ -1,0 +1,150 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:serial_number",
+ "creation": "2026-08-27 09:45:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "serial_number",
+  "status",
+  "signal_type",
+  "column_break_contact",
+  "endpoint",
+  "method",
+  "remote_ip",
+  "hit_count",
+  "timing_section",
+  "first_seen",
+  "last_seen",
+  "details_section",
+  "query_args",
+  "registered_machine"
+ ],
+ "fields": [
+  {
+   "fieldname": "serial_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Serial Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nRegistered\nDismissed",
+   "reqd": 1
+  },
+  {
+   "fieldname": "signal_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Signal Type",
+   "options": "Handshake\nHeartbeat\nUpload\nPing\nPhoto Upload\nCommand Result\nOther",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_contact",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "endpoint",
+   "fieldtype": "Data",
+   "label": "Last Endpoint",
+   "read_only": 1
+  },
+  {
+   "fieldname": "method",
+   "fieldtype": "Data",
+   "label": "HTTP Method",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remote_ip",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Remote IP",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "hit_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Hit Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "timing_section",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "fieldname": "first_seen",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "First Seen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_seen",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Last Seen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "query_args",
+   "fieldtype": "Small Text",
+   "label": "Last Query Args",
+   "read_only": 1
+  },
+  {
+   "fieldname": "registered_machine",
+   "fieldtype": "Link",
+   "label": "Registered Machine",
+   "options": "TimeBridge Machine",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-27 09:45:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Pending Device Signal",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "serial_number,remote_ip,signal_type",
+ "show_title_field_in_link": 1,
+ "sort_field": "last_seen",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "serial_number",
+ "track_changes": 0
+}

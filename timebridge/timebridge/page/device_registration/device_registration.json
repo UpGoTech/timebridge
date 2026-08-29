@@ -1,0 +1,22 @@
+{
+ "content": null,
+ "creation": "2026-08-27 09:50:00.000000",
+ "docstatus": 0,
+ "doctype": "Page",
+ "modified": "2026-08-27 09:50:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "device-registration",
+ "owner": "Administrator",
+ "page_name": "device-registration",
+ "roles": [
+  {
+   "role": "System Manager"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Device Registration"
+}
