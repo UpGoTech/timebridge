@@ -36,7 +36,7 @@ page_renderer = [
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/timebridge/css/timebridge.css"
-# app_include_js = "/assets/timebridge/js/timebridge.js"
+# app_include_js removed: device-mirror page is dynamic (jinja html) and no longer cached stale
 
 # include js, css files in header of web template
 # web_include_css = "/assets/timebridge/css/timebridge.css"
@@ -158,24 +158,11 @@ before_install = "timebridge.install.before_install"
 # Scheduled Tasks
 # ---------------
 
-# Keep attendance current without anyone pressing a button.
-#
-# Punches arrive on their own over ADMS, but they are only raw timestamps —
-# this is what turns them into first_in / last_out / hours. A short trailing
-# window rather than the whole history: today's row changes every time someone
-# punches out, and yesterday's can still change if the device delivers late.
+# Push devices never accept inbound probes. Status follows last /iclock contact.
 scheduler_events = {
 	"cron": {
-		"*/15 * * * *": [
-			"timebridge.timebridge.services.attendance_sync.rebuild_recent"
-		],
-		# More often than attendance: a device that has stopped sending should
-		# show as Disconnected quickly, not up to fifteen minutes later.
 		"*/2 * * * *": [
-			"timebridge.timebridge.services.attendance_sync.refresh_push_device_status"
-		],
-		"0 * * * *": [
-			"timebridge.timebridge.services.device_mirror.run_scheduled_verify"
+			"timebridge.timebridge.services.device_status.refresh_push_device_status"
 		],
 	}
 }
@@ -224,7 +211,10 @@ scheduler_events = {
 # Ignore links to specified DocTypes when deleting documents
 # -----------------------------------------------------------
 
-ignore_links_on_delete = ["TimeBridge Pending Device Signal"]
+ignore_links_on_delete = [
+	"TimeBridge Pending Device Signal",
+	"TimeBridge Device Command",
+]
 
 # Request Events
 # ----------------

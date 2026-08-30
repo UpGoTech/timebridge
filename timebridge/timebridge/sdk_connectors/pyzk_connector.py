@@ -306,3 +306,21 @@ class PyZKConnector:
                 photos.append({"user_id": user_id, "image_bytes": image})
 
         return photos
+
+    def set_user(self, conn, user_id, name="", privilege=0, password="", card=0, uid=None):
+        kwargs = {
+            "name": name or "",
+            "privilege": cint(privilege),
+            "password": password or "",
+            "user_id": str(user_id),
+            "card": cint(card) if card else 0,
+        }
+        if uid is not None:
+            kwargs["uid"] = cint(uid)
+        conn.set_user(**kwargs)
+
+    def delete_user(self, conn, user_id, uid=None):
+        if uid is not None:
+            conn.delete_user(uid=cint(uid), user_id=str(user_id))
+        else:
+            conn.delete_user(user_id=str(user_id))

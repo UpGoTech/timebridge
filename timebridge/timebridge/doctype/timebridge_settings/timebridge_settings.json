@@ -14,35 +14,11 @@
   "sync_interval",
   "default_fetch_days",
   "enable_scheduler",
-  "attendance_settings",
+  "event_settings",
   "save_raw_events",
-  "duplicate_punch_window",
   "log_retention_days",
-  "weekly_off_settings",
-  "weekly_off_monday",
-  "weekly_off_tuesday",
-  "weekly_off_wednesday",
-  "weekly_off_thursday",
-  "column_break_weekly_off",
-  "weekly_off_friday",
-  "weekly_off_saturday",
-  "weekly_off_sunday",
-  "half_day_settings",
-  "half_day_hours",
-  "half_day_after_time",
-  "leave_settings",
-  "paid_leave_quota",
   "photo_settings",
   "enable_photo_transfer",
-  "mirror_settings",
-  "enable_mirror_schedule",
-  "mirror_schedule_frequency",
-  "mirror_schedule_time",
-  "column_break_mirror",
-  "mirror_default_window_days",
-  "mirror_stale_hours",
-  "mirror_notify_on_drift",
-  "mirror_machines",
   "debug_settings",
   "enable_debug_log"
  ],
@@ -92,7 +68,7 @@
   },
   {
    "default": "3",
-   "description": "How far back to read on a machine's first ever sync. Devices return their whole stored log, so without this the first sync imports years of history.",
+   "description": "How far back to read on a machine's first ever sync.",
    "fieldname": "default_fetch_days",
    "fieldtype": "Int",
    "label": "First Sync Fetch Days"
@@ -104,9 +80,9 @@
    "label": "Enable Scheduler"
   },
   {
-   "fieldname": "attendance_settings",
+   "fieldname": "event_settings",
    "fieldtype": "Tab Break",
-   "label": "Attendance"
+   "label": "Events"
   },
   {
    "default": "1",
@@ -115,100 +91,10 @@
    "label": "Save Raw Device Events"
   },
   {
-   "default": "30",
-   "fieldname": "duplicate_punch_window",
-   "fieldtype": "Int",
-   "label": "Duplicate Punch Window (Seconds)"
-  },
-  {
    "default": "90",
    "fieldname": "log_retention_days",
    "fieldtype": "Int",
    "label": "Log Retention (Days)"
-  },
-  {
-   "description": "Days that never count as working days. Nobody is marked absent on these, and attendance is not built for them.",
-   "fieldname": "weekly_off_settings",
-   "fieldtype": "Section Break",
-   "label": "Weekly Off"
-  },
-  {
-   "default": "0",
-   "fieldname": "weekly_off_monday",
-   "fieldtype": "Check",
-   "label": "Monday"
-  },
-  {
-   "default": "0",
-   "fieldname": "weekly_off_tuesday",
-   "fieldtype": "Check",
-   "label": "Tuesday"
-  },
-  {
-   "default": "0",
-   "fieldname": "weekly_off_wednesday",
-   "fieldtype": "Check",
-   "label": "Wednesday"
-  },
-  {
-   "default": "0",
-   "fieldname": "weekly_off_thursday",
-   "fieldtype": "Check",
-   "label": "Thursday"
-  },
-  {
-   "fieldname": "column_break_weekly_off",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "0",
-   "fieldname": "weekly_off_friday",
-   "fieldtype": "Check",
-   "label": "Friday"
-  },
-  {
-   "default": "0",
-   "fieldname": "weekly_off_saturday",
-   "fieldtype": "Check",
-   "label": "Saturday"
-  },
-  {
-   "default": "1",
-   "fieldname": "weekly_off_sunday",
-   "fieldtype": "Check",
-   "label": "Sunday"
-  },
-  {
-   "fieldname": "half_day_settings",
-   "fieldtype": "Section Break",
-   "label": "Half Day Rule"
-  },
-  {
-   "default": "4",
-   "description": "A day with fewer worked hours than this counts as Half Day. Days with only one punch are never judged by this \u2014 there is no out time to measure.",
-   "fieldname": "half_day_hours",
-   "fieldtype": "Float",
-   "label": "Half Day Below (Hours)"
-  },
-  {
-   "description": "Arriving later than this counts the day as Half Day, however many hours are then worked. LEAVE BLANK to switch the rule off \u2014 blank changes nothing about how days are counted today.",
-   "fieldname": "half_day_after_time",
-   "fieldtype": "Time",
-   "label": "Half Day If Arriving After"
-  },
-  {
-   "fieldname": "leave_settings",
-   "fieldtype": "Section Break",
-   "label": "Leave"
-  },
-  {
-   "default": "1",
-   "description": "No longer used. Quotas now live on each TimeBridge Leave Type, so sick, casual and earned leave each have their own allowance instead of sharing one.",
-   "fieldname": "paid_leave_quota",
-   "fieldtype": "Float",
-   "hidden": 1,
-   "label": "Paid Leave Per Month (moved)",
-   "precision": "1"
   },
   {
    "fieldname": "photo_settings",
@@ -217,67 +103,10 @@
   },
   {
    "default": "0",
-   "description": "Opens the FACE and UserPic switches in the handshake, which is what permits a device to upload photographs. Off by default: not every firmware understands these switches, and one that does not may stop talking altogether. The Fetch Photos button turns this on, watches the device, and turns it back off by itself if the device goes quiet.",
+   "description": "Opens FACE and UserPic switches in the ADMS handshake. Fetch Photos turns this on and off.",
    "fieldname": "enable_photo_transfer",
    "fieldtype": "Check",
    "label": "Ask Devices To Send Photos"
-  },
-  {
-   "fieldname": "mirror_settings",
-   "fieldtype": "Tab Break",
-   "label": "Device Mirror"
-  },
-  {
-   "default": "0",
-   "fieldname": "enable_mirror_schedule",
-   "fieldtype": "Check",
-   "label": "Enable Scheduled Mirror Verify"
-  },
-  {
-   "default": "Every Night",
-   "depends_on": "eval:doc.enable_mirror_schedule",
-   "fieldname": "mirror_schedule_frequency",
-   "fieldtype": "Select",
-   "label": "Schedule Frequency",
-   "options": "Every Night\nEvery Monday\nEvery Sunday\nCustom"
-  },
-  {
-   "default": "02:00:00",
-   "depends_on": "eval:doc.enable_mirror_schedule",
-   "fieldname": "mirror_schedule_time",
-   "fieldtype": "Time",
-   "label": "Schedule Time"
-  },
-  {
-   "fieldname": "column_break_mirror",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "45",
-   "fieldname": "mirror_default_window_days",
-   "fieldtype": "Int",
-   "label": "Default Punch Window (Days)"
-  },
-  {
-   "default": "48",
-   "fieldname": "mirror_stale_hours",
-   "fieldtype": "Int",
-   "label": "Stale After (Hours)"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval:doc.enable_mirror_schedule",
-   "fieldname": "mirror_notify_on_drift",
-   "fieldtype": "Check",
-   "label": "Notify on Drift"
-  },
-  {
-   "depends_on": "eval:doc.enable_mirror_schedule",
-   "description": "Leave empty to verify all active machines.",
-   "fieldname": "mirror_machines",
-   "fieldtype": "Table",
-   "label": "Machines",
-   "options": "TimeBridge Mirror Machine"
   },
   {
    "fieldname": "debug_settings",
@@ -291,10 +120,9 @@
    "label": "Enable Debug Log"
   }
  ],
- "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-17 15:22:18.420063",
+ "modified": "2026-08-30 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Settings",
@@ -313,6 +141,5 @@
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
  "track_changes": 1
 }

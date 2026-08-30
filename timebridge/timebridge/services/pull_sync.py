@@ -149,6 +149,198 @@ def enqueue_pull_sync(machine_id, days=30):
     }
 
 
+def enqueue_pull_users(machine_id):
+    """
+    Queue a users-only read from a dialable device.
+
+    Shares the per-machine deduplication key with a full pull so two sessions
+    cannot open to one terminal at once.
+    """
+
+    job_id = f"{PULL_SYNC_EVENT}::{machine_id}"
+
+    run_id = frappe.generate_hash(length=10)
+
+    set_progress(machine_id, {
+        "run_id": run_id,
+        "status": "queued",
+        "stage": "Queued",
+        "step": 0,
+        "total": TOTAL_STEPS
+    })
+
+    job = frappe.enqueue(
+        "timebridge.timebridge.services.pull_sync.run_pull_users_job",
+        queue="long",
+        job_id=job_id,
+        deduplicate=True,
+        timeout=pull_job_timeout(),
+        machine_id=machine_id,
+        user=frappe.session.user,
+        run_id=run_id
+    )
+
+    if job is None:
+
+        running = get_progress(machine_id)
+
+        return {
+            "status": "queued",
+            "mode": "pull",
+            "run_id": running.get("run_id"),
+            "message": "A fetch is already running for this machine",
+            "timeout": pull_job_timeout()
+        }
+
+    return {
+        "status": "queued",
+        "mode": "pull",
+        "job_id": job.id,
+        "run_id": run_id,
+        "message": "User fetch queued",
+        "timeout": pull_job_timeout()
+    }
+
+
+def run_pull_users_job(machine_id, user=None, run_id=None):
+    """Background entry point for users-only pull."""
+
+    user = user or frappe.session.user
+
+    def on_stage(step, stage, detail=None):
+        publish_stage(machine_id, user, step, stage, detail, run_id=run_id)
+
+    on_stage(0, "Background worker picked up the job")
+
+    result = pull_users_only(machine_id, on_stage=on_stage)
+
+    final = dict(result, machine_id=machine_id, run_id=run_id)
+
+    frappe.db.commit()
+
+    set_progress(machine_id, final)
+
+    frappe.publish_realtime(
+        PULL_SYNC_EVENT,
+        message=final,
+        user=user,
+        after_commit=True
+    )
+
+    return result
+
+
+def pull_users_only(machine_id, on_stage=None):
+    """
+    Read enrolled users from a dialable device and store them — no punches.
+    """
+
+    def stage(step, text, detail=None):
+
+        if on_stage:
+            on_stage(step, text, detail)
+
+    device = frappe.get_doc("TimeBridge Machine", machine_id)
+
+    if is_push_device(device):
+
+        return {
+            "status": "failed",
+            "failed_step": STEP_CONNECT,
+            "message": (
+                f"{device.machine_name or device.name} is a push device (SDK Type: "
+                "ADMS). Use Fetch users, which asks it to re-send enrolled users."
+            )
+        }
+
+    port = cint(device.port) or 4370
+    udp = uses_udp(device)
+
+    stage(
+        STEP_NETWORK,
+        "Checking network",
+        f"{device.ip_address}:{port}" + (" UDP" if udp else "")
+    )
+
+    if udp:
+        reachable, detail = True, "udp"
+    else:
+        reachable, detail = probe_socket(device.ip_address, port)
+
+    if not reachable:
+
+        set_machine_status(device, "Disconnected")
+
+        return {
+            "status": "failed",
+            "failed_step": STEP_NETWORK,
+            "machine_status": "Disconnected",
+            "message": f"Cannot reach {device.ip_address}:{port} — {detail}"
+        }
+
+    connector = get_connector(device)
+
+    conn = None
+    users = []
+
+    try:
+
+        stage(STEP_CONNECT, "Connecting to device")
+
+        conn = connector.connect(
+            device,
+            on_attempt=lambda attempt, attempts: stage(
+                STEP_CONNECT,
+                "Connecting to device",
+                f"attempt {attempt} of {attempts}"
+            )
+        )
+
+        stage(STEP_READ, "Reading users from device")
+
+        users = connector.get_users(conn)
+
+        stage(STEP_READ, "Reading users from device", f"{len(users)} users read")
+
+    except Exception as e:
+
+        frappe.log_error(frappe.get_traceback(), "TimeBridge: Pull Users Error")
+
+        set_machine_status(device, "Disconnected")
+
+        return {
+            "status": "failed",
+            "failed_step": STEP_CONNECT if conn is None else STEP_READ,
+            "machine_status": "Disconnected",
+            "reason": failure_reason(e),
+            "message": str(e)
+        }
+
+    finally:
+
+        try:
+            connector.disconnect(conn)
+
+        except Exception:
+            frappe.log_error(
+                frappe.get_traceback(),
+                "TimeBridge: Device Disconnect Error"
+            )
+
+    sync_batch = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+
+    user_counts = store_users(machine_id, users, sync_batch, stage)
+
+    set_machine_status(device, "Connected")
+
+    return {
+        "status": "success",
+        "machine_status": "Connected",
+        "users": user_counts,
+        "message": f"{user_counts.get('created', 0)} new users"
+    }
+
+
 def publish_stage(machine_id, user, step, stage, detail=None, run_id=None):
     """
     Say what the worker is doing now, for the form to pick up on its next poll.
@@ -351,13 +543,11 @@ def pull_all_data(machine_id, days=30, on_stage=None):
 
     user_counts = store_users(machine_id, users, sync_batch, stage)
 
-    from timebridge.timebridge.services.employee_photo import (
-        copy_linked_photos,
-        store_pulled_photos,
-    )
+    from timebridge.timebridge.adms.photos import save_photo
 
-    store_pulled_photos(machine_id, photos)
-    copy_linked_photos(machine_id)
+    for photo in photos or []:
+        if photo.get("user_id") and photo.get("image_bytes"):
+            save_photo(machine_id, photo["user_id"], photo["image_bytes"], "PyZK Pull")
 
     punch_counts = store_punches(machine_id, punches, days, sync_batch, stage)
 

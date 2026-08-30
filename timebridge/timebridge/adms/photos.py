@@ -198,33 +198,6 @@ def save_photos_from_fields(machine, rows, source):
     return saved
 
 
-def sync_employee_photo(employee, file_url, replace=False):
-    """
-    Put the same picture on the TimeBridge Employee record.
-
-    TimeBridge Machine User is the device's record of a person; TimeBridge Employee is the company's.
-    Reports, lists and the person's own page all read TimeBridge Employee, so a face that
-    only ever reaches TimeBridge Machine User is a face nobody sees.
-
-    The same file is pointed at rather than written twice — one picture, two
-    records referring to it.
-    """
-
-    if not employee or not file_url:
-        return
-
-    current = frappe.db.get_value("TimeBridge Employee", employee, "photo")
-
-    # A photograph someone uploaded by hand outranks anything a camera caught
-    # at a doorway, so it is only overwritten when a retake was asked for.
-    if current and not replace:
-        return
-
-    if current != file_url:
-        frappe.db.set_value("TimeBridge Employee", employee, "photo", file_url)
-
-
-def save_photo(machine, user_id, image_bytes, source):
     """
     Attach the picture to the TimeBridge Machine User and show it on the record.
 
@@ -236,7 +209,7 @@ def save_photo(machine, user_id, image_bytes, source):
     existing = frappe.db.get_value(
         "TimeBridge Machine User",
         {"machine": machine, "user_id": user_id},
-        ["name", "photo", "retake_photo", "employee"],
+        ["name", "photo", "retake_photo"],
         as_dict=True,
     )
 
@@ -256,8 +229,6 @@ def save_photo(machine, user_id, image_bytes, source):
     replace = enroll or cint(existing.retake_photo)
 
     if existing.photo and not replace:
-
-        sync_employee_photo(existing.employee, existing.photo)
 
         frappe.logger().info(
             f"[TimeBridge ADMS] {machine}: user {user_id} already has a photo "
@@ -282,10 +253,6 @@ def save_photo(machine, user_id, image_bytes, source):
     # replacing the picture and the tick would mean nothing.
     if cint(existing.retake_photo):
         frappe.db.set_value("TimeBridge Machine User", machine_user, "retake_photo", 0)
-
-    sync_employee_photo(
-        existing.employee, file_doc.file_url, replace=True
-    )
 
     if source in ENROLL_PHOTO_SOURCES or source in ("FACE", "fdata"):
         frappe.db.set_value("TimeBridge Machine User", machine_user, "face_registered", 1)

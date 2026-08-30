@@ -77,18 +77,11 @@ def save_punches(machine, records, sync_batch=None, save_raw=None, source=SOURCE
             duplicates += 1
             continue
 
-        # Both links are resolved here, not just the machine user. Attendance,
-        # the reports and every per-person view join on employee — a punch that
-        # only knows its TimeBridge Machine User is invisible to all of them.
-        mapping = frappe.db.get_value(
+        machine_user = frappe.db.get_value(
             "TimeBridge Machine User",
             {"machine": machine, "user_id": record["device_user_id"]},
-            ["name", "employee"],
-            as_dict=True,
+            "name",
         )
-
-        machine_user = mapping.name if mapping else None
-        employee = mapping.employee if mapping else None
 
         if not machine_user:
             unmatched += 1
@@ -98,11 +91,6 @@ def save_punches(machine, records, sync_batch=None, save_raw=None, source=SOURCE
             "machine": machine,
             "device_user_id": record["device_user_id"],
             "machine_user": machine_user,
-            "employee": employee,
-            "employee_name": (
-                frappe.db.get_value("TimeBridge Employee", employee, "employee_name")
-                if employee else None
-            ),
             "timestamp": timestamp,
             "punch_direction": record.get("punch_direction") or "Unknown",
             "verify_mode": record.get("verify_mode"),
@@ -152,25 +140,15 @@ def save_users(machine, records):
         )
 
         if existing:
-
-            changes = {}
-            current = frappe.db.get_value(
-                "TimeBridge Machine User", existing, ["user_name", "card_number", "privilege"], as_dict=True
-            )
-
-            if record.get("user_name") and record["user_name"] != current.user_name:
-                changes["user_name"] = record["user_name"]
-
-            if record.get("card_number") and record["card_number"] != current.card_number:
-                changes["card_number"] = record["card_number"]
-
-            if record.get("privilege") and record["privilege"] != current.privilege:
-                changes["privilege"] = record["privilege"]
-
-            if changes:
-                frappe.db.set_value("TimeBridge Machine User", existing, changes)
+            # Desk owns name/card/privilege. Device may still report bio flags.
+            flag_changes = {}
+            if record.get("finger_count") is not None:
+                flag_changes["finger_count"] = cint(record.get("finger_count"))
+            if record.get("face_registered") is not None:
+                flag_changes["face_registered"] = cint(record.get("face_registered"))
+            if flag_changes:
+                frappe.db.set_value("TimeBridge Machine User", existing, flag_changes)
                 updated += 1
-
             continue
 
         frappe.get_doc({
@@ -180,6 +158,8 @@ def save_users(machine, records):
             "user_name": record["user_name"],
             "card_number": record.get("card_number"),
             "privilege": record.get("privilege") or "User",
+            "finger_count": cint(record.get("finger_count")),
+            "face_registered": cint(record.get("face_registered")),
             "is_active": 1,
         }).insert(ignore_permissions=True)
 
@@ -189,54 +169,30 @@ def save_users(machine, records):
 
 
 def link_unmatched_punches(machine):
-    """
-    Fill machine_user and employee on punches that are missing either.
-
-    ADMS devices commonly upload punches before USERINFO, so this backfill is
-    the normal path rather than a repair job. It also catches punches stored
-    before their TimeBridge Machine User was mapped to a TimeBridge Employee — that mapping usually
-    happens later, and without this those punches stay invisible to attendance
-    and every report forever.
-    """
+    """Fill machine_user on punches that arrived before USERINFO."""
 
     unmatched = frappe.get_all(
         "TimeBridge Punch Log",
         filters={
             "machine": machine,
-            "employee": ("is", "not set"),
+            "machine_user": ("is", "not set"),
         },
-        fields=["name", "device_user_id", "machine_user"],
+        fields=["name", "device_user_id"],
         limit=20000,
     )
 
     linked = 0
 
     for punch in unmatched:
-
-        mapping = frappe.db.get_value(
+        machine_user = frappe.db.get_value(
             "TimeBridge Machine User",
             {"machine": machine, "user_id": punch.device_user_id},
-            ["name", "employee"],
-            as_dict=True,
+            "name",
         )
-
-        if not mapping:
+        if not machine_user:
             continue
-
-        updates = {}
-
-        if not punch.machine_user:
-            updates["machine_user"] = mapping.name
-
-        if mapping.employee:
-            updates["employee"] = mapping.employee
-            updates["employee_name"] = frappe.db.get_value(
-                "TimeBridge Employee", mapping.employee, "employee_name"
-            )
-
-        if updates:
-            frappe.db.set_value("TimeBridge Punch Log", punch.name, updates)
-            linked += 1
+        frappe.db.set_value("TimeBridge Punch Log", punch.name, "machine_user", machine_user)
+        linked += 1
 
     return linked
 

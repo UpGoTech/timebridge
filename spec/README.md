@@ -24,14 +24,14 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 ```
 001 ADMS Device Discovery     ████████████████████░  ~96%   Merged (PR #3) — B7 deferred
 002 Device Mirror             ░░░░░░░░░░░░░░░░░░░░    —    Discontinued (see 003)
-003 Device I/O reset          ██░░░░░░░░░░░░░░░░░░   ~8%   Spec written; build on feat/003-device-io
+003 Device I/O reset          ████████████████████░  ~95%   Implemented on feat/003-device-io
 ```
 
 | Spec | Title | Branch | Status | v1 progress | Next action |
 |------|-------|--------|--------|-------------|-------------|
 | [**001**](001-adms-device-discovery.md) | ADMS Device Discovery & Registration | — (merged) | **Merged** PR #3 | **25 / 26** · B7 deferred | Folded into 003 wizard (push inbox) |
 | [**002**](002-device-mirror.md) | Device Mirror | — | **Discontinued** | — | Not shipping; templates/restore out of product |
-| [**003**](003-device-io.md) | Device I/O reset | `feat/003-device-io` | **In progress** | Spec A1–A2 | Strip HR/Mirror, wizard, user write, roll |
+| [**003**](003-device-io.md) | Device I/O reset | `feat/003-device-io` | **Implemented** | Phases A–F | Manual QA; PR to develop |
 
 ---
 
@@ -80,12 +80,12 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 
 | Phase | Name | Rollup |
 |-------|------|--------|
-| A | Spec & cut list | `[~]` |
-| B | Strip HRIS and Mirror | `[ ]` |
-| C | Add Machine wizard | `[ ]` |
-| D | Desk-owned user write | `[ ]` |
-| E | Device Roll | `[ ]` |
-| F | Tests, docs, verify | `[ ]` |
+| A | Spec & cut list | `[x]` |
+| B | Strip HRIS and Mirror | `[x]` |
+| C | Add Machine wizard | `[x]` |
+| D | Desk-owned user write | `[x]` |
+| E | Device Roll | `[x]` |
+| F | Tests, docs, verify | `[x]` |
 
 ---
 

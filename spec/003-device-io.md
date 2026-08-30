@@ -4,7 +4,7 @@
 |-------|-------|
 | **Spec ID** | `003` |
 | **Branch** | `feat/003-device-io` |
-| **Status** | **In progress** |
+| **Status** | **Implemented** — QA / PR pending |
 | **Authority** | [`ZKteco Push SDK.pdf`](./ZKteco%20Push%20SDK.pdf) for ADMS; [pyzk](https://github.com/fananimi/pyzk) for pull; this doc for product behaviour |
 | **Created** | 2026-08-30 |
 | **Last updated** | 2026-08-30 |
@@ -52,58 +52,58 @@ Legend: `[x]` done · `[~]` partial · `[ ]` not started
 |---|------|--------|-------|
 | A1 | This spec + programme index | `[x]` | |
 | A2 | Mark spec 002 discontinued | `[x]` | Restore/templates not in this version |
-| A3 | README / AGENTS.md product statement | `[ ]` | Device I/O, not attendance HR |
+| A3 | README / AGENTS.md product statement | `[x]` | Device I/O, not attendance HR |
 
 ### Phase B — Strip HRIS and Mirror
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| B1 | Delete Employee, Organization, Branch, Department, Shift, Leave, Leave Type, Holiday, Attendance | `[ ]` | Plus tests/controllers |
-| B2 | Delete Device Mirror page, Snapshot, Biometric Template, Mirror Machine | `[ ]` | |
-| B3 | Delete Attendance Report, Punch Register, Employee Attendance Detail, Employee Working Hours | `[ ]` | Punch Log list remains the ledger |
-| B4 | Delete timebridge-setup page; employee/attendance charts | `[ ]` | |
-| B5 | Slim Machine / Machine User / Punch Log / Settings JSON | `[ ]` | Drop employee, processed, mirror, weekly-off |
-| B6 | Slim APIs, hooks scheduler, logger, photos, pull_sync, ADMS handlers | `[ ]` | Keep punch ingest + JPEG harvest |
-| B7 | Patch to drop discontinued DocTypes/pages/reports on migrate | `[ ]` | Greenfield; force-delete |
-| B8 | Rebuild TimeBridge workspace | `[ ]` | Machines, users, punches, roll, add-machine |
+| B1 | Delete Employee, Organization, Branch, Department, Shift, Leave, Leave Type, Holiday, Attendance | `[x]` | Plus tests/controllers |
+| B2 | Delete Device Mirror page, Snapshot, Biometric Template, Mirror Machine | `[x]` | |
+| B3 | Delete Attendance Report, Punch Register, Employee Attendance Detail, Employee Working Hours | `[x]` | Punch Log list remains the ledger |
+| B4 | Delete timebridge-setup page; employee/attendance charts | `[x]` | |
+| B5 | Slim Machine / Machine User / Punch Log / Settings JSON | `[x]` | Drop employee, processed, mirror, weekly-off |
+| B6 | Slim APIs, hooks scheduler, logger, photos, pull_sync, ADMS handlers | `[x]` | Keep punch ingest + JPEG harvest |
+| B7 | Patch to drop discontinued DocTypes/pages/reports on migrate | `[x]` | Greenfield; force-delete |
+| B8 | Rebuild TimeBridge workspace | `[x]` | Machines, users, punches, roll, add-machine |
 
 ### Phase C — Add Machine wizard
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| C1 | Desk page `add-machine` (desk-page-ui) | `[ ]` | Operator picks Pull or Push |
-| C2 | Pull: IP/port/comm key → probe 4370 → save PyZK machine → fetch users/punches | `[ ]` | Failure ≠ “must be push” |
-| C3 | Push: show `/iclock` URL; pending SN table (spec 001); register ADMS machine | `[ ]` | Fold Device Registration into this page |
-| C4 | Optional JPEG request after push register | `[ ]` | Existing photo fetch |
-| C5 | Workspace shortcut | `[ ]` | Replaces timebridge-setup |
+| C1 | Desk page `add-machine` (desk-page-ui) | `[x]` | Operator picks Pull or Push |
+| C2 | Pull: IP/port/comm key → probe 4370 → save PyZK machine → fetch users/punches | `[x]` | Failure ≠ “must be push” |
+| C3 | Push: show `/iclock` URL; pending SN table (spec 001); register ADMS machine | `[x]` | Fold Device Registration into this page |
+| C4 | Optional JPEG request after push register | `[x]` | Existing photo fetch on machine form |
+| C5 | Workspace shortcut | `[x]` | Replaces timebridge-setup |
 
 ### Phase D — Desk-owned user write
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| D1 | Durable `TimeBridge Device Command` queue (not Redis-only) | `[ ]` | Push writes survive restart |
-| D2 | ADMS `DATA UPDATE USERINFO` / `DATA DELETE USERINFO` | `[ ]` | Push SDK |
-| D3 | pyzk `set_user` / `delete_user` | `[ ]` | Immediate on pull session |
-| D4 | Create dialog: PIN, name, optional card/privilege/password, pick machines | `[ ]` | N Machine User rows; PIN clash skips that machine |
-| D5 | Edit/delete: this row; optional apply to other machines with same PIN | `[ ]` | No Person doctype |
-| D6 | Inbound USERINFO creates new PINs; does **not** overwrite Desk name/card/privilege | `[ ]` | Finger/face flags may update |
+| D1 | Durable `TimeBridge Device Command` queue (not Redis-only) | `[x]` | Push writes survive restart |
+| D2 | ADMS `DATA UPDATE USERINFO` / `DATA DELETE USERINFO` | `[x]` | Push SDK |
+| D3 | pyzk `set_user` / `delete_user` | `[x]` | Immediate on pull session |
+| D4 | Create dialog: PIN, name, optional card/privilege/password, pick machines | `[x]` | N Machine User rows; PIN clash skips that machine |
+| D5 | Edit/delete: this row; optional apply to other machines with same PIN | `[x]` | No Person doctype |
+| D6 | Inbound USERINFO creates new PINs; does **not** overwrite Desk name/card/privilege | `[x]` | Finger/face flags may update |
 
 ### Phase E — Device Roll
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| E1 | Script Report: machine + from/to date | `[ ]` | Rows = Machine Users |
-| E2 | Punched? Yes/No; optional last punch timestamp | `[ ]` | No hours, weekly-off, leave |
+| E1 | Script Report: machine + from/to date | `[x]` | Rows = Machine Users |
+| E2 | Punched? Yes/No; optional last punch timestamp | `[x]` | No hours, weekly-off, leave |
 
 ### Phase F — Tests, docs, verify
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| F1 | Unit: USERINFO command payload | `[ ]` | |
-| F2 | Unit: inbound upsert does not overwrite Desk fields | `[ ]` | |
-| F3 | Unit: roll-sheet Yes/No | `[ ]` | |
-| F4 | Integration: fan-out PIN clash skip | `[ ]` | |
-| F5 | Migrate + run-tests on site | `[ ]` | |
+| F1 | Unit: USERINFO command payload | `[x]` | |
+| F2 | Unit: inbound upsert does not overwrite Desk fields | `[x]` | |
+| F3 | Unit: roll-sheet Yes/No | `[x]` | |
+| F4 | Integration: fan-out PIN clash skip | `[x]` | |
+| F5 | Migrate + run-tests on site | `[x]` | 30 tests OK |
 
 ---
 
@@ -180,5 +180,5 @@ bench --site saral.localhost run-tests --app timebridge
 
 - [x] Problem matches grilling (device I/O + wizard + roll + user write)
 - [x] Spec 002 discontinued in the programme index
-- [ ] Implementation phases B–F complete
-- [ ] Tests green on saral.localhost
+- [x] Implementation phases B–F complete
+- [x] Tests green on saral.localhost

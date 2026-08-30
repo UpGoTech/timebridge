@@ -161,6 +161,80 @@ def parse_count_response(body):
     return _int_or_none(text)
 
 
+def parse_devicecmd_fields(body):
+    """Parse key=value lines from a devicecmd acknowledgement."""
+
+    fields = {}
+
+    for line in (body or "").replace("&", "\n").splitlines():
+        line = line.strip()
+
+        if not line or "=" not in line:
+            continue
+
+        key, _, value = line.partition("=")
+        fields[key.strip().upper()] = value.strip()
+
+    return fields
+
+
+def count_probe_kind_from_text(text):
+    """Guess which DATA COUNT table a response belongs to."""
+
+    upper = (text or "").upper()
+
+    if "ATTLOG" in upper or "TRANSACTION" in upper or "RECORD" in upper:
+        return "attlog"
+
+    if "BIODATA" in upper or "FINGER" in upper or "TEMPLATE" in upper:
+        return "biodata"
+
+    if "BIOPHOTO" in upper or "USERPIC" in upper or "PHOTO" in upper:
+        return "biophoto"
+
+    return None
+
+
+def parse_getrequest_info(info):
+    """
+    Parse the INFO query parameter from /iclock/getrequest.
+
+    Format (Push SDK): firmware, users, fingerprints, records, device IP, …
+    """
+
+    import re
+
+    text = (info or "").strip()
+
+    if not text:
+        return {}
+
+    parts = [part.strip() for part in text.split(",")]
+    ip_idx = None
+
+    for index, part in enumerate(parts):
+        if re.match(r"^\d+\.\d+\.\d+\.\d+$", part):
+            ip_idx = index
+            break
+
+    if ip_idx is None or ip_idx < 3:
+        return {}
+
+    result = {}
+
+    try:
+        result["users"] = _int_or_none(parts[ip_idx - 3])
+        result["fingerprints"] = _int_or_none(parts[ip_idx - 2])
+        result["punches_total"] = _int_or_none(parts[ip_idx - 1])
+
+        if ip_idx + 4 < len(parts):
+            result["faces"] = _int_or_none(parts[ip_idx + 4])
+    except (IndexError, TypeError):
+        return {}
+
+    return {key: value for key, value in result.items() if value is not None}
+
+
 # --- Biometric templates (Push SDK §7.7 / §7.11) ---
 
 
