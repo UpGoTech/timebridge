@@ -1,13 +1,16 @@
 # TimeBridge
 
-Frappe app that connects biometric attendance devices (ZKTeco, eSSL, and similar) to Frappe ERP. It syncs punch logs from physical terminals into attendance records.
+Frappe app that connects biometric attendance devices (ZKTeco, eSSL, and similar) to Frappe. It is **device I/O**: machines, enrolled PINs, punch logs, and JPEG harvest when the firmware allows. Attendance as HR lives elsewhere.
+
+See [spec/003-device-io.md](spec/003-device-io.md) for the current product cut.
 
 ## What it does
 
-- Register biometric machines and pull or receive punch data
-- Upsert enrolled users as **Machine Users**, then link them to **Employees**
-- Rebuild daily attendance from linked punches
-- Report attendance (register, punch times, per-employee detail)
+- Add machines through a wizard (operator picks **pull** or **push**)
+- Ingest enrolled users as **Machine Users** (one row per machine + PIN)
+- Ingest punch logs; optional JPEG harvest from facial firmware
+- Create / edit / delete PINs on selected devices from Desk
+- Diagnostic **Device Roll**: did this PIN punch in the selected period?
 
 ## Supported transports
 
@@ -23,31 +26,32 @@ Push devices that reject ZK pull (e.g. some AIFace units) must use ADMS — pull
 ## Data model
 
 ```
-Organization → Branch → Department
-                      → Shift
-                      → Employee → Machine User → Biometric Machine
-TimeBridge Settings (Single — global defaults)
+TimeBridge Machine  →  Machine User (PIN + name + optional photo)
+                    →  Punch Log (PIN + timestamp)
+                    →  Device Command (durable ADMS outbound queue)
+Pending Device Signal   (unregistered push serials)
+TimeBridge Settings     (connection / photo harvest)
 ```
 
-Punches land in **TimeBridge Punch Log**. Attendance is built only for punches whose Machine User is linked to an Employee.
+Same PIN on two machines is two Machine Users unless the operator copies it.
 
 ## Main workflows
 
-1. **Test Connection / Device Info** — queues a background job; result arrives on a realtime event (workers must be running: `bench start`).
-2. **Fetch All Data** — pull devices: full user + punch readout, then batch insert. Push devices: queues an ADMS command for the next device poll.
-3. **Create & Link Employees** — preview then confirm; no silent auto-match (names alone are too ambiguous).
-4. **Rebuild Attendance** — builds day records from linked punches for a date range.
-5. **Reports** — Attendance Report, Punch Register, Employee Attendance Detail, Employee Working Hours.
+1. **Add Machine** — Pull: probe 4370, save, fetch. Push: wait for `/iclock` serial, register.
+2. **Test Connection / Fetch All Data** — pull readout or ADMS re-query.
+3. **Create user** — PIN + name on one or more machines; biometrics enrol at the terminal.
+4. **Device Roll** — Yes/No punched in a date range per PIN.
 
 ## Architecture (high level)
 
 ```
 timebridge/
   api.py                 # whitelisted Desk APIs
-  doctype/               # machines, users, employees, punches, …
-  sdk_connectors/        # PyZKConnector, ADMSConnector, …
-  services/              # device info, pull sync, employee link, attendance
+  doctype/               # machines, users, punches, commands, …
+  sdk_connectors/        # PyZKConnector, ADMSConnector
+  services/              # device info, pull sync, user write
   adms/                  # ADMS push receiver (parser, logger, commands, renderer)
+  page/add_machine/      # wizard
 ```
 
 ADMS is registered via a `page_renderer` hook so firmware-hardcoded paths like `/iclock/cdata` can return raw `text/plain` responses. Handlers acknowledge with `OK` even on soft failures so the device does not drop its batch.
