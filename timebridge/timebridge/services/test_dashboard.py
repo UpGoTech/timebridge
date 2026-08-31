@@ -5,12 +5,14 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, today
+from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, today, get_last_day
 
 from timebridge.timebridge.services.dashboard import (
 	build_daily_punch_summary_rows,
+	build_employee_monthly_punch_summary_rows,
 	get_active_users_per_day_chart,
 	get_daily_punch_summary_list,
+	get_employee_monthly_punch_summary_list,
 	get_users_punched_today,
 )
 
@@ -49,6 +51,16 @@ class TestDashboard(FrappeTestCase):
 				"ip_address": "192.168.99.50",
 				"port": 4370,
 				"sdk_type": "PyZK",
+			}
+		).insert(ignore_permissions=True)
+
+	def _make_machine_user(self, machine, user_id, user_name):
+		return frappe.get_doc(
+			{
+				"doctype": "TimeBridge Machine User",
+				"machine": machine,
+				"user_id": user_id,
+				"user_name": user_name,
 			}
 		).insert(ignore_permissions=True)
 
@@ -188,3 +200,54 @@ class TestDashboard(FrappeTestCase):
 		)
 		values = chart["datasets"][0]["values"]
 		self.assertGreaterEqual(sum(values), 3)
+
+	def test_employee_monthly_punch_summary_rows(self):
+		machine_a = self._make_machine(self.MACHINE_A)
+		machine_b = self._make_machine(self.MACHINE_B)
+		machine_user = self._make_machine_user(machine_a.name, "42", "Monthly Test User")
+		punch_day = now_datetime().replace(day=15, hour=9, minute=0, second=0, microsecond=0)
+		other_day = punch_day.replace(day=16, hour=10, minute=0)
+		month_start = punch_day.replace(day=1)
+
+		self._make_punch(machine_a.name, "42", punch_day)
+		self._make_punch(
+			machine_a.name,
+			"42",
+			punch_day.replace(hour=18, minute=30),
+			punch_direction="Out",
+		)
+		self._make_punch(machine_b.name, "42", punch_day.replace(hour=8, minute=45))
+		self._make_punch(machine_a.name, "42", other_day)
+
+		rows = build_employee_monthly_punch_summary_rows(machine_user.name, month_start)
+		self.assertEqual(len(rows), get_last_day(month_start).day)
+
+		day_15 = next(row for row in rows if getdate(row["date"]).day == 15)
+		self.assertEqual(day_15["punches"], 3)
+		self.assertEqual(day_15["working_hours"], 9.75)
+		self.assertEqual(day_15["working_hours_display"], "9:45")
+		self.assertEqual(day_15["punched_in_display"], "08:45:00")
+
+		day_16 = next(row for row in rows if getdate(row["date"]).day == 16)
+		self.assertEqual(day_16["punches"], 1)
+		self.assertEqual(day_16["working_hours_display"], "")
+
+		blank_day = next(row for row in rows if getdate(row["date"]).day == 1)
+		self.assertEqual(blank_day["punches"], 0)
+		self.assertEqual(blank_day["punched_in_display"], "")
+
+	def test_employee_monthly_punch_summary_list_api(self):
+		machine = self._make_machine(self.MACHINE_A)
+		machine_user = self._make_machine_user(machine.name, "55", "API Monthly User")
+		punch_day = now_datetime().replace(day=10, hour=9, minute=0, second=0, microsecond=0)
+
+		self._make_punch(machine.name, "55", punch_day)
+
+		rows = get_employee_monthly_punch_summary_list(
+			machine_user.name, punch_day.replace(day=1)
+		)
+		self.assertEqual(len(rows), get_last_day(punch_day).day)
+		with_punches = [row for row in rows if row["punches"]]
+		self.assertEqual(len(with_punches), 1)
+		self.assertEqual(with_punches[0]["punches"], 1)
+

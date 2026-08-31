@@ -4,7 +4,7 @@
 |-------|-------|
 | **Spec ID** | `007` |
 | **Branch** | `feat/007-employee-monthly-punch-summary` |
-| **Status** | **In progress** |
+| **Status** | **Ready for review** |
 | **Authority** | This doc; follows [006-daily-punch-summary.md](006-daily-punch-summary.md) |
 | **Created** | 2026-08-31 |
 | **Programme tracker** | [spec/README.md](README.md) |
@@ -57,10 +57,10 @@ Data source: `TimeBridge Punch Log` only.
 | # | Item | Status |
 |---|------|--------|
 | 1 | Spec + programme index | `[x]` |
-| 2 | Monthly punch summary in `dashboard.py` | `[ ]` |
-| 3 | Employee Monthly Punch Summary Script Report + Desk Page | `[ ]` |
-| 4 | Workspace link + migration patch | `[ ]` |
-| 5 | Tests | `[ ]` |
+| 2 | Monthly punch summary in `dashboard.py` | `[x]` |
+| 3 | Employee Monthly Punch Summary Script Report + Desk Page | `[x]` |
+| 4 | Workspace link + migration patch | `[x]` |
+| 5 | Tests | `[x]` |
 
 ---
 

@@ -81,7 +81,7 @@
   {
    "hidden": 0,
    "label": "Reports",
-   "link_count": 2,
+   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -98,6 +98,14 @@
    "hidden": 0,
    "label": "Daily Punch Summary",
    "link_to": "daily-punch-summary",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "Employee Monthly Punch Summary",
+   "link_to": "employee-monthly-punch-summary",
    "link_type": "Page",
    "onboard": 0,
    "type": "Link"

@@ -6,7 +6,17 @@
 from collections import defaultdict
 
 import frappe
-from frappe.utils import format_date, format_time, get_datetime, getdate, now_datetime, today
+from frappe.utils import (
+	add_days,
+	format_date,
+	format_time,
+	get_datetime,
+	get_first_day,
+	get_last_day,
+	getdate,
+	now_datetime,
+	today,
+)
 from frappe.utils.dateutils import (
 	get_dates_from_timegrain,
 	get_from_date_from_timespan,
@@ -143,6 +153,107 @@ def _machine_user_names_by_device_ids(pairs):
 	return name_map
 
 
+def _summarize_day_punches(punches):
+	"""In/out/hrs/count for one calendar day from punch rows."""
+	if not punches:
+		return {
+			"punched_in": None,
+			"punched_in_display": "",
+			"punched_out": None,
+			"punched_out_display": "",
+			"working_hours": None,
+			"working_hours_display": "",
+			"punches": 0,
+		}
+
+	in_punches = [p for p in punches if p.punch_direction == "In"]
+	out_punches = [p for p in punches if p.punch_direction == "Out"]
+	first_punch = min(punches, key=lambda p: p.timestamp)
+	punched_in = (
+		min(in_punches, key=lambda p: p.timestamp).timestamp
+		if in_punches
+		else first_punch.timestamp
+	)
+	punched_out = (
+		max(out_punches, key=lambda p: p.timestamp).timestamp if out_punches else None
+	)
+	punched_in_dt = get_datetime(punched_in)
+	punched_out_dt = get_datetime(punched_out) if punched_out else None
+	working_hours, working_hours_display = _compute_working_hours(punched_in_dt, punched_out_dt)
+	return {
+		"punched_in": punched_in_dt,
+		"punched_in_display": _format_punch_time(punched_in),
+		"punched_out": punched_out_dt,
+		"punched_out_display": _format_punch_time(punched_out),
+		"working_hours": working_hours,
+		"working_hours_display": working_hours_display,
+		"punches": len(punches),
+	}
+
+
+def _fetch_punches_for_user_month(user_id, from_date, to_date):
+	return frappe.db.sql(
+		"""
+		SELECT machine, device_user_id, machine_user, timestamp, punch_direction
+		FROM `tabTimeBridge Punch Log`
+		WHERE device_user_id = %(user_id)s
+		  AND DATE(timestamp) >= %(from_date)s
+		  AND DATE(timestamp) <= %(to_date)s
+		ORDER BY timestamp
+		""",
+		{
+			"user_id": str(user_id),
+			"from_date": getdate(from_date),
+			"to_date": getdate(to_date),
+		},
+		as_dict=True,
+	)
+
+
+def build_employee_monthly_punch_summary_rows(machine_user, month):
+	"""One row per calendar day for a user's global device_user_id."""
+	if not machine_user or not month:
+		return []
+
+	user_id = frappe.db.get_value("TimeBridge Machine User", machine_user, "user_id")
+	if not user_id:
+		frappe.throw("TimeBridge Machine User not found")
+
+	month_date = getdate(month)
+	from_date = get_first_day(month_date)
+	to_date = get_last_day(month_date)
+
+	punches = _fetch_punches_for_user_month(user_id, from_date, to_date)
+	by_day = defaultdict(list)
+	for punch in punches:
+		by_day[getdate(punch.timestamp)].append(punch)
+
+	rows = []
+	day = from_date
+	while day <= to_date:
+		summary = _summarize_day_punches(by_day.get(day, []))
+		rows.append(
+			{
+				"date": day,
+				"date_display": format_date(day, parse_day_first=True),
+				**summary,
+			}
+		)
+		day = add_days(day, 1)
+	return rows
+
+
+@frappe.whitelist()
+def get_employee_monthly_punch_summary_list(machine_user=None, month=None):
+	"""Rows for the Employee Monthly Punch Summary Desk Page."""
+
+	if not machine_user:
+		frappe.throw("User is required")
+	if not month:
+		frappe.throw("Month is required")
+	return build_employee_monthly_punch_summary_rows(machine_user, month)
+
+
 def build_daily_punch_summary_rows(punch_date, machine=None):
 	punches = _fetch_punches_for_date(punch_date, machine=machine)
 	grouped = defaultdict(list)
@@ -155,18 +266,7 @@ def build_daily_punch_summary_rows(punch_date, machine=None):
 
 	rows = []
 	for (machine_id, device_user_id), user_punches in grouped.items():
-		in_punches = [p for p in user_punches if p.punch_direction == "In"]
-		out_punches = [p for p in user_punches if p.punch_direction == "Out"]
-
-		first_punch = min(user_punches, key=lambda p: p.timestamp)
-		punched_in = (
-			min(in_punches, key=lambda p: p.timestamp).timestamp
-			if in_punches
-			else first_punch.timestamp
-		)
-		punched_out = (
-			max(out_punches, key=lambda p: p.timestamp).timestamp if out_punches else None
-		)
+		summary = _summarize_day_punches(user_punches)
 
 		user_name = device_user_id
 		linked = next((p.machine_user for p in user_punches if p.machine_user), None)
@@ -175,27 +275,16 @@ def build_daily_punch_summary_rows(punch_date, machine=None):
 		elif (machine_id, device_user_id) in name_by_device:
 			user_name = name_by_device[(machine_id, device_user_id)]
 
-		punched_in_dt = get_datetime(punched_in)
-		punched_out_dt = get_datetime(punched_out) if punched_out else None
-		working_hours, working_hours_display = _compute_working_hours(
-			punched_in_dt, punched_out_dt
-		)
 		rows.append(
 			{
 				"user_name": user_name,
-				"punched_in": punched_in_dt,
-				"punched_in_display": _format_punch_time(punched_in),
-				"punched_out": punched_out_dt,
-				"punched_out_display": _format_punch_time(punched_out),
-				"working_hours": working_hours,
-				"working_hours_display": working_hours_display,
-				"punches": len(user_punches),
+				**summary,
 				"machine": machine_id,
 				"device_user_id": device_user_id,
 			}
 		)
 
-	rows.sort(key=lambda row: row["punched_in"], reverse=True)
+	rows.sort(key=lambda row: row["punched_in"] or get_datetime("1900-01-01"), reverse=True)
 	return rows
 
 
