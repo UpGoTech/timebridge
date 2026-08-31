@@ -26,3 +26,29 @@ class TestWorkspaceSync(FrappeTestCase):
 
 		self.assertEqual(first, second)
 		self.assertTrue(workspace_link_exists("TimeBridge", "TimeBridge Sync Log"))
+
+	def test_sync_app_workspaces_dashboard_cards(self):
+		sync_app_workspaces(force=True)
+
+		ws = frappe.get_doc("Workspace", "TimeBridge")
+		card_names = {row.number_card_name for row in ws.number_cards}
+
+		for name in (
+			"TimeBridge Registered Machines",
+			"TimeBridge Connected Machines",
+			"TimeBridge Active Users",
+			"TimeBridge Archived Users",
+			"TimeBridge Total Punch Logs",
+			"TimeBridge Punches Today",
+			"TimeBridge Unmapped Punches",
+		):
+			self.assertIn(name, card_names, f"{name} must be on the TimeBridge workspace")
+
+		for row in ws.links:
+			self.assertNotEqual(
+				row.link_to,
+				"add-machine",
+				"Add Machine must not be a workspace link after spec 005",
+			)
+
+		self.assertFalse(ws.shortcuts, "TimeBridge workspace must have no shortcuts after spec 005")

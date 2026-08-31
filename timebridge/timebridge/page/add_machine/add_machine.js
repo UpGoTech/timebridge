@@ -25,6 +25,7 @@ function set_breadcrumbs() {
 	if (!$nb.length) return;
 	$nb.empty().append(
 		`<li><a href="/app/timebridge">${__("TimeBridge")}</a></li>`,
+		`<li><a href="/app/timebridge-machine">${__("TimeBridge Machine")}</a></li>`,
 		`<li><a href="/app/add-machine">${__("Add Machine")}</a></li>`
 	);
 	document.title = __("Add Machine");
