@@ -104,17 +104,45 @@ class TestADMSUploadAck(FrappeTestCase):
             "2026-08-31 09:19:01",
         )
 
-    def test_empty_operlog_does_not_flood_machine_log(self):
-        """Firmware often POSTs empty OPERLOG heartbeats — still ack and stamp."""
+    def test_empty_operlog_is_logged(self):
+        """Every OPERLOG POST leaves Machine Log and Sync Log rows."""
 
         machine, serial = self._make_machine("ACK-008")
-        before = frappe.db.count("TimeBridge Machine Log", {"machine": machine})
 
         self.assertEqual(self._post(serial, OPERLOG_ARGS, ""), "OK: 0")
-        self.assertEqual(self._post(serial, OPERLOG_ARGS, "\n\n"), "OK: 0")
 
-        after = frappe.db.count("TimeBridge Machine Log", {"machine": machine})
-        self.assertEqual(before, after)
+        self.assertTrue(
+            frappe.db.exists(
+                "TimeBridge Machine Log",
+                {"machine": machine, "event": "Upload"},
+            )
+        )
+        self.assertTrue(
+            frappe.db.exists(
+                "TimeBridge Sync Log",
+                {"machine": machine, "sync_type": "Users", "status": "Success"},
+            )
+        )
+
+    def test_duplicate_attlog_writes_sync_log(self):
+        """Re-sent batches still appear in Sync Log — ingest ran, duplicates count."""
+
+        machine, serial = self._make_machine("ACK-011")
+        body = self._punches(serial_offset=30, count=2)
+
+        self._post(serial, ATTLOG_ARGS, body)
+        self._post(serial, ATTLOG_ARGS, body)
+
+        sync_logs = frappe.get_all(
+            "TimeBridge Sync Log",
+            filters={"machine": machine, "sync_type": "Attendance"},
+            fields=["records_fetched", "records_created", "records_skipped"],
+            order_by="creation asc",
+        )
+        self.assertEqual(len(sync_logs), 2)
+        self.assertEqual(sync_logs[0]["records_created"], 2)
+        self.assertEqual(sync_logs[1]["records_created"], 0)
+        self.assertEqual(sync_logs[1]["records_skipped"], 2)
 
     def test_operlog_with_users_is_acknowledged(self):
         machine, serial = self._make_machine("ACK-006")

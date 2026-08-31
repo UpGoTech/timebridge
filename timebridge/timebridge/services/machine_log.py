@@ -10,7 +10,8 @@ from frappe.utils import add_days, cint, now_datetime, today
 DOCTYPE = "TimeBridge Machine Log"
 MAX_DETAILS = 8000
 
-# Routine ADMS contact at Info level — gated by enable_debug_log.
+# Routine ADMS polls at Info level — gated by enable_debug_log. Uploads are
+# always logged regardless; see adms/api.py.
 DEBUG_ONLY_EVENTS = frozenset({"Handshake", "Heartbeat", "Ping"})
 
 
