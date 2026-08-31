@@ -124,6 +124,21 @@ class TestADMSUploadAck(FrappeTestCase):
             "2026-08-31 09:19:01",
         )
 
+    def test_operlog_garbage_body_is_heartbeat(self):
+        """Unparseable body lines must not bypass the empty-heartbeat path."""
+
+        machine, serial = self._make_machine("ACK-013")
+        body = "OK\n"
+
+        self.assertEqual(self._post(serial, OPERLOG_ARGS, body), "OK: 1")
+
+        self.assertFalse(
+            frappe.db.exists(
+                "TimeBridge Machine Log",
+                {"machine": machine, "event": "Upload"},
+            )
+        )
+
     def test_operlog_with_op_rows_is_logged(self):
         """OPERLOG with OPLOG rows leaves Machine Log and Sync Log rows."""
 
