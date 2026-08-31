@@ -80,16 +80,16 @@ function build_panel($root, state, { modal }) {
 			${modal ? '<button type="button" class="tb-dps-close" title="Close">&times;</button>' : ""}
 		</div>
 		<div class="tb-dps-toolbar">
-			<div class="tb-dps-field">
-				<label class="tb-dps-field-label">${__("Date")}</label>
-				<div class="tb-dps-date"></div>
-			</div>
 			<div class="tb-dps-field tb-dps-field-machine">
 				<label class="tb-dps-field-label">${__("Machine")}</label>
-				<div class="tb-dps-machine"></div>
+				<div class="tb-dps-link-wrap tb-dps-machine"></div>
+			</div>
+			<div class="tb-dps-field tb-dps-field-date">
+				<label class="tb-dps-field-label">${__("Date")}</label>
+				<div class="tb-dps-control-wrap tb-dps-date"></div>
 			</div>
 			<div class="tb-dps-field tb-dps-field-search">
-				<label class="tb-dps-field-label">&nbsp;</label>
+				<label class="tb-dps-field-label">${__("Search")}</label>
 				<div class="tb-dps-search-inner">
 					<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
 						<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -107,6 +107,28 @@ function build_panel($root, state, { modal }) {
 		</div>
 	`);
 
+	const machine_control = frappe.ui.form.make_control({
+		df: {
+			fieldtype: "Link",
+			fieldname: "machine",
+			label: __("Machine"),
+			options: "TimeBridge Machine",
+			placeholder: __("All machines"),
+			only_select: 1,
+			change: () => {
+				state.machine = machine_control.get_value() || "";
+				update_subtitle($root, state);
+				load_rows(state, ui);
+			},
+		},
+		parent: $root.find(".tb-dps-machine"),
+		render_input: true,
+	});
+	if (state.machine) {
+		machine_control.set_value(state.machine);
+	}
+	normalize_frappe_control($root.find(".tb-dps-machine"));
+
 	const date_control = frappe.ui.form.make_control({
 		df: {
 			fieldtype: "Date",
@@ -123,27 +145,7 @@ function build_panel($root, state, { modal }) {
 		render_input: true,
 	});
 	date_control.set_value(state.date);
-	$root.find(".tb-dps-date .control-label").hide();
-
-	const machine_control = frappe.ui.form.make_control({
-		df: {
-			fieldtype: "Link",
-			fieldname: "machine",
-			label: __("Machine"),
-			options: "TimeBridge Machine",
-			change: () => {
-				state.machine = machine_control.get_value() || "";
-				update_subtitle($root, state);
-				load_rows(state, ui);
-			},
-		},
-		parent: $root.find(".tb-dps-machine"),
-		render_input: true,
-	});
-	if (state.machine) {
-		machine_control.set_value(state.machine);
-	}
-	$root.find(".tb-dps-machine .control-label").hide();
+	normalize_frappe_control($root.find(".tb-dps-date"));
 
 	const ui = {
 		$root,
@@ -156,6 +158,13 @@ function build_panel($root, state, { modal }) {
 		machine_control,
 	};
 	return ui;
+}
+
+function normalize_frappe_control($wrap) {
+	$wrap.find(".control-label, .help-box").hide();
+	$wrap.find(".form-group").css({ margin: 0 });
+	$wrap.find(".control-input").css({ minHeight: "32px" });
+	$wrap.find("input").css({ height: "32px", borderRadius: "6px" });
 }
 
 function wire_panel(ui, state) {
@@ -311,9 +320,9 @@ function csv_cell(value) {
 }
 
 function inject_styles() {
-	if (document.getElementById("tb-dps-styles")) return;
+	if (document.getElementById("tb-dps-styles-v2")) return;
 	const style = document.createElement("style");
-	style.id = "tb-dps-styles";
+	style.id = "tb-dps-styles-v2";
 	style.textContent = `
 		.tb-dps-backdrop {
 			position: fixed; inset: 0; background: rgba(0,0,0,.45);
@@ -325,7 +334,7 @@ function inject_styles() {
 			width: 96vw; max-width: 960px; max-height: 82vh;
 			display: flex; flex-direction: column;
 		}
-		.tb-dps-inline { max-width: 960px; margin: 0 auto; padding: 0 8px 24px; }
+		.tb-dps-inline { max-width: 960px; margin: 0 auto; padding: 0 8px 24px; overflow: visible; }
 		.tb-dps-inline > .tb-dps-header,
 		.tb-dps-inline > .tb-dps-toolbar,
 		.tb-dps-inline > .tb-dps-body,
@@ -357,24 +366,40 @@ function inject_styles() {
 		.tb-dps-toolbar {
 			padding: 12px 20px; border-bottom: 1px solid var(--border-color);
 			display: flex; align-items: flex-end; gap: 12px; flex-shrink: 0; flex-wrap: wrap;
+			overflow: visible; position: relative; z-index: 20;
 		}
-		.tb-dps-field { min-width: 140px; }
-		.tb-dps-field-search { flex: 1; min-width: 200px; }
+		.tb-dps-field { flex: 0 0 auto; }
+		.tb-dps-field-machine { width: 220px; }
+		.tb-dps-field-date { width: 160px; }
+		.tb-dps-field-search { flex: 1 1 220px; min-width: 220px; }
 		.tb-dps-field-label {
 			display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
-			letter-spacing: .3px; color: var(--text-muted); margin-bottom: 4px;
+			letter-spacing: .3px; color: var(--text-muted); margin-bottom: 4px; line-height: 1;
+			min-height: 10px;
+		}
+		.tb-dps-link-wrap, .tb-dps-control-wrap {
+			overflow: visible; position: relative;
+		}
+		.tb-dps-link-wrap .awesomplete { z-index: 30; width: 100%; }
+		.tb-dps-link-wrap .awesomplete > ul {
+			z-index: 40; max-height: 240px; overflow-y: auto;
 		}
 		.tb-dps-search-inner {
 			display: flex; align-items: center; gap: 8px;
-			border: 1px solid var(--border-color); border-radius: 8px;
+			border: 1px solid var(--border-color); border-radius: 6px;
 			padding: 0 12px; height: 32px; background: var(--card-bg);
+			box-sizing: border-box;
 		}
 		.tb-dps-search-inner input {
 			border: 0; outline: none; width: 100%; background: transparent; font-size: 13px;
+			height: 30px; line-height: 30px; padding: 0;
 		}
 		.tb-dps-date .form-group, .tb-dps-machine .form-group { margin: 0; }
-		.tb-dps-date input, .tb-dps-machine input { height: 32px !important; border-radius: 6px !important; }
-		.tb-dps-body { flex: 1; overflow: auto; padding: 0; min-height: 200px; }
+		.tb-dps-date input, .tb-dps-machine input {
+			height: 32px !important; min-height: 32px !important;
+			border-radius: 6px !important; box-sizing: border-box;
+		}
+		.tb-dps-body { flex: 1; overflow: auto; padding: 0; min-height: 200px; position: relative; z-index: 1; }
 		.tb-dps-footer {
 			padding: 12px 20px; border-top: 1px solid var(--border-color);
 			display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
