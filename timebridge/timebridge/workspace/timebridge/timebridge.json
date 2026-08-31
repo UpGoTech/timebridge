@@ -5,7 +5,7 @@
    "label": "Punches Per Day"
   }
  ],
- "content": "[{\"id\": \"nc_machines\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Connected Machines\", \"col\": 4}}, {\"id\": \"nc_punches\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Punches Today\", \"col\": 4}}, {\"id\": \"nc_unmapped\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Unmapped Punches\", \"col\": 4}}, {\"id\": \"ch_punches\", \"type\": \"chart\", \"data\": {\"chart_name\": \"TimeBridge Punches Per Day\", \"col\": 12}}, {\"id\": \"tb_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>TimeBridge</b></span>\", \"col\": 12}}, {\"id\": \"tb_add\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Add Machine\", \"col\": 4}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_data\", \"type\": \"card\", \"data\": {\"card_name\": \"Data\", \"col\": 4}}, {\"id\": \"cd_setup\", \"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}]",
+ "content": "[{\"id\": \"tb_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>TimeBridge</b></span>\", \"col\": 12}}, {\"id\": \"nc_registered\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Registered Machines\", \"col\": 4}}, {\"id\": \"nc_connected\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Connected Machines\", \"col\": 4}}, {\"id\": \"nc_active_users\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Active Users\", \"col\": 4}}, {\"id\": \"nc_archived_users\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Archived Users\", \"col\": 4}}, {\"id\": \"nc_total_punches\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Total Punch Logs\", \"col\": 4}}, {\"id\": \"nc_punches_today\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Punches Today\", \"col\": 4}}, {\"id\": \"nc_unmapped\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Unmapped Punches\", \"col\": 4}}, {\"id\": \"ch_punches\", \"type\": \"chart\", \"data\": {\"chart_name\": \"TimeBridge Punches Per Day\", \"col\": 12}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_data\", \"type\": \"card\", \"data\": {\"card_name\": \"Data\", \"col\": 4}}, {\"id\": \"cd_setup\", \"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}]",
  "creation": "2026-08-25 15:57:59.764569",
  "custom_blocks": [],
  "docstatus": 0,
@@ -20,17 +20,9 @@
   {
    "hidden": 0,
    "label": "Devices",
-   "link_count": 3,
+   "link_count": 2,
    "onboard": 0,
    "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "label": "Add Machine",
-   "link_to": "add-machine",
-   "link_type": "Page",
-   "onboard": 0,
-   "type": "Link"
   },
   {
    "hidden": 0,
@@ -104,14 +96,30 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-31 10:00:00.000000",
+ "modified": "2026-08-31 10:30:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge",
  "number_cards": [
   {
+   "label": "Registered Machines",
+   "number_card_name": "TimeBridge Registered Machines"
+  },
+  {
    "label": "Connected Machines",
    "number_card_name": "TimeBridge Connected Machines"
+  },
+  {
+   "label": "Active Users",
+   "number_card_name": "TimeBridge Active Users"
+  },
+  {
+   "label": "Archived Users",
+   "number_card_name": "TimeBridge Archived Users"
+  },
+  {
+   "label": "Total Punch Logs",
+   "number_card_name": "TimeBridge Total Punch Logs"
   },
   {
    "label": "Punches Today",
@@ -128,14 +136,6 @@
  "quick_lists": [],
  "roles": [],
  "sequence_id": 3.0,
- "shortcuts": [
-  {
-   "color": "Blue",
-   "doc_view": "",
-   "label": "Add Machine",
-   "link_to": "add-machine",
-   "type": "Page"
-  }
- ],
+ "shortcuts": [],
  "title": "TimeBridge"
 }

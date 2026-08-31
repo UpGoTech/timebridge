@@ -48,6 +48,12 @@ let active_progress = null;
 
 frappe.ui.form.on("TimeBridge Machine", {
 
+    onload(frm) {
+        if (frm.is_new()) {
+            frappe.set_route("add-machine");
+        }
+    },
+
     refresh(frm) {
 
         if (!frm.is_new()) {

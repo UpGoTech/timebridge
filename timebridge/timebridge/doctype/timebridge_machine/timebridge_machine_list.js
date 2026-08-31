@@ -3,6 +3,10 @@
 
 frappe.listview_settings["TimeBridge Machine"] = {
 
+    primary_action() {
+        frappe.set_route("add-machine");
+    },
+
     onload(listview) {
 
         const actions = [

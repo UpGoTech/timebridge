@@ -10,3 +10,4 @@ timebridge.patches.v1_0.add_device_mirror_workspace_link
 timebridge.patches.v1_0.add_employee_working_hours_workspace_link
 timebridge.patches.v1_0.strip_hris_and_mirror
 timebridge.patches.v1_0.sync_timebridge_workspace
+timebridge.patches.v1_0.sync_timebridge_workspace_dashboard
