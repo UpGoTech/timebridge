@@ -5,7 +5,7 @@
    "label": "Active Users Per Day"
   }
  ],
- "content": "[{\"id\": \"tb_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>TimeBridge</b></span>\", \"col\": 12}}, {\"id\": \"ch_active_users\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Active Users Per Day\", \"col\": 12}}, {\"id\": \"nc_registered_active\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Registered Active Users\", \"col\": 4}}, {\"id\": \"nc_users_today\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Punch Summary\", \"col\": 4}}, {\"id\": \"nc_unmapped\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Unmapped Punches\", \"col\": 4}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_data\", \"type\": \"card\", \"data\": {\"card_name\": \"Data\", \"col\": 4}}, {\"id\": \"cd_logs\", \"type\": \"card\", \"data\": {\"card_name\": \"Logs\", \"col\": 4}}, {\"id\": \"cd_reports\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}]",
+ "content": "[{\"id\": \"tb_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>TimeBridge</b></span>\", \"col\": 12}}, {\"id\": \"ch_active_users\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Active Users Per Day\", \"col\": 12}}, {\"id\": \"nc_registered_active\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Registered Active Users\", \"col\": 4}}, {\"id\": \"nc_users_today\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Punch Summary\", \"col\": 4}}, {\"id\": \"nc_unmapped\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Unmapped Punches\", \"col\": 4}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_data\", \"type\": \"card\", \"data\": {\"card_name\": \"Data\", \"col\": 4}}, {\"id\": \"cd_reports\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"cd_logs\", \"type\": \"card\", \"data\": {\"card_name\": \"Logs\", \"col\": 4}}]",
  "creation": "2026-08-25 15:57:59.764569",
  "custom_blocks": [],
  "docstatus": 0,
@@ -57,6 +57,38 @@
   },
   {
    "hidden": 0,
+   "label": "Reports",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Device Roll",
+   "link_to": "Device Roll",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "Daily Punch Summary",
+   "link_to": "daily-punch-summary",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "Employee Monthly Punch Summary",
+   "link_to": "employee-monthly-punch-summary",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
    "label": "Logs",
    "link_count": 2,
    "onboard": 0,
@@ -77,33 +109,9 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "label": "Reports",
-   "link_count": 2,
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Device Roll",
-   "link_to": "Device Roll",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "label": "Daily Punch Summary",
-   "link_to": "daily-punch-summary",
-   "link_type": "Page",
-   "onboard": 0,
-   "type": "Link"
   }
  ],
- "modified": "2026-08-31 12:00:00.000000",
+ "modified": "2026-08-31 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge",

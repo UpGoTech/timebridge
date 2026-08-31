@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Spec ID** | `006` |
-| **Branch** | `feat/006-daily-punch-summary` |
-| **Status** | **Ready for review** (modal UI) |
+| **Branch** | — (merged) |
+| **Status** | **Merged** — PR #11 (2026-08-31) |
 | **Authority** | This doc; follows [005-workspace-dashboard.md](005-workspace-dashboard.md) |
 | **Created** | 2026-08-31 |
 | **Programme tracker** | [spec/README.md](README.md) |

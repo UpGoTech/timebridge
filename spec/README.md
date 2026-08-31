@@ -24,20 +24,22 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 ```
 001 ADMS Device Discovery     ████████████████████░  ~96%   Merged (PR #3) — B7 deferred
 002 Device Mirror             ░░░░░░░░░░░░░░░░░░░░    —    Discontinued (see 003)
-003 Device I/O reset          ████████████████████░  ~95%   Merged to develop
-004 Machine diagnostic log    ████████████████████░  ~95%   Merged to develop
-005 Workspace dashboard     ████████████████████░  ~95%   v2 on feat/005-workspace-dashboard-v2
-006 Daily Punch Summary     ░░░░░░░░░░░░░░░░░░░░    —    feat/006-daily-punch-summary
+003 Device I/O reset          ████████████████████░  ~95%   Merged (PR #7)
+004 Machine diagnostic log    ████████████████████░  ~95%   Merged (PR #8)
+005 Workspace dashboard       ████████████████████░  ~95%   Merged (PR #10 + #11)
+006 Daily Punch Summary       ████████████████████░  ~95%   Merged (PR #11)
+007 Employee Monthly Punch    ████████████████████░  ~95%   PR pending (feat/007)
 ```
 
-| Spec | Title | Branch | Status | v1 progress | Next action |
-|------|-------|--------|--------|-------------|-------------|
+| Spec | Title | Branch | Status | Progress | Next action |
+|------|-------|--------|--------|----------|-------------|
 | [**001**](001-adms-device-discovery.md) | ADMS Device Discovery & Registration | — (merged) | **Merged** PR #3 | **25 / 26** · B7 deferred | Folded into 003 wizard (push inbox) |
 | [**002**](002-device-mirror.md) | Device Mirror | — | **Discontinued** | — | Not shipping; templates/restore out of product |
-| [**003**](003-device-io.md) | Device I/O reset | — (merged) | **Merged** | Phases A–F | — |
-| [**004**](004-machine-log.md) | Machine diagnostic log | — (merged) | **Merged** | Phase 1–5 | — |
-| [**005**](005-workspace-dashboard.md) | Workspace dashboard & Add Machine | `feat/005-workspace-dashboard-v2` | **In progress** | Phase 1–8 | PR to develop |
-| [**006**](006-daily-punch-summary.md) | Daily Punch Summary report | `feat/006-daily-punch-summary` | **In progress** | Phase 1–6 | Build + review |
+| [**003**](003-device-io.md) | Device I/O reset | — (merged) | **Merged** PR #7 | Phases A–F | — |
+| [**004**](004-machine-log.md) | Machine diagnostic log | — (merged) | **Merged** PR #8 | Phase 1–5 | — |
+| [**005**](005-workspace-dashboard.md) | Workspace dashboard & Add Machine | — (merged) | **Merged** PR #10 + #11 | Phase 1–8 | v2 dashboard shipped in PR #11 |
+| [**006**](006-daily-punch-summary.md) | Daily Punch Summary report | — (merged) | **Merged** PR #11 | Phase 1–6 | — |
+| [**007**](007-employee-monthly-punch-summary.md) | Employee Monthly Punch Summary | `feat/007-employee-monthly-punch-summary` | **PR pending** | Phase 1–5 | Open PR to develop |
 
 ---
 
@@ -61,7 +63,7 @@ Still open: Playwright e2e (B7), deferred.
 | **One-liner** | Device vs server parity; template vault; restore to backup unit |
 | **Status** | **Discontinued** 2026-08-30 — product is device I/O without template storage or restore (spec 003) |
 
-Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is removed in 003.
+Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` was removed in 003.
 
 ---
 
@@ -71,7 +73,7 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 |-------|-------|
 | **Doc** | [003-device-io.md](003-device-io.md) |
 | **One-liner** | Strip HRIS + Mirror; Add Machine wizard; Desk-owned user write; diagnostic punched Yes/No |
-| **Status** | **Merged** to develop |
+| **Status** | **Merged** — PR #7 (2026-08-31) |
 
 ### Phase rollup
 
@@ -92,7 +94,7 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 |-------|-------|
 | **Doc** | [004-machine-log.md](004-machine-log.md) |
 | **One-liner** | Per-machine log for connect/ADMS/pull errors and warnings |
-| **Status** | **Merged** to develop |
+| **Status** | **Merged** — PR #8 (2026-08-31) |
 
 ### Phase rollup
 
@@ -110,8 +112,8 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | Field | Value |
 |-------|-------|
 | **Doc** | [005-workspace-dashboard.md](005-workspace-dashboard.md) |
-| **One-liner** | Slim dashboard (active users chart + 3 cards); Devices/Data/Logs/Reports sidebar; Add Machine from list only |
-| **Status** | **In progress** on `feat/005-workspace-dashboard-v2` |
+| **One-liner** | Slim dashboard (active users chart + 3 cards); Devices/Data/Reports/Logs sidebar; Add Machine from list only |
+| **Status** | **Merged** — PR #10 (v1 wizard + cards), PR #11 (v2 slim dashboard) |
 
 ### Phase rollup
 
@@ -123,6 +125,49 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 4 | Patch + tests | `[x]` |
 | 5 | List + form wizard routing (v1) | `[x]` |
 | 6 | Wizard breadcrumbs (v1) | `[x]` |
+| 7 | Dashboard v2 chart + three cards | `[x]` |
+| 8 | Sidebar Devices / Data / Reports / Logs | `[x]` |
+
+---
+
+## Spec 006 — Daily Punch Summary report
+
+| Field | Value |
+|-------|-------|
+| **Doc** | [006-daily-punch-summary.md](006-daily-punch-summary.md) |
+| **One-liner** | Date-based punch list; Today's Punch Summary card; Desk Page + CSV export |
+| **Status** | **Merged** — PR #11 (2026-08-31) |
+
+### Phase rollup
+
+| Phase | Name | Rollup |
+|-------|------|--------|
+| 1 | Spec + programme index | `[x]` |
+| 2 | Generalize dashboard punch summary | `[x]` |
+| 3 | Daily Punch Summary Script Report + Desk Page | `[x]` |
+| 4 | Rename number card + remove desk JS | `[x]` |
+| 5 | Workspace link + migration patch | `[x]` |
+| 6 | Tests | `[x]` |
+
+---
+
+## Spec 007 — Employee Monthly Punch Summary report
+
+| Field | Value |
+|-------|-------|
+| **Doc** | [007-employee-monthly-punch-summary.md](007-employee-monthly-punch-summary.md) |
+| **One-liner** | Person-based punch list for a whole month; Desk Page + CSV export |
+| **Status** | **PR pending** on `feat/007-employee-monthly-punch-summary` |
+
+### Phase rollup
+
+| Phase | Name | Rollup |
+|-------|------|--------|
+| 1 | Spec + programme index | `[x]` |
+| 2 | Monthly punch summary in dashboard.py | `[x]` |
+| 3 | Script Report + Desk Page | `[x]` |
+| 4 | Workspace link + migration patch | `[x]` |
+| 5 | Tests | `[x]` |
 
 ---
 
@@ -133,6 +178,8 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 003 push wizard | 001 pending signals | Reuse Pending Device Signal + register |
 | 003 user write (push) | ADMS `/iclock/getrequest` | Durable command queue |
 | 004 machine log | 003 device I/O | Sync Log stays ingest-only |
+| 006 daily summary | 005 dashboard | Today's Punch Summary card |
+| 007 monthly summary | 006 daily summary | Same in/out/hrs rules |
 | 002 | — | Discontinued |
 
 ---
@@ -144,8 +191,9 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 1 | **001** ✓ merged | ADMS discovery |
 | 2 | **003** ✓ merged | Product reset |
 | 3 | **004** ✓ merged | Machine diagnostic log |
-| 4 | **005** | Workspace dashboard |
-| 5 | **006** | Daily Punch Summary report |
+| 4 | **005** ✓ merged | Workspace dashboard |
+| 5 | **006** ✓ merged | Daily Punch Summary report |
+| 6 | **007** | Employee Monthly Punch Summary |
 | — | **002** | Abandoned |
 
 ---
@@ -169,3 +217,4 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 2026-08-31 | 004 Machine diagnostic log |
 | 2026-08-31 | 005 Workspace dashboard and Add Machine relocation |
 | 2026-08-31 | 006 Daily Punch Summary report |
+| 2026-08-31 | Reconcile index: 005/006 merged; 007 PR pending |

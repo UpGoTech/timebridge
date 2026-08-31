@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Spec ID** | `003` |
-| **Branch** | `feat/003-device-io` |
-| **Status** | **Implemented** — QA / PR pending |
+| **Branch** | — (merged) |
+| **Status** | **Merged** — PR #7 (2026-08-31) |
 | **Authority** | [`ZKteco Push SDK.pdf`](./ZKteco%20Push%20SDK.pdf) for ADMS; [pyzk](https://github.com/fananimi/pyzk) for pull; this doc for product behaviour |
 | **Created** | 2026-08-30 |
 | **Last updated** | 2026-08-30 |

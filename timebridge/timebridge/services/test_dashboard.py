@@ -5,13 +5,18 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, today
+from frappe.utils import add_to_date, get_datetime, get_last_day, getdate, now_datetime, today
+from datetime import date
 
 from timebridge.timebridge.services.dashboard import (
 	build_daily_punch_summary_rows,
+	build_employee_monthly_punch_summary_rows,
 	get_active_users_per_day_chart,
 	get_daily_punch_summary_list,
+	get_employee_monthly_punch_summary_list,
 	get_users_punched_today,
+	_format_chart_day_label,
+	_format_monthly_summary_date,
 )
 
 
@@ -49,6 +54,16 @@ class TestDashboard(FrappeTestCase):
 				"ip_address": "192.168.99.50",
 				"port": 4370,
 				"sdk_type": "PyZK",
+			}
+		).insert(ignore_permissions=True)
+
+	def _make_machine_user(self, machine, user_id, user_name):
+		return frappe.get_doc(
+			{
+				"doctype": "TimeBridge Machine User",
+				"machine": machine,
+				"user_id": user_id,
+				"user_name": user_name,
 			}
 		).insert(ignore_permissions=True)
 
@@ -171,7 +186,7 @@ class TestDashboard(FrappeTestCase):
 					"chart_type": "Custom",
 					"source": "TimeBridge Active Users Per Day",
 					"timeseries": 1,
-					"timespan": "Last Month",
+					"timespan": "Last Week",
 					"time_interval": "Daily",
 					"type": "Line",
 					"filters_json": "[]",
@@ -188,3 +203,64 @@ class TestDashboard(FrappeTestCase):
 		)
 		values = chart["datasets"][0]["values"]
 		self.assertGreaterEqual(sum(values), 3)
+		self.assertIn(_format_chart_day_label(punch_day), chart["labels"])
+
+	def test_format_chart_day_label(self):
+		self.assertEqual(_format_chart_day_label(date(2026, 8, 30)), "30-Aug-26 (Sun)")
+		self.assertEqual(_format_chart_day_label(date(2026, 8, 5)), "5-Aug-26 (Wed)")
+
+	def test_employee_monthly_punch_summary_rows(self):
+		machine_a = self._make_machine(self.MACHINE_A)
+		machine_b = self._make_machine(self.MACHINE_B)
+		machine_user = self._make_machine_user(machine_a.name, "42", "Monthly Test User")
+		punch_day = now_datetime().replace(day=15, hour=9, minute=0, second=0, microsecond=0)
+		other_day = punch_day.replace(day=16, hour=10, minute=0)
+		month_start = punch_day.replace(day=1)
+
+		self._make_punch(machine_a.name, "42", punch_day)
+		self._make_punch(
+			machine_a.name,
+			"42",
+			punch_day.replace(hour=18, minute=30),
+			punch_direction="Out",
+		)
+		self._make_punch(machine_b.name, "42", punch_day.replace(hour=8, minute=45))
+		self._make_punch(machine_a.name, "42", other_day)
+
+		rows = build_employee_monthly_punch_summary_rows(machine_user.name, month_start)
+		self.assertEqual(len(rows), get_last_day(month_start).day)
+
+		day_15 = next(row for row in rows if getdate(row["date"]).day == 15)
+		self.assertEqual(day_15["punches"], 3)
+		self.assertEqual(day_15["working_hours"], 9.75)
+		self.assertEqual(day_15["working_hours_display"], "9:45")
+		self.assertEqual(day_15["punched_in_display"], "08:45:00")
+
+		day_16 = next(row for row in rows if getdate(row["date"]).day == 16)
+		self.assertEqual(day_16["punches"], 1)
+		self.assertEqual(day_16["working_hours_display"], "")
+
+		blank_day = next(row for row in rows if getdate(row["date"]).day == 1)
+		self.assertEqual(blank_day["punches"], 0)
+		self.assertEqual(blank_day["punched_in_display"], "")
+
+	def test_employee_monthly_punch_summary_list_api(self):
+		machine = self._make_machine(self.MACHINE_A)
+		machine_user = self._make_machine_user(machine.name, "55", "API Monthly User")
+		punch_day = now_datetime().replace(day=10, hour=9, minute=0, second=0, microsecond=0)
+
+		self._make_punch(machine.name, "55", punch_day)
+
+		result = get_employee_monthly_punch_summary_list(
+			machine_user.name, punch_day.replace(day=1)
+		)
+		self.assertEqual(len(result["rows"]), get_last_day(punch_day).day)
+		self.assertEqual(result["user_id"], "55")
+		self.assertEqual(result["user_name"], "API Monthly User")
+		with_punches = [row for row in result["rows"] if row["punches"]]
+		self.assertEqual(len(with_punches), 1)
+		self.assertEqual(with_punches[0]["punches"], 1)
+
+	def test_format_monthly_summary_date(self):
+		self.assertEqual(_format_monthly_summary_date(date(2026, 8, 5)), "05-Aug-2026 (Wed)")
+
