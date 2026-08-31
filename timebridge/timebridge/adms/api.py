@@ -179,16 +179,36 @@ def handle_cdata(serial, args, body, method, raw=None):
         return _receive_userinfo(machine, args, body)
 
     if table in photos.PHOTO_TABLES:
+        photo_rows = parser.parse_photo_fields(body)
         photos.handle_photo(machine, args, raw, body, table)
-        # A raw-bytes upload is one picture and parses to no rows.
-        return ack(len(parser.parse_photo_fields(body)) or 1)
+        count = len(photo_rows) or 1
+        write_machine_log(
+            machine=machine,
+            level="Info",
+            event="Upload",
+            message=f"{table}: {count} photo row(s)",
+        )
+        return ack(count)
 
     if table == "OPTIONS" or (table and table.upper() == "OPTIONS"):
-        # Device parameters, not records. This one is acknowledged bare.
+        write_machine_log(
+            machine=machine,
+            level="Info",
+            event="Upload",
+            message="OPTIONS parameter upload",
+            details=body[:500] if body else None,
+        )
         return "OK"
 
     if parser.is_template_table(args, table):
-        return ack(_body_line_count(body))
+        line_count = _body_line_count(body)
+        write_machine_log(
+            machine=machine,
+            level="Info",
+            event="Upload",
+            message=f"{table}: {line_count} template row(s)",
+        )
+        return ack(line_count)
 
     # Unrecognised table: acknowledge so the device does not retry forever,
     # but leave a trace that something arrived we do not handle yet.
@@ -229,33 +249,29 @@ def _receive_attlog(machine, args, body):
     try:
         result = logger.save_punches(machine, records)
 
-        # Re-upload loops created thousands of identical Success rows. Skip the
-        # sync log when every parsed punch was a duplicate — ingest still ran,
-        # the stamp still advances, and the device still gets OK: <count>.
-        all_duplicates = (
-            records
-            and result["created"] == 0
-            and result["duplicates"] == len(records)
-            and not skipped
-            and not result["invalid"]
-            and not result["unmatched"]
+        sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+        log_name = logger.open_sync_log(machine, "Attendance", sync_batch)
+        logger.close_sync_log(
+            log_name,
+            "Success",
+            fetched=fetched,
+            created=result["created"],
+            skipped=result["duplicates"] + result["invalid"] + len(skipped),
+            error=(
+                f"{len(skipped)} unparseable line(s), {result['invalid']} bad timestamp(s), "
+                f"{result['unmatched']} punch(es) with no TimeBridge Machine User"
+                if (skipped or result["invalid"] or result["unmatched"]) else None
+            ),
         )
-
-        if not all_duplicates:
-            sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-            log_name = logger.open_sync_log(machine, "Attendance", sync_batch)
-            logger.close_sync_log(
-                log_name,
-                "Success",
-                fetched=fetched,
-                created=result["created"],
-                skipped=result["duplicates"] + result["invalid"] + len(skipped),
-                error=(
-                    f"{len(skipped)} unparseable line(s), {result['invalid']} bad timestamp(s), "
-                    f"{result['unmatched']} punch(es) with no TimeBridge Machine User"
-                    if (skipped or result["invalid"] or result["unmatched"]) else None
-                ),
-            )
+        write_machine_log(
+            machine=machine,
+            level="Info",
+            event="Upload",
+            message=(
+                f"ATTLOG: {fetched} row(s), {result['created']} new, "
+                f"{result['duplicates']} duplicate(s)"
+            ),
+        )
 
         stamps.record_attlog_stamp(machine, args, table, records)
 
@@ -317,6 +333,15 @@ def _receive_userinfo(machine, args, body):
                 skipped=len(skipped),
                 error=(f"{linked} earlier punch(es) linked" if linked else None),
             )
+            write_machine_log(
+                machine=machine,
+                level="Info",
+                event="Upload",
+                message=(
+                    f"OPERLOG: {len(records) + len(skipped)} user row(s), "
+                    f"{result['created']} new"
+                ),
+            )
 
             frappe.db.set_value("TimeBridge Machine", machine, "last_user_sync",
                                 frappe.utils.now_datetime())
@@ -341,23 +366,31 @@ def _receive_userinfo(machine, args, body):
             return "Error: USERINFO ingest failed"
 
     else:
-        # Most OPERLOG uploads carry no people at all — they are operation rows
-        # (a door opened, an administrator signed in) which nothing here models.
-        # They still have to be acknowledged and stamped: leaving that inside
-        # "if records" is what let this device re-send its whole operation log
-        # 181 times in one minute, with no Sync Log to show it had ever arrived.
-        # Empty heartbeats are normal on some firmware; log only when the payload
-        # carried something worth a human glance.
-        if op_rows or photo_rows:
-            write_machine_log(
-                machine=machine,
-                level="Info",
-                event="Upload",
-                message=(
-                    f"OPERLOG: {len(op_rows)} operation row(s), "
-                    f"{len(photo_rows)} photo row(s), no user records"
-                ),
-            )
+        # Most OPERLOG uploads carry no people — operation rows, photo fields,
+        # or an empty heartbeat. Every POST is logged so nothing arrives unseen.
+        fetched = _body_line_count(body)
+        sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+        log_name = logger.open_sync_log(machine, "Users", sync_batch)
+        operlog_note = (
+            f"{len(op_rows)} operation row(s), {len(photo_rows)} photo row(s), "
+            "no user records"
+            if fetched
+            else "empty OPERLOG upload"
+        )
+        logger.close_sync_log(
+            log_name,
+            "Success",
+            fetched=fetched,
+            created=0,
+            skipped=len(skipped),
+            error=operlog_note,
+        )
+        write_machine_log(
+            machine=machine,
+            level="Info",
+            event="Upload",
+            message=f"OPERLOG: {operlog_note}",
+        )
         stamps.record_operlog_stamp(machine, args, table, op_rows=op_rows)
         frappe.db.commit()
 
@@ -466,10 +499,17 @@ def handle_querydata(serial, args, body, method, raw=None):
 
     commands.record_contact(machine, "querydata")
 
-    if method == "POST" and (args.get("tablename") or "").strip().lower() in (
-        "biodata",
-        "templatev10",
-    ):
+    tablename = (args.get("tablename") or "").strip()
+    write_machine_log(
+        machine=machine,
+        serial=serial,
+        level="Info",
+        event="Upload",
+        message=f"querydata {method} {tablename or 'unknown table'}".strip(),
+        details=body[:500] if body else None,
+    )
+
+    if method == "POST" and tablename.lower() in ("biodata", "templatev10"):
         return "OK"
 
     return "OK"
@@ -516,5 +556,14 @@ def handle_fdata(serial, args, body, method, raw=None):
 
     if method == "POST":
         photos.handle_photo(machine, args, raw, body, "fdata")
+        payload = raw if raw is not None else body
+        size = len(payload) if payload else 0
+        write_machine_log(
+            machine=machine,
+            serial=serial,
+            level="Info",
+            event="Upload",
+            message=f"fdata photo upload ({size} bytes)",
+        )
 
     return "OK"
