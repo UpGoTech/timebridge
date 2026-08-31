@@ -46,7 +46,8 @@ Delivered as a **Desk Page** with inline table UI — not a Script Report grid (
 - One row per **calendar day** in the month (blank in/out/hrs on absent days)
 - Punches for the selected user's `user_id` on **all machines** merged per day
 - Default sort: **Date** ascending; click column headers to re-sort
-- Search bar in toolbar; footer shows days-with-punches count + **Export CSV**
+- Headline band (replaces search): User ID + Name on the left, Month + Year on the right
+- Footer shows days-with-punches count + **Export CSV**
 
 Data source: `TimeBridge Punch Log` only.
 
@@ -77,9 +78,8 @@ Manual:
 1. Reports → **Employee Monthly Punch Summary** — pick User + month
 2. All calendar days shown; days with punches show in/out/hrs/count
 3. User who punched on two machines same day → one merged row per day
-4. Search filters rows; footer count updates
-5. Export CSV downloads visible rows
-6. Column headers re-sort the table
+4. Export CSV downloads all rows
+5. Column headers re-sort the table
 
 ---
 

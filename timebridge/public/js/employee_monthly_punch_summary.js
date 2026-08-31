@@ -43,11 +43,11 @@ timebridge.employee_monthly_punch_summary.render_inline = function ($parent, opt
 		year: initial.year,
 		month_num: initial.month_num,
 		month: month_from_parts(initial.year, initial.month_num),
-		user_label: "",
+		user_id: "",
+		user_name: "",
 		rows: [],
 		sort_field: "date",
 		sort_order: "asc",
-		search: "",
 	};
 	const use_sidebar = Boolean(options.$sidebar);
 	const shell_class = use_sidebar ? "tb-emps-inline tb-emps-with-sidebar" : "tb-emps-inline";
@@ -55,8 +55,12 @@ timebridge.employee_monthly_punch_summary.render_inline = function ($parent, opt
 	const ui = build_panel($shell, state, { $sidebar: options.$sidebar });
 	wire_panel(ui, state);
 	if (state.machine_user) {
-		load_rows(state, ui);
+		sync_user_meta(state).then(() => {
+			update_headline(ui, state);
+			load_rows(state, ui);
+		});
 	} else {
+		update_headline(ui, state);
 		ui.$body.html(
 			`<div class="tb-emps-empty">${__("Select a user and month to view punch summary.")}</div>`
 		);
@@ -104,13 +108,22 @@ function month_num_from_label(label) {
 	return option ? option.value : 1;
 }
 
-function format_period_label(year, month_num) {
-	return `${month_label_for_num(month_num)} ${year}`;
+function sync_user_meta(state) {
+	if (!state.machine_user) {
+		state.user_id = "";
+		state.user_name = "";
+		return Promise.resolve();
+	}
+	return frappe.db.get_value("TimeBridge Machine User", state.machine_user, ["user_id", "user_name"]).then(
+		(r) => {
+			state.user_id = r?.user_id || "";
+			state.user_name = r?.user_name || "";
+		}
+	);
 }
 
 function build_panel($root, state, { $sidebar = null } = {}) {
 	const use_sidebar = Boolean($sidebar);
-	const subtitle = format_subtitle(state);
 	const filter_mount = use_sidebar
 		? $('<div class="list-sidebar overlay-sidebar tb-emps-sidebar"></div>').appendTo($sidebar)
 		: $root;
@@ -137,13 +150,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 
 	$root.append(`
 		${use_sidebar ? "" : `<div class="tb-emps-header">
-			<div>
-				<div class="tb-emps-title">${__("Employee Monthly Punch Summary")}</div>
-				<div class="tb-emps-subtitle">${subtitle}</div>
-			</div>
+			<div class="tb-emps-title">${__("Employee Monthly Punch Summary")}</div>
 		</div>`}
-		<div class="tb-emps-toolbar${use_sidebar ? " tb-emps-toolbar-search-only" : ""}">
-			${use_sidebar ? "" : `<div class="tb-emps-field tb-emps-field-user">
+		${use_sidebar ? "" : `<div class="tb-emps-toolbar tb-emps-toolbar-filters">
+			<div class="tb-emps-field tb-emps-field-user">
 				<label class="tb-emps-field-label">${__("User")}</label>
 				<div class="tb-emps-link-wrap tb-emps-user"></div>
 			</div>
@@ -154,14 +164,27 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 			<div class="tb-emps-field tb-emps-field-month">
 				<label class="tb-emps-field-label">${__("Month")}</label>
 				<div class="tb-emps-control-wrap tb-emps-month"></div>
-			</div>`}
-			<div class="tb-emps-field tb-emps-field-search">
-				<label class="tb-emps-field-label">${__("Search")}</label>
-				<div class="tb-emps-search-inner">
-					<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-						<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-					</svg>
-					<input type="text" class="tb-emps-search-input" placeholder="${__("Search...")}">
+			</div>
+		</div>`}
+		<div class="tb-emps-headline">
+			<div class="tb-emps-headline-left">
+				<div class="tb-emps-headline-item">
+					<span class="tb-emps-headline-k">${__("User ID")}</span>
+					<span class="tb-emps-headline-user-id">—</span>
+				</div>
+				<div class="tb-emps-headline-item">
+					<span class="tb-emps-headline-k">${__("Name")}</span>
+					<span class="tb-emps-headline-user-name">—</span>
+				</div>
+			</div>
+			<div class="tb-emps-headline-right">
+				<div class="tb-emps-headline-item">
+					<span class="tb-emps-headline-k">${__("Month")}</span>
+					<span class="tb-emps-headline-period-month">—</span>
+				</div>
+				<div class="tb-emps-headline-item">
+					<span class="tb-emps-headline-k">${__("Year")}</span>
+					<span class="tb-emps-headline-period-year">—</span>
 				</div>
 			</div>
 		</div>
@@ -174,21 +197,24 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		</div>
 	`);
 
-	const filter_root = use_sidebar ? filter_mount : $root;
+	const filter_root = use_sidebar ? filter_mount : $root.find(".tb-emps-toolbar-filters");
 
 	const ui = {
 		$root,
 		$body: $root.find(".tb-emps-body"),
 		$count: $root.find(".tb-emps-count"),
-		$search: $root.find(".tb-emps-search-input"),
 		$export: $root.find(".tb-emps-btn-export"),
+		$headline_user_id: $root.find(".tb-emps-headline-user-id"),
+		$headline_user_name: $root.find(".tb-emps-headline-user-name"),
+		$headline_month: $root.find(".tb-emps-headline-period-month"),
+		$headline_year: $root.find(".tb-emps-headline-period-year"),
 	};
 
 	function on_period_change() {
 		state.year = parseInt(year_control.get_value(), 10);
 		state.month_num = month_num_from_label(month_control.get_value());
 		state.month = month_from_parts(state.year, state.month_num);
-		update_subtitle($root, state);
+		update_headline(ui, state);
 		load_rows(state, ui);
 	}
 
@@ -201,10 +227,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 			only_select: 1,
 			change: () => {
 				state.machine_user = user_control.get_value() || "";
-				const label = user_control.get_label_value();
-				state.user_label = label || state.machine_user;
-				update_subtitle($root, state);
-				load_rows(state, ui);
+				sync_user_meta(state).then(() => {
+					update_headline(ui, state);
+					load_rows(state, ui);
+				});
 			},
 		},
 		parent: filter_root.find(".tb-emps-user"),
@@ -259,20 +285,14 @@ function normalize_frappe_control($wrap) {
 }
 
 function wire_panel(ui, state) {
-	ui.$search.on("input", (e) => {
-		state.search = (e.target.value || "").trim().toLowerCase();
-		render_table(state, ui);
-	});
 	ui.$export.on("click", () => export_csv(state, ui));
 }
 
-function update_subtitle($root, state) {
-	$root.find(".tb-emps-subtitle").text(format_subtitle(state));
-}
-
-function format_subtitle(state) {
-	const user = state.user_label || state.machine_user || __("No user selected");
-	return `${user} · ${format_period_label(state.year, state.month_num)}`;
+function update_headline(ui, state) {
+	ui.$headline_user_id.text(state.user_id || "—");
+	ui.$headline_user_name.text(state.user_name || "—");
+	ui.$headline_month.text(month_label_for_num(state.month_num) || "—");
+	ui.$headline_year.text(state.year ? String(state.year) : "—");
 }
 
 function load_rows(state, ui) {
@@ -307,8 +327,7 @@ function load_rows(state, ui) {
 
 function render_table(state, ui) {
 	const columns = EMPS_COLUMNS();
-	const filtered = filter_rows(state.rows, columns, state.search);
-	const sorted = sort_rows(filtered, state);
+	const sorted = sort_rows(state.rows, state);
 
 	if (!sorted.length) {
 		ui.$body.html(`<div class="tb-emps-empty">${__("No data for this month.")}</div>`);
@@ -358,20 +377,7 @@ function render_table(state, ui) {
 	});
 
 	const with_punches = sorted.filter((row) => (row.punches || 0) > 0).length;
-	ui.$count.text(
-		__("{0} days with punches · {1} days", [with_punches, sorted.length])
-	);
-}
-
-function filter_rows(rows, columns, query) {
-	if (!query) return rows;
-	return rows.filter((row) =>
-		columns.some((col) =>
-			String(row[col.key] ?? "")
-				.toLowerCase()
-				.includes(query)
-		)
-	);
+	ui.$count.text(__("{0} days with punches · {1} days", [with_punches, sorted.length]));
 }
 
 function sort_rows(rows, state) {
@@ -399,13 +405,13 @@ function sort_rows(rows, state) {
 
 function export_csv(state, ui) {
 	const columns = EMPS_COLUMNS();
-	const filtered = sort_rows(filter_rows(state.rows, columns, state.search), state);
-	if (!filtered.length) {
+	const sorted = sort_rows(state.rows, state);
+	if (!sorted.length) {
 		frappe.show_alert({ message: __("No rows to export"), indicator: "orange" });
 		return;
 	}
 	const header = columns.map((col) => csv_cell(col.label)).join(",");
-	const body = filtered
+	const body = sorted
 		.map((row) => columns.map((col) => csv_cell(row[col.key])).join(","))
 		.join("\n");
 	const blob = new Blob([header + "\n" + body], { type: "text/csv;charset=utf-8;" });
@@ -424,47 +430,73 @@ function csv_cell(value) {
 }
 
 function inject_styles() {
-	if (document.getElementById("tb-emps-styles-v1")) return;
+	if (document.getElementById("tb-emps-styles-v2")) return;
 	const style = document.createElement("style");
-	style.id = "tb-emps-styles-v1";
+	style.id = "tb-emps-styles-v2";
 	style.textContent = `
 		.tb-emps-inline { max-width: 960px; margin: 0 auto; padding: 0 8px 24px; overflow: visible; }
 		.tb-emps-inline.tb-emps-with-sidebar { max-width: none; margin: 0; padding: 0 0 24px; }
 		.tb-emps-sidebar { padding: 8px 0; }
 		.tb-emps-sidebar .tb-emps-field { width: 100%; margin-bottom: 12px; }
-		.tb-emps-toolbar-search-only .tb-emps-field-search { flex: 1 1 240px; min-width: 240px; }
 		.tb-emps-inline > .tb-emps-header,
 		.tb-emps-inline > .tb-emps-toolbar,
+		.tb-emps-inline > .tb-emps-headline,
 		.tb-emps-inline > .tb-emps-body,
 		.tb-emps-inline > .tb-emps-footer {
 			background: var(--card-bg);
 			border-left: 1px solid var(--border-color);
 			border-right: 1px solid var(--border-color);
 		}
-		.tb-emps-inline > .tb-emps-header {
+		.tb-emps-inline > .tb-emps-header,
+		.tb-emps-inline > .tb-emps-toolbar-filters {
 			border-top: 1px solid var(--border-color);
 			border-radius: 10px 10px 0 0;
+		}
+		.tb-emps-inline.tb-emps-with-sidebar > .tb-emps-headline {
+			border-top: 1px solid var(--border-color);
+			border-radius: 10px 10px 0 0;
+		}
+		.tb-emps-inline:not(.tb-emps-with-sidebar) > .tb-emps-headline {
+			border-top: none;
 		}
 		.tb-emps-inline > .tb-emps-footer {
 			border-bottom: 1px solid var(--border-color);
 			border-radius: 0 0 10px 10px;
 		}
 		.tb-emps-header {
-			display: flex; align-items: center; justify-content: space-between;
 			padding: 16px 20px; border-bottom: 1px solid var(--border-color); flex-shrink: 0;
 		}
 		.tb-emps-title { font-size: 15px; font-weight: 700; color: var(--text-color); }
-		.tb-emps-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 		.tb-emps-toolbar {
 			padding: 12px 20px; border-bottom: 1px solid var(--border-color);
 			display: flex; align-items: flex-end; gap: 12px; flex-shrink: 0; flex-wrap: wrap;
 			overflow: visible; position: relative; z-index: 20;
 		}
+		.tb-emps-headline {
+			display: flex; align-items: center; justify-content: space-between; gap: 16px;
+			padding: 14px 20px; border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+		}
+		.tb-emps-headline-left,
+		.tb-emps-headline-right {
+			display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+		}
+		.tb-emps-headline-item {
+			display: flex; align-items: baseline; gap: 8px; min-width: 0;
+		}
+		.tb-emps-headline-k {
+			font-size: 10px; font-weight: 700; text-transform: uppercase;
+			letter-spacing: .3px; color: var(--text-muted); white-space: nowrap;
+		}
+		.tb-emps-headline-user-id,
+		.tb-emps-headline-user-name,
+		.tb-emps-headline-period-month,
+		.tb-emps-headline-period-year {
+			font-size: 14px; font-weight: 600; color: var(--text-color);
+		}
 		.tb-emps-field { flex: 0 0 auto; }
 		.tb-emps-field-user { width: 240px; }
 		.tb-emps-field-year { width: 100px; }
 		.tb-emps-field-month { width: 150px; }
-		.tb-emps-field-search { flex: 1 1 220px; min-width: 220px; }
 		.tb-emps-field-label {
 			display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
 			letter-spacing: .3px; color: var(--text-muted); margin-bottom: 4px; line-height: 1;
@@ -474,16 +506,6 @@ function inject_styles() {
 		.tb-emps-link-wrap .awesomplete { z-index: 30; width: 100%; }
 		.tb-emps-link-wrap .awesomplete > ul {
 			z-index: 40; max-height: 240px; overflow-y: auto;
-		}
-		.tb-emps-search-inner {
-			display: flex; align-items: center; gap: 8px;
-			border: 1px solid var(--border-color); border-radius: 6px;
-			padding: 0 12px; height: 32px; background: var(--card-bg);
-			box-sizing: border-box;
-		}
-		.tb-emps-search-inner input {
-			border: 0; outline: none; width: 100%; background: transparent; font-size: 13px;
-			height: 30px; line-height: 30px; padding: 0;
 		}
 		.tb-emps-month .form-group, .tb-emps-year .form-group, .tb-emps-user .form-group { margin: 0; }
 		.tb-emps-month select, .tb-emps-year select, .tb-emps-month input, .tb-emps-year input, .tb-emps-user input {
