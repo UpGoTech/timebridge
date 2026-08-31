@@ -323,15 +323,18 @@ def _receive_userinfo(machine, args, body):
         # They still have to be acknowledged and stamped: leaving that inside
         # "if records" is what let this device re-send its whole operation log
         # 181 times in one minute, with no Sync Log to show it had ever arrived.
-        write_machine_log(
-            machine=machine,
-            level="Info",
-            event="Upload",
-            message=(
-                f"OPERLOG: {len(op_rows)} operation row(s), "
-                f"{len(photo_rows)} photo row(s), no user records"
-            ),
-        )
+        # Empty heartbeats are normal on some firmware; log only when the payload
+        # carried something worth a human glance.
+        if op_rows or photo_rows:
+            write_machine_log(
+                machine=machine,
+                level="Info",
+                event="Upload",
+                message=(
+                    f"OPERLOG: {len(op_rows)} operation row(s), "
+                    f"{len(photo_rows)} photo row(s), no user records"
+                ),
+            )
         stamps.record_operlog_stamp(machine, args, table)
         frappe.db.commit()
 
