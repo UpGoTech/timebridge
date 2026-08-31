@@ -25,6 +25,8 @@ cannot create records.
 
 import frappe
 
+from frappe.utils import cint
+
 from timebridge.timebridge.adms import commands, logger, parser, photos, stamps
 from timebridge.timebridge.services.machine_log import write_machine_log
 
@@ -32,28 +34,39 @@ from timebridge.timebridge.services.machine_log import write_machine_log
 # us and what it is allowed to send. Realtime=1 asks it to push as punches
 # happen rather than only on its own timer; Encrypt=0 keeps the body readable.
 # TransFlag is a ten-position switch telling the device which kinds of data it
-# is permitted to send us. Positions, in order:
+# is permitted to send us. Positions, in Attendance PUSH order:
 #
-#   1 AttLog   2 OpLog    3 AttPhoto  4 EnrollUser  5 ChgUser
-#   6 EnrollFP 7 ChgFP    8 FPImage   9 FACE       10 UserPic
+#   1 AttLog   2 OpLog   3 AttPhoto  4 EnrollFP  5 EnrollUser
+#   6 FPImage  7 ChgUser 8 ChgFP     9 FACE     10 UserPic
 #
-# Punches need AttLog, OpLog, AttPhoto and EnrollUser. FACE and UserPic
-# (positions 9 and 10) are what permit enrolment photographs — Bio-Photo —
-# and are opened only while Fetch Photos is running. The middle switches
-# (fingerprint images and the rest) stay off: they are unused here, and
-# turning every bit on is what some firmwares reject.
-TRANSFLAG_PUNCHES_ONLY = "1111000000"
-TRANSFLAG_WITH_PHOTOS = "1111000011"
+# This is NOT the order in the Security PUSH document kept in spec/, which is a
+# different protocol: there EnrollUser is 4 and ChgUser is 5. Following it left
+# "1111000000" asking for fingerprint enrolments while switching off the two
+# flags — EnrollUser and ChgUser — that make the device report its people at all.
+#
+# Punches need AttLog, OpLog and AttPhoto; TimeBridge Machine Users need
+# EnrollUser and ChgUser. FACE and UserPic (positions 9 and 10) are what permit
+# enrolment photographs — Bio-Photo — and are opened only while Fetch Photos is
+# running. The fingerprint switches stay off: they are unused here, and turning
+# every bit on is what some firmwares reject.
+TRANSFLAG_PUNCHES_ONLY = "1110101000"
+TRANSFLAG_WITH_PHOTOS = "1110101011"
 
+# The device polls /iclock/getrequest every Delay seconds and looks for new data
+# to transmit every TransInterval minutes. Realtime=1 makes punches leave as
+# they happen, but the interval still governs the catch-up sweep, and a firmware
+# given no interval falls back to its own default.
 HANDSHAKE_TEMPLATE = (
     "GET OPTION FROM: {serial}\n"
     "Stamp={stamp}\n"
-    "OpStamp={opstamp}\n"
-    "AttLogStamp={stamp}\n"
-    "OperLogStamp={opstamp}\n"
+    "ATTLOGStamp={stamp}\n"
+    "OPERLOGStamp={opstamp}\n"
     "ErrorDelay=30\n"
     "Delay=30\n"
+    "TransTimes=00:00;14:00\n"
+    "TransInterval=1\n"
     "TransFlag={transflag}\n"
+    "TimeZone={timezone}\n"
     "Realtime=1\n"
     "Encrypt=0\n"
 )
@@ -66,13 +79,55 @@ def build_handshake(serial, machine=None):
         stamp=stamp,
         opstamp=opstamp,
         transflag=current_transflag(),
+        timezone=server_timezone_option(),
     )
+
+
+def server_timezone_option():
+    """
+    TimeZone for the handshake, in the encoding the protocol asks for: whole
+    hours when the offset has none, otherwise minutes — so +05:30 is 330, not
+    5.5. The device syncs its clock from this together with the Date header, and
+    a wrong value shifts every punch it reports afterwards.
+    """
+
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    try:
+        offset = datetime.now(
+            ZoneInfo(frappe.utils.get_system_timezone())
+        ).utcoffset()
+        minutes = int(offset.total_seconds() // 60)
+    except Exception:
+        return "0"
+
+    if minutes % 60 == 0:
+        return str(minutes // 60)
+
+    return str(minutes)
+
+
+def ack(count):
+    """
+    Acknowledge a data upload.
+
+    Attendance PUSH §11.2-11.5: a POST is answered with "OK: <n>" naming how
+    many records were processed, and "when an error occurs, the error
+    description is replied". A bare "OK" is neither, so the firmware reads the
+    upload as failed, keeps the batch and re-sends it on every cycle — which is
+    what had this device pushing the same 128 records hundreds of times over.
+
+    The count is everything the device handed us, duplicates included: a punch
+    we already hold was still processed successfully, and answering "OK: 0" to a
+    batch we have seen before restarts the same loop.
+    """
+
+    return f"OK: {cint(count)}"
 
 
 def current_transflag():
     """Which switches the handshake currently offers, per TimeBridge Settings."""
-
-    from frappe.utils import cint
 
     if cint(frappe.db.get_single_value("TimeBridge Settings", "enable_photo_transfer")):
         return TRANSFLAG_WITH_PHOTOS
@@ -124,13 +179,15 @@ def handle_cdata(serial, args, body, method, raw=None):
 
     if table in photos.PHOTO_TABLES:
         photos.handle_photo(machine, args, raw, body, table)
-        return "OK"
+        # A raw-bytes upload is one picture and parses to no rows.
+        return ack(len(parser.parse_photo_fields(body)) or 1)
 
     if table == "OPTIONS" or (table and table.upper() == "OPTIONS"):
+        # Device parameters, not records. This one is acknowledged bare.
         return "OK"
 
     if parser.is_template_table(args, table):
-        return "OK"
+        return ack(_body_line_count(body))
 
     # Unrecognised table: acknowledge so the device does not retry forever,
     # but leave a trace that something arrived we do not handle yet.
@@ -142,7 +199,13 @@ def handle_cdata(serial, args, body, method, raw=None):
         message=f"Unhandled ADMS table {table!r}",
     )
 
-    return "OK"
+    return ack(_body_line_count(body))
+
+
+def _body_line_count(body):
+    """How many records a payload carried, for the acknowledgement."""
+
+    return len([line for line in (body or "").splitlines() if line.strip()])
 
 
 def _receive_attlog(machine, args, body):
@@ -195,15 +258,19 @@ def _receive_attlog(machine, args, body):
         frappe.db.commit()
         frappe.log_error(title="TimeBridge ADMS: ATTLOG failed", message=tb)
 
-    # The device only wants an acknowledgement. Reporting a failure here would
-    # make it discard the batch, and we would rather keep it for a retry.
-    return "OK"
+        # Nothing was stored, so ask for the batch again. The protocol's retry
+        # signal is an error description in a 200 body — an HTTP 500 is what
+        # makes the firmware throw the records away, and that is still avoided.
+        return "Error: ATTLOG ingest failed"
+
+    return ack(len(records) + len(skipped))
 
 
 def _receive_userinfo(machine, args, body):
 
     records, skipped = parser.parse_userinfo(body)
     photo_rows = parser.parse_photo_fields(body)
+    op_rows = parser.parse_oplog(body)
     table = parser.parse_table_name(args.get("table"))
 
     if records:
@@ -247,7 +314,23 @@ def _receive_userinfo(machine, args, body):
             frappe.db.commit()
             frappe.log_error(title="TimeBridge ADMS: USERINFO failed", message=tb)
 
-    elif photo_rows:
+            return "Error: USERINFO ingest failed"
+
+    else:
+        # Most OPERLOG uploads carry no people at all — they are operation rows
+        # (a door opened, an administrator signed in) which nothing here models.
+        # They still have to be acknowledged and stamped: leaving that inside
+        # "if records" is what let this device re-send its whole operation log
+        # 181 times in one minute, with no Sync Log to show it had ever arrived.
+        write_machine_log(
+            machine=machine,
+            level="Info",
+            event="Upload",
+            message=(
+                f"OPERLOG: {len(op_rows)} operation row(s), "
+                f"{len(photo_rows)} photo row(s), no user records"
+            ),
+        )
         stamps.record_operlog_stamp(machine, args, table)
         frappe.db.commit()
 
@@ -273,7 +356,10 @@ def _receive_userinfo(machine, args, body):
                 message=tb,
             )
 
-    return "OK"
+    # Count every line the device sent, not just the ones we model. An OPERLOG
+    # is a mixed bag of USER, OPLOG and photo rows, and under-counting it reads
+    # to the firmware as a partial failure.
+    return ack(max(_body_line_count(body), len(records) + len(skipped)))
 
 
 def handle_getrequest(serial, args, body, method, raw=None):

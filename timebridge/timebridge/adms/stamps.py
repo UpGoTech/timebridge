@@ -100,14 +100,19 @@ def parse_upload_stamp(args, table, table_raw=None):
 	table = (table or "").upper()
 
 	if table == "ATTLOG":
-		keys = ("AttLogStamp", "attlogstamp", "Stamp", "stamp")
+		keys = ("attlogstamp", "stamp")
 	elif table in ("OPERLOG", "USERINFO"):
-		keys = ("OperLogStamp", "operlogstamp", "OpStamp", "opstamp", "Stamp", "stamp")
+		keys = ("operlogstamp", "opstamp", "stamp")
 	else:
 		return None
 
+	# Firmwares disagree on capitalisation — the spec writes ATTLOGStamp, this
+	# device sends Stamp, others send AttLogStamp. Match on the lowered name so
+	# a casing we have not seen is not read as a missing stamp.
+	lowered = {str(key).strip().lower(): value for key, value in (args or {}).items()}
+
 	for key in keys:
-		value = (args or {}).get(key)
+		value = lowered.get(key)
 		if value is not None and str(value).strip():
 			return normalize_upload_stamp(value)
 

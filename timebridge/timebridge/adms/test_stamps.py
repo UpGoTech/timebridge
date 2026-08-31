@@ -64,15 +64,13 @@ class TestADMSStamps(FrappeTestCase):
         )
 
         reply = build_handshake("STAMP-005", machine=machine)
-        self.assertIn("Stamp=9999", reply)
-        self.assertIn("OpStamp=9999", reply)
-        self.assertIn("AttLogStamp=9999", reply)
-        self.assertIn("OperLogStamp=9999", reply)
+        self.assertIn("ATTLOGStamp=9999", reply)
+        self.assertIn("OPERLOGStamp=9999", reply)
 
         frappe.db.set_value("TimeBridge Machine", machine, "adms_stamp", "82983982")
         reply = build_handshake("STAMP-005", machine=machine)
         self.assertIn("Stamp=82983982", reply)
-        self.assertIn("AttLogStamp=82983982", reply)
+        self.assertIn("ATTLOGStamp=82983982", reply)
 
     def test_parse_opstamp_for_operlog(self):
         args = {"table": "OPERLOG", "OpStamp": "9238883"}
@@ -107,8 +105,8 @@ class TestADMSStamps(FrappeTestCase):
     def test_handshake_defaults_without_machine(self):
         reply = build_handshake("SN123", machine=None)
         self.assertIn("Stamp=9999", reply)
-        self.assertIn("OpStamp=9999", reply)
-        self.assertIn("AttLogStamp=9999", reply)
+        self.assertIn("ATTLOGStamp=9999", reply)
+        self.assertIn("OPERLOGStamp=9999", reply)
         self.assertIn("GET OPTION FROM: SN123", reply)
 
     def test_handshake_echoes_persisted_stamps(self):
@@ -122,9 +120,8 @@ class TestADMSStamps(FrappeTestCase):
 
         reply = build_handshake("STAMP-001", machine=machine)
         self.assertIn("Stamp=111", reply)
-        self.assertIn("OpStamp=222", reply)
-        self.assertIn("AttLogStamp=111", reply)
-        self.assertIn("OperLogStamp=222", reply)
+        self.assertIn("ATTLOGStamp=111", reply)
+        self.assertIn("OPERLOGStamp=222", reply)
 
     def test_record_attlog_stamp_from_query(self):
         machine = self._make_machine("STAMP-002")
