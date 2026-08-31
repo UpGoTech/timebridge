@@ -16,8 +16,34 @@ from frappe.utils import get_datetime
 
 DEFAULT_STAMP = "9999"
 
+# Firmwares often send these instead of a real upload marker. Treating them as
+# meaningful stamps leaves the handshake stuck at 9999 forever.
+PLACEHOLDER_STAMPS = frozenset({"9999", "0", ""})
+
 ATTLOG_FIELD = "adms_stamp"
 OPERLOG_FIELD = "adms_op_stamp"
+
+
+def is_placeholder_stamp(value):
+	"""True when the device sent a sentinel, not a real upload marker."""
+
+	if value is None:
+		return True
+
+	return str(value).strip() in PLACEHOLDER_STAMPS
+
+
+def normalize_upload_stamp(value):
+	"""Return a stamp worth persisting, or None for placeholders / blanks."""
+
+	if value is None:
+		return None
+
+	clean = str(value).strip()
+	if is_placeholder_stamp(clean):
+		return None
+
+	return clean
 
 
 def handshake_stamps(machine):
@@ -34,9 +60,16 @@ def handshake_stamps(machine):
 	) or {}
 
 	return (
-		(row.get(ATTLOG_FIELD) or "").strip() or DEFAULT_STAMP,
-		(row.get(OPERLOG_FIELD) or "").strip() or DEFAULT_STAMP,
+		_normalize_handshake_stamp(row.get(ATTLOG_FIELD)),
+		_normalize_handshake_stamp(row.get(OPERLOG_FIELD)),
 	)
+
+
+def _normalize_handshake_stamp(value):
+	clean = normalize_upload_stamp(value)
+	if clean:
+		return clean
+	return DEFAULT_STAMP
 
 
 def parse_upload_stamp(args, table, table_raw=None):
@@ -58,7 +91,7 @@ def parse_upload_stamp(args, table, table_raw=None):
 	for key in keys:
 		value = (args or {}).get(key)
 		if value is not None and str(value).strip():
-			return str(value).strip()
+			return normalize_upload_stamp(value)
 
 	raw = table_raw if table_raw is not None else (args or {}).get("table")
 	if not raw:
@@ -69,7 +102,7 @@ def parse_upload_stamp(args, table, table_raw=None):
 			continue
 		key, _, value = part.partition("=")
 		if key.strip().lower() in ("stamp", "opstamp") and value.strip():
-			return value.strip()
+			return normalize_upload_stamp(value.strip())
 
 	return None
 
