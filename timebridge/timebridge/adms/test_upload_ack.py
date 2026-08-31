@@ -27,17 +27,6 @@ OPERLOG_ARGS = {"table": "OPERLOG", "OpStamp": "9999"}
 
 class TestADMSUploadAck(FrappeTestCase):
 
-    def setUp(self):
-        self._old_silence = frappe.conf.get("timebridge_silence_device_logs")
-        frappe.conf.timebridge_silence_device_logs = 0
-
-    def tearDown(self):
-        if self._old_silence is None:
-            frappe.conf.pop("timebridge_silence_device_logs", None)
-        else:
-            frappe.conf.timebridge_silence_device_logs = self._old_silence
-        super().tearDown()
-
     def test_ack_names_the_record_count(self):
         self.assertEqual(api.ack(9), "OK: 9")
         self.assertEqual(api.ack(0), "OK: 0")

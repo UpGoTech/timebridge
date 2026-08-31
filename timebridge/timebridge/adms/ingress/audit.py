@@ -120,9 +120,6 @@ def write_request_log(
 	"""Append one Request Log row when Machine toggles allow. Never raises."""
 
 	try:
-		if frappe.conf.get("timebridge_silence_device_logs"):
-			return None
-
 		args = args or {}
 		serial = (serial or args.get("SN") or args.get("sn") or "").strip() or None
 		category = category or classify(endpoint, method, args)

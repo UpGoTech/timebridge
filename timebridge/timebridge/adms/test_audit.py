@@ -11,15 +11,6 @@ class TestADMSRequestLogAudit(FrappeTestCase):
 	def setUp(self):
 		super().setUp()
 		frappe.db.delete("TimeBridge ADMS Request Log")
-		self._old_silence = frappe.conf.get("timebridge_silence_device_logs")
-		frappe.conf.timebridge_silence_device_logs = 0
-
-	def tearDown(self):
-		if self._old_silence is None:
-			frappe.conf.pop("timebridge_silence_device_logs", None)
-		else:
-			frappe.conf.timebridge_silence_device_logs = self._old_silence
-		super().tearDown()
 
 	def test_classify_attlog(self):
 		self.assertEqual(
