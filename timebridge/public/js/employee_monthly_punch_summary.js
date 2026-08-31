@@ -108,18 +108,30 @@ function month_num_from_label(label) {
 	return option ? option.value : 1;
 }
 
+function format_period_label(year, month_num) {
+	return `${month_label_for_num(month_num)} ${year}`;
+}
+
+function format_user_headline(state) {
+	if (!state.user_id && !state.user_name) {
+		return "—";
+	}
+	if (state.user_id && state.user_name) {
+		return `${state.user_id} · ${state.user_name}`;
+	}
+	return state.user_name || state.user_id || "—";
+}
+
 function sync_user_meta(state) {
 	if (!state.machine_user) {
 		state.user_id = "";
 		state.user_name = "";
 		return Promise.resolve();
 	}
-	return frappe.db.get_value("TimeBridge Machine User", state.machine_user, ["user_id", "user_name"]).then(
-		(r) => {
-			state.user_id = r?.user_id || "";
-			state.user_name = r?.user_name || "";
-		}
-	);
+	return frappe.db.get_doc("TimeBridge Machine User", state.machine_user).then((doc) => {
+		state.user_id = doc.user_id || "";
+		state.user_name = doc.user_name || "";
+	});
 }
 
 function build_panel($root, state, { $sidebar = null } = {}) {
@@ -168,24 +180,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		</div>`}
 		<div class="tb-emps-headline">
 			<div class="tb-emps-headline-left">
-				<div class="tb-emps-headline-item">
-					<span class="tb-emps-headline-k">${__("User ID")}</span>
-					<span class="tb-emps-headline-user-id">—</span>
-				</div>
-				<div class="tb-emps-headline-item">
-					<span class="tb-emps-headline-k">${__("Name")}</span>
-					<span class="tb-emps-headline-user-name">—</span>
-				</div>
+				<span class="tb-emps-headline-user">—</span>
 			</div>
 			<div class="tb-emps-headline-right">
-				<div class="tb-emps-headline-item">
-					<span class="tb-emps-headline-k">${__("Month")}</span>
-					<span class="tb-emps-headline-period-month">—</span>
-				</div>
-				<div class="tb-emps-headline-item">
-					<span class="tb-emps-headline-k">${__("Year")}</span>
-					<span class="tb-emps-headline-period-year">—</span>
-				</div>
+				<span class="tb-emps-headline-period">—</span>
 			</div>
 		</div>
 		<div class="tb-emps-body">
@@ -204,10 +202,8 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		$body: $root.find(".tb-emps-body"),
 		$count: $root.find(".tb-emps-count"),
 		$export: $root.find(".tb-emps-btn-export"),
-		$headline_user_id: $root.find(".tb-emps-headline-user-id"),
-		$headline_user_name: $root.find(".tb-emps-headline-user-name"),
-		$headline_month: $root.find(".tb-emps-headline-period-month"),
-		$headline_year: $root.find(".tb-emps-headline-period-year"),
+		$headline_user: $root.find(".tb-emps-headline-user"),
+		$headline_period: $root.find(".tb-emps-headline-period"),
 	};
 
 	function on_period_change() {
@@ -289,10 +285,8 @@ function wire_panel(ui, state) {
 }
 
 function update_headline(ui, state) {
-	ui.$headline_user_id.text(state.user_id || "—");
-	ui.$headline_user_name.text(state.user_name || "—");
-	ui.$headline_month.text(month_label_for_num(state.month_num) || "—");
-	ui.$headline_year.text(state.year ? String(state.year) : "—");
+	ui.$headline_user.text(format_user_headline(state));
+	ui.$headline_period.text(format_period_label(state.year, state.month_num));
 }
 
 function load_rows(state, ui) {
@@ -310,13 +304,17 @@ function load_rows(state, ui) {
 			machine_user: state.machine_user,
 			month: state.month,
 		})
-		.then((rows) => {
-			state.rows = (rows || []).map((row) => ({
+		.then((data) => {
+			const payload = data && data.rows ? data : { rows: data || [] };
+			state.user_id = payload.user_id || state.user_id || "";
+			state.user_name = payload.user_name || state.user_name || "";
+			state.rows = (payload.rows || []).map((row) => ({
 				...row,
 				date_display: row.date_display || "",
 				punched_in_display: row.punched_in_display || "",
 				punched_out_display: row.punched_out_display || "",
 			}));
+			update_headline(ui, state);
 			render_table(state, ui);
 		})
 		.catch(() => {
@@ -430,9 +428,9 @@ function csv_cell(value) {
 }
 
 function inject_styles() {
-	if (document.getElementById("tb-emps-styles-v2")) return;
+	if (document.getElementById("tb-emps-styles-v3")) return;
 	const style = document.createElement("style");
-	style.id = "tb-emps-styles-v2";
+	style.id = "tb-emps-styles-v3";
 	style.textContent = `
 		.tb-emps-inline { max-width: 960px; margin: 0 auto; padding: 0 8px 24px; overflow: visible; }
 		.tb-emps-inline.tb-emps-with-sidebar { max-width: none; margin: 0; padding: 0 0 24px; }
@@ -478,21 +476,13 @@ function inject_styles() {
 		}
 		.tb-emps-headline-left,
 		.tb-emps-headline-right {
-			display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+			display: flex; align-items: center; min-width: 0;
 		}
-		.tb-emps-headline-item {
-			display: flex; align-items: baseline; gap: 8px; min-width: 0;
-		}
-		.tb-emps-headline-k {
-			font-size: 10px; font-weight: 700; text-transform: uppercase;
-			letter-spacing: .3px; color: var(--text-muted); white-space: nowrap;
-		}
-		.tb-emps-headline-user-id,
-		.tb-emps-headline-user-name,
-		.tb-emps-headline-period-month,
-		.tb-emps-headline-period-year {
+		.tb-emps-headline-user,
+		.tb-emps-headline-period {
 			font-size: 14px; font-weight: 600; color: var(--text-color);
 		}
+		.tb-emps-headline-period { color: var(--text-muted); }
 		.tb-emps-field { flex: 0 0 auto; }
 		.tb-emps-field-user { width: 240px; }
 		.tb-emps-field-year { width: 100px; }

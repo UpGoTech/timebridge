@@ -252,13 +252,24 @@ def build_employee_monthly_punch_summary_rows(machine_user, month):
 
 @frappe.whitelist()
 def get_employee_monthly_punch_summary_list(machine_user=None, month=None):
-	"""Rows for the Employee Monthly Punch Summary Desk Page."""
+	"""Rows and user metadata for the Employee Monthly Punch Summary Desk Page."""
 
 	if not machine_user:
 		frappe.throw("User is required")
 	if not month:
 		frappe.throw("Month is required")
-	return build_employee_monthly_punch_summary_rows(machine_user, month)
+
+	mu = frappe.db.get_value(
+		"TimeBridge Machine User",
+		machine_user,
+		["user_id", "user_name"],
+		as_dict=True,
+	)
+	return {
+		"user_id": mu.user_id if mu else "",
+		"user_name": mu.user_name if mu else "",
+		"rows": build_employee_monthly_punch_summary_rows(machine_user, month),
+	}
 
 
 def build_daily_punch_summary_rows(punch_date, machine=None):

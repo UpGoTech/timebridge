@@ -245,11 +245,13 @@ class TestDashboard(FrappeTestCase):
 
 		self._make_punch(machine.name, "55", punch_day)
 
-		rows = get_employee_monthly_punch_summary_list(
+		result = get_employee_monthly_punch_summary_list(
 			machine_user.name, punch_day.replace(day=1)
 		)
-		self.assertEqual(len(rows), get_last_day(punch_day).day)
-		with_punches = [row for row in rows if row["punches"]]
+		self.assertEqual(len(result["rows"]), get_last_day(punch_day).day)
+		self.assertEqual(result["user_id"], "55")
+		self.assertEqual(result["user_name"], "API Monthly User")
+		with_punches = [row for row in result["rows"] if row["punches"]]
 		self.assertEqual(len(with_punches), 1)
 		self.assertEqual(with_punches[0]["punches"], 1)
 
