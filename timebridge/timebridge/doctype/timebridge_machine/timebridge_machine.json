@@ -25,6 +25,8 @@
   "sync_enabled",
   "last_sync",
   "last_user_sync",
+  "adms_stamp",
+  "adms_op_stamp",
   "other_information",
   "description"
  ],
@@ -160,6 +162,20 @@
    "fieldname": "last_user_sync",
    "fieldtype": "Datetime",
    "label": "Last User Sync",
+   "read_only": 1
+  },
+  {
+   "description": "Latest attendance upload marker echoed to the device as Stamp on ADMS handshake. Updated from each accepted ATTLOG POST.",
+   "fieldname": "adms_stamp",
+   "fieldtype": "Data",
+   "label": "ADMS Attendance Stamp",
+   "read_only": 1
+  },
+  {
+   "description": "Latest user/operation upload marker echoed as OpStamp on ADMS handshake. Updated from each accepted OPERLOG/USERINFO POST.",
+   "fieldname": "adms_op_stamp",
+   "fieldtype": "Data",
+   "label": "ADMS Operation Stamp",
    "read_only": 1
   },
   {

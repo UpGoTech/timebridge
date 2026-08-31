@@ -25,7 +25,7 @@ cannot create records.
 
 import frappe
 
-from timebridge.timebridge.adms import commands, logger, parser, photos
+from timebridge.timebridge.adms import commands, logger, parser, photos, stamps
 from timebridge.timebridge.services.machine_log import write_machine_log
 
 # Handshake reply. The device parses these keys to decide how often to talk to
@@ -47,14 +47,24 @@ TRANSFLAG_WITH_PHOTOS = "1111000011"
 
 HANDSHAKE_TEMPLATE = (
     "GET OPTION FROM: {serial}\n"
-    "Stamp=9999\n"
-    "OpStamp=9999\n"
+    "Stamp={stamp}\n"
+    "OpStamp={opstamp}\n"
     "ErrorDelay=30\n"
     "Delay=30\n"
     "TransFlag={transflag}\n"
     "Realtime=1\n"
     "Encrypt=0\n"
 )
+
+
+def build_handshake(serial, machine=None):
+    stamp, opstamp = stamps.handshake_stamps(machine)
+    return HANDSHAKE_TEMPLATE.format(
+        serial=serial or "UNKNOWN",
+        stamp=stamp,
+        opstamp=opstamp,
+        transflag=current_transflag(),
+    )
 
 
 def current_transflag():
@@ -90,9 +100,7 @@ def handle_cdata(serial, args, body, method, raw=None):
                 event="Handshake",
                 message="ADMS handshake",
             )
-        return HANDSHAKE_TEMPLATE.format(
-            serial=serial or "UNKNOWN", transflag=current_transflag()
-        )
+        return build_handshake(serial, machine)
 
     if not machine:
         write_machine_log(
@@ -107,10 +115,10 @@ def handle_cdata(serial, args, body, method, raw=None):
     table = parser.parse_table_name(args.get("table"))
 
     if table == "ATTLOG":
-        return _receive_attlog(machine, body)
+        return _receive_attlog(machine, args, body)
 
     if table in ("OPERLOG", "USERINFO"):
-        return _receive_userinfo(machine, body)
+        return _receive_userinfo(machine, args, body)
 
     if table in photos.PHOTO_TABLES:
         photos.handle_photo(machine, args, raw, body, table)
@@ -135,9 +143,10 @@ def handle_cdata(serial, args, body, method, raw=None):
     return "OK"
 
 
-def _receive_attlog(machine, body):
+def _receive_attlog(machine, args, body):
 
     records, skipped = parser.parse_attlog(body)
+    table = parser.parse_table_name(args.get("table"))
 
     sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
     log_name = logger.open_sync_log(machine, "Attendance", sync_batch)
@@ -157,6 +166,10 @@ def _receive_attlog(machine, body):
                 if (skipped or result["invalid"] or result["unmatched"]) else None
             ),
         )
+
+        # Even duplicate-only batches were accepted — advance Stamp so the
+        # device stops re-sending the same log on the next handshake.
+        stamps.record_attlog_stamp(machine, args, table, records)
 
         frappe.db.commit()
 
@@ -185,10 +198,11 @@ def _receive_attlog(machine, body):
     return "OK"
 
 
-def _receive_userinfo(machine, body):
+def _receive_userinfo(machine, args, body):
 
     records, skipped = parser.parse_userinfo(body)
     photo_rows = parser.parse_photo_fields(body)
+    table = parser.parse_table_name(args.get("table"))
 
     if records:
 
@@ -213,6 +227,7 @@ def _receive_userinfo(machine, body):
 
             frappe.db.set_value("TimeBridge Machine", machine, "last_user_sync",
                                 frappe.utils.now_datetime())
+            stamps.record_operlog_stamp(machine, args, table)
             frappe.db.commit()
 
         except Exception:
@@ -229,6 +244,10 @@ def _receive_userinfo(machine, body):
             )
             frappe.db.commit()
             frappe.log_error(title="TimeBridge ADMS: USERINFO failed", message=tb)
+
+    elif photo_rows:
+        stamps.record_operlog_stamp(machine, args, table)
+        frappe.db.commit()
 
     # Enrolment pictures often ride in OPERLOG as PIN + Content, not as a
     # USERPIC table. Harvest them even when the POST had no people to save.
