@@ -82,6 +82,18 @@ class TestADMSUploadAck(FrappeTestCase):
             "4455",
         )
 
+    def test_empty_operlog_does_not_flood_machine_log(self):
+        """Firmware often POSTs empty OPERLOG heartbeats — still ack and stamp."""
+
+        machine, serial = self._make_machine("ACK-008")
+        before = frappe.db.count("TimeBridge Machine Log", {"machine": machine})
+
+        self.assertEqual(self._post(serial, OPERLOG_ARGS, ""), "OK: 0")
+        self.assertEqual(self._post(serial, OPERLOG_ARGS, "\n\n"), "OK: 0")
+
+        after = frappe.db.count("TimeBridge Machine Log", {"machine": machine})
+        self.assertEqual(before, after)
+
     def test_operlog_with_users_is_acknowledged(self):
         machine, serial = self._make_machine("ACK-006")
         body = "USER PIN=1\tName=Asha\tPri=0\nUSER PIN=2\tName=Manali\tPri=0\n"
