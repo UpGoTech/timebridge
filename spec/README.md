@@ -25,7 +25,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 001 ADMS Device Discovery     ████████████████████░  ~96%   Merged (PR #3) — B7 deferred
 002 Device Mirror             ░░░░░░░░░░░░░░░░░░░░    —    Discontinued (see 003)
 003 Device I/O reset          ████████████████████░  ~95%   Merged to develop
-004 Machine diagnostic log    ████████████████████░  ~95%   Implemented on feat/004-machine-log
+004 Machine diagnostic log    ████████████████████░  ~95%   Merged to develop
+005 Workspace dashboard     ████████████████████░  ~95%   Implemented on feat/005-workspace-dashboard
 ```
 
 | Spec | Title | Branch | Status | v1 progress | Next action |
@@ -33,7 +34,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**001**](001-adms-device-discovery.md) | ADMS Device Discovery & Registration | — (merged) | **Merged** PR #3 | **25 / 26** · B7 deferred | Folded into 003 wizard (push inbox) |
 | [**002**](002-device-mirror.md) | Device Mirror | — | **Discontinued** | — | Not shipping; templates/restore out of product |
 | [**003**](003-device-io.md) | Device I/O reset | — (merged) | **Merged** | Phases A–F | — |
-| [**004**](004-machine-log.md) | Machine diagnostic log | `feat/004-machine-log` | **Implemented** | Phase 1–5 | PR to develop |
+| [**004**](004-machine-log.md) | Machine diagnostic log | — (merged) | **Merged** | Phase 1–5 | — |
+| [**005**](005-workspace-dashboard.md) | Workspace dashboard & Add Machine | `feat/005-workspace-dashboard` | **Implemented** | Phase 1–6 | PR to develop |
 
 ---
 
@@ -88,7 +90,7 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 |-------|-------|
 | **Doc** | [004-machine-log.md](004-machine-log.md) |
 | **One-liner** | Per-machine log for connect/ADMS/pull errors and warnings |
-| **Status** | **In progress** on `feat/004-machine-log` |
+| **Status** | **Merged** to develop |
 
 ### Phase rollup
 
@@ -98,6 +100,26 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 2 | Helper + retention | `[x]` |
 | 3 | Instrument code paths | `[x]` |
 | 4 | Tests | `[x]` |
+
+---
+
+## Spec 005 — Workspace dashboard and Add Machine relocation
+
+| Field | Value |
+|-------|-------|
+| **Doc** | [005-workspace-dashboard.md](005-workspace-dashboard.md) |
+| **One-liner** | Dashboard number cards; Add Machine only from Machine list; block blank `/new` form |
+| **Status** | **In progress** on `feat/005-workspace-dashboard` |
+
+### Phase rollup
+
+| Phase | Name | Rollup |
+|-------|------|--------|
+| 1 | Spec + programme index | `[x]` |
+| 2 | Number Card fixtures | `[x]` |
+| 3 | Workspace layout | `[x]` |
+| 4 | List + form wizard routing | `[x]` |
+| 5 | Wizard breadcrumbs | `[x]` |
 
 ---
 
@@ -118,7 +140,8 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 |-------|------|-----------|
 | 1 | **001** ✓ merged | ADMS discovery |
 | 2 | **003** ✓ merged | Product reset |
-| 3 | **004** | Machine diagnostic log |
+| 3 | **004** ✓ merged | Machine diagnostic log |
+| 4 | **005** | Workspace dashboard |
 | — | **002** | Abandoned |
 
 ---
@@ -140,3 +163,4 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 2026-08-29 | 001 merged (PR #3); reconcile tracker |
 | 2026-08-30 | 003 Device I/O reset; 002 discontinued |
 | 2026-08-31 | 004 Machine diagnostic log |
+| 2026-08-31 | 005 Workspace dashboard and Add Machine relocation |
