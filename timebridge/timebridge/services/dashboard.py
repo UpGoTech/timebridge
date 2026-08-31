@@ -3,6 +3,7 @@
 
 """Workspace dashboard helpers — distinct active users from punch logs."""
 
+import calendar
 from collections import defaultdict
 
 import frappe
@@ -153,6 +154,12 @@ def _machine_user_names_by_device_ids(pairs):
 	return name_map
 
 
+def _format_monthly_summary_date(day):
+	"""e.g. 05-Aug-2026 (Wed)"""
+	day = getdate(day)
+	return f"{day.day:02d}-{day.strftime('%b')}-{day.year} ({calendar.day_abbr[day.weekday()]})"
+
+
 def _summarize_day_punches(punches):
 	"""In/out/hrs/count for one calendar day from punch rows."""
 	if not punches:
@@ -235,7 +242,7 @@ def build_employee_monthly_punch_summary_rows(machine_user, month):
 		rows.append(
 			{
 				"date": day,
-				"date_display": format_date(day, parse_day_first=True),
+				"date_display": _format_monthly_summary_date(day),
 				**summary,
 			}
 		)

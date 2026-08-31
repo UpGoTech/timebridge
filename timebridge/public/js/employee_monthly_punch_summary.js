@@ -20,11 +20,29 @@ const EMPS_COLUMNS = () => [
 	{ key: "punches", label: __("Punches"), sortable: true, align: "right" },
 ];
 
+const EMPS_MONTH_OPTIONS = () => [
+	{ value: 1, label: __("January") },
+	{ value: 2, label: __("February") },
+	{ value: 3, label: __("March") },
+	{ value: 4, label: __("April") },
+	{ value: 5, label: __("May") },
+	{ value: 6, label: __("June") },
+	{ value: 7, label: __("July") },
+	{ value: 8, label: __("August") },
+	{ value: 9, label: __("September") },
+	{ value: 10, label: __("October") },
+	{ value: 11, label: __("November") },
+	{ value: 12, label: __("December") },
+];
+
 timebridge.employee_monthly_punch_summary.render_inline = function ($parent, options = {}) {
 	inject_styles();
+	const initial = parse_month_value(options.month || current_month());
 	const state = {
 		machine_user: options.machine_user || "",
-		month: normalize_month(options.month || current_month()),
+		year: initial.year,
+		month_num: initial.month_num,
+		month: month_from_parts(initial.year, initial.month_num),
 		user_label: "",
 		rows: [],
 		sort_field: "date",
@@ -51,11 +69,43 @@ function current_month() {
 	return frappe.datetime.get_today().slice(0, 7) + "-01";
 }
 
-function normalize_month(value) {
-	if (!value) return current_month();
+function parse_month_value(value) {
+	if (!value) {
+		const today = frappe.datetime.get_today();
+		return { year: parseInt(today.slice(0, 4), 10), month_num: parseInt(today.slice(5, 7), 10) };
+	}
 	const parts = String(value).split("-");
-	if (parts.length >= 2) return `${parts[0]}-${parts[1]}-01`;
-	return value;
+	return {
+		year: parseInt(parts[0], 10),
+		month_num: parseInt(parts[1], 10),
+	};
+}
+
+function month_from_parts(year, month_num) {
+	return `${year}-${String(month_num).padStart(2, "0")}-01`;
+}
+
+function build_year_options() {
+	const current = new Date().getFullYear();
+	const years = [];
+	for (let y = current - 5; y <= current + 1; y++) {
+		years.push(String(y));
+	}
+	return years.join("\n");
+}
+
+function month_label_for_num(month_num) {
+	const option = EMPS_MONTH_OPTIONS().find((row) => row.value === month_num);
+	return option ? option.label : EMPS_MONTH_OPTIONS()[0].label;
+}
+
+function month_num_from_label(label) {
+	const option = EMPS_MONTH_OPTIONS().find((row) => row.label === label);
+	return option ? option.value : 1;
+}
+
+function format_period_label(year, month_num) {
+	return `${month_label_for_num(month_num)} ${year}`;
 }
 
 function build_panel($root, state, { $sidebar = null } = {}) {
@@ -72,6 +122,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 				<div class="tb-emps-field tb-emps-field-user">
 					<label class="tb-emps-field-label">${__("User")}</label>
 					<div class="tb-emps-link-wrap tb-emps-user"></div>
+				</div>
+				<div class="tb-emps-field tb-emps-field-year">
+					<label class="tb-emps-field-label">${__("Year")}</label>
+					<div class="tb-emps-control-wrap tb-emps-year"></div>
 				</div>
 				<div class="tb-emps-field tb-emps-field-month">
 					<label class="tb-emps-field-label">${__("Month")}</label>
@@ -92,6 +146,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 			${use_sidebar ? "" : `<div class="tb-emps-field tb-emps-field-user">
 				<label class="tb-emps-field-label">${__("User")}</label>
 				<div class="tb-emps-link-wrap tb-emps-user"></div>
+			</div>
+			<div class="tb-emps-field tb-emps-field-year">
+				<label class="tb-emps-field-label">${__("Year")}</label>
+				<div class="tb-emps-control-wrap tb-emps-year"></div>
 			</div>
 			<div class="tb-emps-field tb-emps-field-month">
 				<label class="tb-emps-field-label">${__("Month")}</label>
@@ -117,6 +175,23 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 	`);
 
 	const filter_root = use_sidebar ? filter_mount : $root;
+
+	const ui = {
+		$root,
+		$body: $root.find(".tb-emps-body"),
+		$count: $root.find(".tb-emps-count"),
+		$search: $root.find(".tb-emps-search-input"),
+		$export: $root.find(".tb-emps-btn-export"),
+	};
+
+	function on_period_change() {
+		state.year = parseInt(year_control.get_value(), 10);
+		state.month_num = month_num_from_label(month_control.get_value());
+		state.month = month_from_parts(state.year, state.month_num);
+		update_subtitle($root, state);
+		load_rows(state, ui);
+	}
+
 	const user_control = frappe.ui.form.make_control({
 		df: {
 			fieldtype: "Link",
@@ -140,37 +215,39 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 	}
 	normalize_frappe_control(filter_root.find(".tb-emps-user"));
 
+	const year_control = frappe.ui.form.make_control({
+		df: {
+			fieldtype: "Select",
+			fieldname: "year",
+			label: __("Year"),
+			options: build_year_options(),
+			change: on_period_change,
+		},
+		parent: filter_root.find(".tb-emps-year"),
+		render_input: true,
+	});
+	year_control.set_value(String(state.year));
+	normalize_frappe_control(filter_root.find(".tb-emps-year"));
+
 	const month_control = frappe.ui.form.make_control({
 		df: {
-			fieldtype: "Date",
+			fieldtype: "Select",
 			fieldname: "month",
 			label: __("Month"),
-			default: state.month,
-			change: () => {
-				const val = month_control.get_value();
-				state.month = normalize_month(val);
-				if (val && val !== state.month) {
-					month_control.set_value(state.month);
-				}
-				update_subtitle($root, state);
-				load_rows(state, ui);
-			},
+			options: EMPS_MONTH_OPTIONS()
+				.map((row) => row.label)
+				.join("\n"),
+			change: on_period_change,
 		},
 		parent: filter_root.find(".tb-emps-month"),
 		render_input: true,
 	});
-	month_control.set_value(state.month);
+	month_control.set_value(month_label_for_num(state.month_num));
 	normalize_frappe_control(filter_root.find(".tb-emps-month"));
 
-	const ui = {
-		$root,
-		$body: $root.find(".tb-emps-body"),
-		$count: $root.find(".tb-emps-count"),
-		$search: $root.find(".tb-emps-search-input"),
-		$export: $root.find(".tb-emps-btn-export"),
-		user_control,
-		month_control,
-	};
+	ui.user_control = user_control;
+	ui.year_control = year_control;
+	ui.month_control = month_control;
 	return ui;
 }
 
@@ -194,9 +271,8 @@ function update_subtitle($root, state) {
 }
 
 function format_subtitle(state) {
-	const month_label = frappe.datetime.str_to_user(state.month).slice(0, 7) || state.month.slice(0, 7);
 	const user = state.user_label || state.machine_user || __("No user selected");
-	return `${user} · ${month_label}`;
+	return `${user} · ${format_period_label(state.year, state.month_num)}`;
 }
 
 function load_rows(state, ui) {
@@ -386,7 +462,8 @@ function inject_styles() {
 		}
 		.tb-emps-field { flex: 0 0 auto; }
 		.tb-emps-field-user { width: 240px; }
-		.tb-emps-field-month { width: 160px; }
+		.tb-emps-field-year { width: 100px; }
+		.tb-emps-field-month { width: 150px; }
 		.tb-emps-field-search { flex: 1 1 220px; min-width: 220px; }
 		.tb-emps-field-label {
 			display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -408,8 +485,8 @@ function inject_styles() {
 			border: 0; outline: none; width: 100%; background: transparent; font-size: 13px;
 			height: 30px; line-height: 30px; padding: 0;
 		}
-		.tb-emps-month .form-group, .tb-emps-user .form-group { margin: 0; }
-		.tb-emps-month input, .tb-emps-user input {
+		.tb-emps-month .form-group, .tb-emps-year .form-group, .tb-emps-user .form-group { margin: 0; }
+		.tb-emps-month select, .tb-emps-year select, .tb-emps-month input, .tb-emps-year input, .tb-emps-user input {
 			height: 32px !important; min-height: 32px !important;
 			border-radius: 6px !important; box-sizing: border-box;
 		}

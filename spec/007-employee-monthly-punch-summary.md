@@ -33,11 +33,11 @@ Delivered as a **Desk Page** with inline table UI — not a Script Report grid (
 | Filter | Required | Default |
 |--------|----------|---------|
 | User | yes | — |
-| Month | yes | current month |
+| Month | yes | current month (Year + Month dropdowns) |
 
 | Column | Notes |
 |--------|-------|
-| Date | Calendar day |
+| Date | Calendar day (`05-Aug-2026 (Wed)`) |
 | Punched In | Earliest In punch, else first punch of the day |
 | Punched Out | Latest Out punch, else blank |
 | Working Hrs | Duration from Punched In to Punched Out (`H:MM`); blank when no out punch |

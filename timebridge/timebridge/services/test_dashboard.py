@@ -5,7 +5,8 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, today, get_last_day
+from frappe.utils import add_to_date, get_datetime, get_last_day, getdate, now_datetime, today
+from datetime import date
 
 from timebridge.timebridge.services.dashboard import (
 	build_daily_punch_summary_rows,
@@ -14,6 +15,7 @@ from timebridge.timebridge.services.dashboard import (
 	get_daily_punch_summary_list,
 	get_employee_monthly_punch_summary_list,
 	get_users_punched_today,
+	_format_monthly_summary_date,
 )
 
 
@@ -250,4 +252,7 @@ class TestDashboard(FrappeTestCase):
 		with_punches = [row for row in rows if row["punches"]]
 		self.assertEqual(len(with_punches), 1)
 		self.assertEqual(with_punches[0]["punches"], 1)
+
+	def test_format_monthly_summary_date(self):
+		self.assertEqual(_format_monthly_summary_date(date(2026, 8, 5)), "05-Aug-2026 (Wed)")
 
