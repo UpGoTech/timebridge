@@ -3,13 +3,6 @@
 
 frappe.listview_settings["TimeBridge Machine"] = {
 
-    /*
-     * Run a device action across several machines from the list.
-     *
-     * The per-machine dialogs stay where they are: they show a running
-     * commentary, which helps for one device and is unreadable for ten. From
-     * here the result is a single summary instead.
-     */
     onload(listview) {
 
         const actions = [
@@ -26,22 +19,11 @@ frappe.listview_settings["TimeBridge Machine"] = {
             );
         });
 
-    },
+        listview.page.set_primary_action(__("Add Machine"), () => {
+            frappe.set_route("add-machine");
+        });
 
-    /** Row click and subject link → Device Mirror (spec 002). */
-    get_form_link(doc) {
-        return `/app/device-mirror?machine=${encodeURIComponent(doc.name)}`;
     },
-
-    formatters: {
-        mirror_status(value) {
-            if (!value) return `<span class="text-muted">—</span>`;
-            const cls = String(value).toLowerCase().replace(/\s+/g, "-");
-            return `<span class="indicator-pill ${cls} filterable ellipsis">${frappe.utils.escape_html(value)}</span>`;
-        },
-    },
-
-    primary_action: null,
 
 };
 
@@ -75,13 +57,9 @@ function run_on_selected(listview, action, label) {
                 const ok = row.ok;
                 const icon = ok ? "&#10003;" : "&#10007;";
                 const colour = ok ? "var(--green-500)" : "var(--red-500)";
-
-                // The day's figure is shown whether the action worked or not:
-                // "the request failed" reads very differently next to "and
-                // nobody has punched there today either".
                 const people = row.people_today
-                    ? __("aaj {0} log ne punch kiya", [row.people_today])
-                    : __("aaj koi punch nahi");
+                    ? __("{0} people punched today", [row.people_today])
+                    : __("no punches today");
 
                 return `
                     <div style="display:flex;gap:10px;align-items:baseline;padding:4px 0;

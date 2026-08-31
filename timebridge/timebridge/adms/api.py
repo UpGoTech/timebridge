@@ -26,7 +26,6 @@ cannot create records.
 import frappe
 
 from timebridge.timebridge.adms import commands, logger, parser, photos
-from timebridge.timebridge.services import biometric_templates
 
 # Handshake reply. The device parses these keys to decide how often to talk to
 # us and what it is allowed to send. Realtime=1 asks it to push as punches
@@ -108,10 +107,10 @@ def handle_cdata(serial, args, body, method, raw=None):
         return "OK"
 
     if table == "OPTIONS" or (table and table.upper() == "OPTIONS"):
-        return _receive_options(machine, body)
+        return "OK"
 
     if parser.is_template_table(args, table):
-        return _receive_templates(machine, args, table, body, source="ADMS Push")
+        return "OK"
 
     # Unrecognised table: acknowledge so the device does not retry forever,
     # but leave a trace that something arrived we do not handle yet.
@@ -149,9 +148,6 @@ def _receive_attlog(machine, body):
             f"[TimeBridge ADMS] {machine}: {result['created']} new, "
             f"{result['duplicates']} dup, {result['unmatched']} unmatched"
         )
-
-        if _mirror_verify_active(machine):
-            commands.note_mirror_attlog_batch(machine, len(records))
 
     except Exception:
         frappe.db.rollback()
@@ -258,9 +254,6 @@ def handle_devicecmd(serial, args, body, method, raw=None):
     if machine:
         commands.record_contact(machine, "command result")
 
-        if _mirror_verify_active(machine):
-            _handle_mirror_devicecmd(machine, body)
-
         frappe.logger().info(f"[TimeBridge ADMS] {machine}: command result {body[:200]!r}")
 
     return "OK"
@@ -280,84 +273,13 @@ def handle_querydata(serial, args, body, method, raw=None):
 
     commands.record_contact(machine, "querydata")
 
-    query_type = (args.get("type") or "").strip().lower()
-    tablename = (args.get("tablename") or "").strip().lower()
-
-    if method == "POST" and query_type == "count":
-        return _receive_count_probe(machine, tablename, body)
-
-    if method == "POST" and query_type == "tabledata" and tablename in ("biodata", "templatev10"):
-        return _receive_templates(machine, args, None, body, source="ADMS Query")
-
-    if _mirror_verify_active(machine) and method == "POST" and tablename == "attlog":
-        records, _ = parser.parse_attlog(body)
-        commands.note_mirror_attlog_batch(machine, len(records))
-
-    return "OK"
-
-
-def _mirror_verify_active(machine):
-    """Whether a mirror verify run is in progress."""
-
-    state = frappe.cache().get_value(commands.mirror_verify_key(machine)) or {}
-    return bool(state.get("active"))
-
-
-def _receive_options(machine, body):
-    """Device parameter push (§4.6) — inventory counts."""
-
-    counts = parser.parse_options(body)
-    commands.note_mirror_options(machine, counts)
-    return "OK"
-
-
-def _receive_count_probe(machine, tablename, body):
-    """DATA COUNT response on querydata."""
-
-    count = parser.parse_count_response(body)
-    commands.note_mirror_count(machine, tablename or "unknown", count)
-    return "OK"
-
-
-def _receive_templates(machine, args, table, body, source):
-    """Ingest templatev10 / biodata uploads."""
-
-    source_table = parser.template_upload_source(args, table)
-
-    if source_table == "templatev10":
-        records, skipped = parser.parse_templatev10(body)
-    else:
-        records, skipped = parser.parse_biodata(body)
-
-    if not records:
+    if method == "POST" and (args.get("tablename") or "").strip().lower() in (
+        "biodata",
+        "templatev10",
+    ):
         return "OK"
 
-    try:
-        created, updated = biometric_templates.upsert_templates(
-            machine, records, source=source, source_table=source_table
-        )
-        frappe.db.commit()
-        frappe.logger().info(
-            f"[TimeBridge ADMS] {machine}: templates {created} new, {updated} updated "
-            f"({len(skipped)} skipped)"
-        )
-    except Exception:
-        frappe.db.rollback()
-        frappe.log_error(
-            title="TimeBridge ADMS: template ingest failed",
-            message=frappe.get_traceback(),
-        )
-
     return "OK"
-
-
-def _handle_mirror_devicecmd(machine, body):
-    """Parse GET OPTIONS response delivered via devicecmd."""
-
-    counts = parser.parse_options(body)
-
-    if counts:
-        commands.note_mirror_options(machine, counts)
 
 
 def handle_ping(serial, args, body, method, raw=None):

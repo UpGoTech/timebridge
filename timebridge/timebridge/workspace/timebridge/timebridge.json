@@ -3,17 +3,9 @@
   {
    "chart_name": "TimeBridge Punches Per Day",
    "label": "Punches Per Day"
-  },
-  {
-   "chart_name": "TimeBridge Attendance Status",
-   "label": "Attendance Status"
-  },
-  {
-   "chart_name": "TimeBridge Employees By Department",
-   "label": "Employees By Department"
   }
  ],
- "content": "[{\"id\": \"nc_timebridge_active_employees\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Active Employees\", \"col\": 3}}, {\"id\": \"nc_timebridge_connected_machines\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Connected Machines\", \"col\": 3}}, {\"id\": \"nc_timebridge_punches_today\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Punches Today\", \"col\": 3}}, {\"id\": \"nc_timebridge_unmapped_punches\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Unmapped Punches\", \"col\": 3}}, {\"id\": \"ch_timebridge_punches_per_day\", \"type\": \"chart\", \"data\": {\"chart_name\": \"TimeBridge Punches Per Day\", \"col\": 12}}, {\"id\": \"ch_timebridge_attendance_status\", \"type\": \"chart\", \"data\": {\"chart_name\": \"TimeBridge Attendance Status\", \"col\": 6}}, {\"id\": \"ch_timebridge_employees_by_department\", \"type\": \"chart\", \"data\": {\"chart_name\": \"TimeBridge Employees By Department\", \"col\": 6}}, {\"id\": \"tb_setup_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Timebridge Setup</b></span>\", \"col\": 12}}, {\"id\": \"tb_setup_shortcut\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Timebridge Setup\", \"col\": 4}}, {\"id\": \"tb_m_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Masters &amp; Setup</b></span>\", \"col\": 12}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_attendance\", \"type\": \"card\", \"data\": {\"card_name\": \"Attendance\", \"col\": 4}}, {\"id\": \"cd_organization\", \"type\": \"card\", \"data\": {\"card_name\": \"TimeBridge Organization\", \"col\": 4}}, {\"id\": \"cd_reports\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"cd_setup\", \"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}]",
+ "content": "[{\"id\": \"nc_machines\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Connected Machines\", \"col\": 4}}, {\"id\": \"nc_punches\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Punches Today\", \"col\": 4}}, {\"id\": \"nc_unmapped\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TimeBridge Unmapped Punches\", \"col\": 4}}, {\"id\": \"ch_punches\", \"type\": \"chart\", \"data\": {\"chart_name\": \"TimeBridge Punches Per Day\", \"col\": 12}}, {\"id\": \"tb_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>TimeBridge</b></span>\", \"col\": 12}}, {\"id\": \"tb_add\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Add Machine\", \"col\": 4}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_data\", \"type\": \"card\", \"data\": {\"card_name\": \"Data\", \"col\": 4}}, {\"id\": \"cd_setup\", \"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}]",
  "creation": "2026-08-25 15:57:59.764569",
  "custom_blocks": [],
  "docstatus": 0,
@@ -22,24 +14,27 @@
  "hide_custom": 0,
  "icon": "quantity-1",
  "idx": 0,
- "indicator_color": "",
  "is_hidden": 0,
  "label": "TimeBridge",
  "links": [
   {
    "hidden": 0,
-   "is_query_report": 0,
    "label": "Devices",
    "link_count": 3,
-   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
+   "label": "Add Machine",
+   "link_to": "add-machine",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
    "label": "TimeBridge Machine",
-   "link_count": 0,
    "link_to": "TimeBridge Machine",
    "link_type": "DocType",
    "onboard": 0,
@@ -47,9 +42,7 @@
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
    "label": "TimeBridge Machine User",
-   "link_count": 0,
    "link_to": "TimeBridge Machine User",
    "link_type": "DocType",
    "onboard": 0,
@@ -57,28 +50,14 @@
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Sync Log",
-   "link_count": 0,
-   "link_to": "TimeBridge Sync Log",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Attendance",
-   "link_count": 5,
-   "link_type": "DocType",
+   "label": "Data",
+   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
    "label": "TimeBridge Punch Log",
-   "link_count": 0,
    "link_to": "TimeBridge Punch Log",
    "link_type": "DocType",
    "onboard": 0,
@@ -86,161 +65,42 @@
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Attendance",
-   "link_count": 0,
-   "link_to": "TimeBridge Attendance",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Shift",
-   "link_count": 0,
-   "link_to": "TimeBridge Shift",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Holiday",
-   "link_count": 0,
-   "link_to": "TimeBridge Holiday",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Leave",
-   "link_count": 0,
-   "link_to": "TimeBridge Leave",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Organization",
-   "link_count": 4,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Organization",
-   "link_count": 0,
-   "link_to": "TimeBridge Organization",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Branch",
-   "link_count": 0,
-   "link_to": "TimeBridge Branch",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Department",
-   "link_count": 0,
-   "link_to": "TimeBridge Department",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "TimeBridge Employee",
-   "link_count": 0,
-   "link_to": "TimeBridge Employee",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Reports",
-   "link_count": 3,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
    "is_query_report": 1,
-   "label": "Attendance Report",
-   "link_count": 0,
-   "link_to": "Attendance Report",
+   "label": "Device Roll",
+   "link_to": "Device Roll",
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
   },
   {
    "hidden": 0,
-   "is_query_report": 1,
-   "label": "Punch Register",
-   "link_count": 0,
-   "link_to": "Punch Register",
-   "link_type": "Report",
+   "label": "TimeBridge Sync Log",
+   "link_to": "TimeBridge Sync Log",
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   },
   {
    "hidden": 0,
-   "is_query_report": 1,
-   "label": "Employee Working Hours",
-   "link_count": 0,
-   "link_to": "Employee Working Hours",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Setup",
    "link_count": 1,
-   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
    "label": "TimeBridge Settings",
-   "link_count": 0,
    "link_to": "TimeBridge Settings",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   }
  ],
- "modified": "2026-08-25 16:08:02.999089",
+ "modified": "2026-08-30 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge",
  "number_cards": [
-  {
-   "label": "Active Employees",
-   "number_card_name": "TimeBridge Active Employees"
-  },
   {
    "label": "Connected Machines",
    "number_card_name": "TimeBridge Connected Machines"
@@ -264,8 +124,8 @@
   {
    "color": "Blue",
    "doc_view": "",
-   "label": "Timebridge Setup",
-   "link_to": "timebridge-setup",
+   "label": "Add Machine",
+   "link_to": "add-machine",
    "type": "Page"
   }
  ],

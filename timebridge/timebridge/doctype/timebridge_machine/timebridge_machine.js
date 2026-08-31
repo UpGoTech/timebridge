@@ -81,39 +81,69 @@ frappe.ui.form.on("TimeBridge Machine", {
 
         frm.add_custom_button(__("Test Connection"), needs_saved(start_connection_test), DEVICE);
 
-        // The device cannot be pulled from, so this is the action that
-        // actually brings data in: it asks the device to upload again, and
-        // waits for it to arrive.
         frm.add_custom_button(__("Fetch All Data"), needs_saved(start_fetch_all), DEVICE);
 
-        // A fetch only ever produces TimeBridge Machine Users, and attendance is built per
-        // TimeBridge Employee — so without this step the punches are stored and invisible.
-        frm.add_custom_button(__("Create & Link TimeBridge Employees"), needs_saved(employee_link_dialog), DEVICE);
-
-        // Create & Link only fills in people who have none, so it cannot correct
-        // the ones it already made. This does, without touching any link.
-        frm.add_custom_button(__("Update TimeBridge Organization / TimeBridge Shift"), needs_saved(employee_assignment_dialog), DEVICE);
-
-        // Punches are only timestamps until this runs. Normally the scheduler
-        // handles it, but a manual rebuild is needed after a bulk fetch of
-        // history, which arrives all at once and outside the recent window.
-        frm.add_custom_button(__("Rebuild Attendance"), needs_saved(rebuild_attendance_dialog), DEVICE);
+        frm.add_custom_button(__("Add User"), needs_saved(add_user_dialog), DEVICE);
 
         frm.add_custom_button(__("Fetch Photos"), needs_saved(start_photo_fetch), PHOTOS);
 
-        // The device cannot supply photographs, so this is the path that
-        // actually works: upload them once, named after the person, and let
-        // the server do the matching.
-        frm.add_custom_button(__("Upload Photos"), needs_saved(start_photo_upload), PHOTOS);
-
-        // Photographs arrive on their own once the device is photographing
-        // punches. What was missing was any sense of how far along that is —
-        // sixteen names to hold in your head and no moment where it ends.
         frm.add_custom_button(__("Collect Photos"), needs_saved(start_photo_collection), PHOTOS);
 
     }
 
 });
+
+
+function add_user_dialog(frm) {
+    const dialog = new frappe.ui.Dialog({
+        title: __("Add User"),
+        fields: [
+            { fieldname: "user_id", fieldtype: "Data", label: __("PIN"), reqd: 1 },
+            { fieldname: "user_name", fieldtype: "Data", label: __("Name"), reqd: 1 },
+            { fieldname: "privilege", fieldtype: "Select", label: __("Privilege"), options: "User\nAdmin", default: "User" },
+            { fieldname: "card", fieldtype: "Data", label: __("Card Number") },
+            { fieldname: "password", fieldtype: "Data", label: __("Device Password") },
+            {
+                fieldname: "also_machines",
+                fieldtype: "Small Text",
+                label: __("Also create on"),
+                description: __("Optional extra TimeBridge Machine names, comma-separated. This machine is always included."),
+            },
+        ],
+        primary_action_label: __("Create"),
+        primary_action(values) {
+            const machines = [frm.doc.name];
+            (values.also_machines || "").split(/[\s,]+/).forEach((m) => {
+                if (m && !machines.includes(m)) machines.push(m);
+            });
+            frappe.call({
+                method: "timebridge.timebridge.api.create_device_users",
+                args: {
+                    user_id: values.user_id,
+                    user_name: values.user_name,
+                    machines: JSON.stringify(machines),
+                    privilege: values.privilege,
+                    card: values.card,
+                    password: values.password,
+                },
+                freeze: true,
+                callback(r) {
+                    dialog.hide();
+                    const failed = (r.message.results || []).filter((x) => !x.ok).length;
+                    frappe.msgprint({
+                        title: __("Add User"),
+                        indicator: failed ? "orange" : "green",
+                        message: (r.message.results || [])
+                            .map((x) => `${x.machine}: ${x.ok ? __("ok") : (x.message || "")}`)
+                            .join("<br>"),
+                    });
+                    frm.reload_doc();
+                },
+            });
+        },
+    });
+    dialog.show();
+}
 
 
 /*

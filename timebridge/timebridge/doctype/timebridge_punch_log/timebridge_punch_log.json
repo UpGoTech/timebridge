@@ -13,14 +13,10 @@
   "punch_direction",
   "column_break_punch",
   "machine_user",
-  "employee",
-  "employee_name",
   "device_information",
   "verify_mode",
   "device_status",
   "source",
-  "processing_information",
-  "processed",
   "sync_batch",
   "raw_payload",
   "punch_key"
@@ -78,20 +74,6 @@
    "options": "TimeBridge Machine User"
   },
   {
-   "fetch_from": "machine_user.employee",
-   "fieldname": "employee",
-   "fieldtype": "Link",
-   "label": "TimeBridge Employee",
-   "options": "TimeBridge Employee"
-  },
-  {
-   "fetch_from": "employee.employee_name",
-   "fieldname": "employee_name",
-   "fieldtype": "Data",
-   "label": "Employee Name",
-   "read_only": 1
-  },
-  {
    "fieldname": "device_information",
    "fieldtype": "Section Break",
    "label": "Device Information"
@@ -118,19 +100,6 @@
    "label": "Source",
    "options": "PyZK Pull\nADMS Push",
    "reqd": 1
-  },
-  {
-   "fieldname": "processing_information",
-   "fieldtype": "Section Break",
-   "label": "Processing"
-  },
-  {
-   "default": "0",
-   "description": "Set once this punch has been folded into a TimeBridge Attendance day.",
-   "fieldname": "processed",
-   "fieldtype": "Check",
-   "in_standard_filter": 1,
-   "label": "Processed"
   },
   {
    "description": "Identifies the sync run that created this record.",
@@ -182,6 +151,6 @@
  "sort_field": "timestamp",
  "sort_order": "DESC",
  "states": [],
- "title_field": "employee_name",
+ "title_field": "device_user_id",
  "track_changes": 0
 }

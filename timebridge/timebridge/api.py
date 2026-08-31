@@ -147,7 +147,7 @@ def _today_counts(machine_id):
 
     row = frappe.db.sql(
         """
-        SELECT COUNT(DISTINCT COALESCE(employee, device_user_id)) AS people,
+        SELECT COUNT(DISTINCT device_user_id) AS people,
                COUNT(*) AS punches
         FROM `tabTimeBridge Punch Log`
         WHERE machine = %s AND DATE(timestamp) = CURDATE()
@@ -185,7 +185,7 @@ def _bulk_fetch_all(machine_id):
 
     result = request_all_data(machine_id)
 
-    return {"ok": result.get("status") == "queued", "message": result.get("message")}
+    return {"ok": result.get("status") in ("queued", "success"), "message": result.get("message")}
 
 
 def _bulk_fetch_photos(machine_id):
@@ -193,100 +193,6 @@ def _bulk_fetch_photos(machine_id):
     result = request_photos(machine_id)
 
     return {"ok": result.get("status") == "queued", "message": result.get("message")}
-
-
-@frappe.whitelist()
-def match_photos(machine_id, file_urls):
-    """
-    Attach uploaded pictures to the right people by reading their filenames.
-
-    The device stores only face templates and cannot produce photographs, so
-    they have to come from somewhere else — and doing sixteen people one form
-    at a time is the kind of chore that never gets finished.
-
-    A filename is matched, in this order, against: the device user id, the
-    employee code, and then the person's name. Names are compared with spaces
-    and punctuation stripped, because "SHUBHANGI KAMBLE.jpg",
-    "shubhangi_kamble.jpg" and "Shubhangi-Kamble.jpg" all clearly mean the
-    same person and refusing them would just send someone back to rename files.
-
-    Anything unmatched is reported rather than guessed at — a photo on the
-    wrong person is worse than no photo.
-    """
-
-    import json
-    import os
-    import re
-
-    if isinstance(file_urls, str):
-        file_urls = json.loads(file_urls)
-
-    # Files are identified by their record name, not their url. Frappe stores
-    # one copy of identical content, so two people given the same picture share
-    # a url — looking a name up by url would then return whichever record was
-    # written last and attach it to the wrong person.
-    file_rows = frappe.get_all(
-        "File",
-        filters={"name": ["in", file_urls]},
-        fields=["name", "file_name", "file_url"],
-    )
-
-    def normalise(value):
-        return re.sub(r"[^a-z0-9]", "", (value or "").lower())
-
-    users = frappe.get_all(
-        "TimeBridge Machine User",
-        filters={"machine": machine_id},
-        fields=["name", "user_id", "user_name", "employee"],
-    )
-
-    by_user_id = {normalise(u.user_id): u for u in users}
-    by_name = {normalise(u.user_name): u for u in users}
-
-    by_code = {}
-
-    for emp in frappe.get_all("TimeBridge Employee", fields=["name", "employee_code", "employee_name"]):
-        for user in users:
-            if user.employee == emp.name:
-                by_code[normalise(emp.employee_code)] = user
-
-    matched, unmatched = [], []
-
-    for row in file_rows:
-
-        file_name = row.file_name or row.name
-        url = row.file_url
-        stem = normalise(os.path.splitext(os.path.basename(file_name))[0])
-
-        user = by_user_id.get(stem) or by_code.get(stem) or by_name.get(stem)
-
-        if not user:
-            unmatched.append(file_name)
-            continue
-
-        frappe.db.set_value("TimeBridge Machine User", user.name, "photo", url)
-
-        # The TimeBridge Employee record is what most people actually open, so the picture
-        # is put on both rather than only where it happened to be uploaded.
-        if user.employee:
-            frappe.db.set_value("TimeBridge Employee", user.employee, "photo", url)
-
-        matched.append({
-            "file": file_name,
-            "user_id": user.user_id,
-            "user_name": user.user_name,
-            "employee": user.employee,
-        })
-
-    frappe.db.commit()
-
-    return {
-        "matched": matched,
-        "unmatched": unmatched,
-        "total": len(file_rows),
-        "with_photo": frappe.db.count("TimeBridge Machine User", {"machine": machine_id, "photo": ["is", "set"]}),
-        "users": len(users),
-    }
 
 
 @frappe.whitelist()
@@ -482,25 +388,6 @@ def connection_health(machine_id):
 
 
 @frappe.whitelist()
-def rebuild_attendance(from_date=None, to_date=None, employee=None):
-    """
-    Rebuild attendance rows from stored punches.
-
-    Runs synchronously: 816 punches across 226 days took well under a second,
-    and a background job here would only reintroduce the "did anything
-    happen?" problem the progress dialog exists to solve.
-    """
-
-    from timebridge.timebridge.services import attendance_sync
-
-    return attendance_sync.rebuild_for_range(
-        from_date=from_date or None,
-        to_date=to_date or None,
-        employee=employee or None,
-    )
-
-
-@frappe.whitelist()
 def fetch_status(machine_id):
     """
     How is the re-upload going? Polled by the form while it waits.
@@ -536,117 +423,33 @@ def fetch_status(machine_id):
 
 
 @frappe.whitelist()
-def get_device_mirror(machine_id, window_days=None):
-	"""Latest snapshot and live server counts for the Device Mirror page."""
+def request_device_users(machine_id):
+	"""Queue a users-only fetch — PyZK pull or ADMS USERINFO request."""
 
-	from timebridge.timebridge.services.device_mirror import get_device_mirror as _get
+	from timebridge.timebridge.adms import commands
+	from timebridge.timebridge.services.connection import is_push_device
+	from timebridge.timebridge.services.pull_sync import enqueue_pull_users
 
-	return _get(machine_id, window_days=window_days)
+	machine = frappe.get_doc("TimeBridge Machine", machine_id)
 
+	if not is_push_device(machine):
+		return enqueue_pull_users(machine_id)
 
-@frappe.whitelist()
-def start_mirror_verify(machine_id, window_days=None):
-	"""Start async device mirror verify."""
+	if not machine.serial_number:
+		return {
+			"status": "failed",
+			"message": "This machine has no serial number, so the device cannot be "
+			"matched when it answers. Fill in Serial Number first.",
+		}
 
-	from timebridge.timebridge.services.device_mirror import start_mirror_verify as _start
+	commands.queue_command(machine_id, commands.request_users())
 
-	return _start(machine_id, window_days=window_days)
-
-
-@frappe.whitelist()
-def mirror_verify_progress(machine_id):
-	"""Poll mirror verify progress."""
-
-	from timebridge.timebridge.services.device_mirror import mirror_verify_progress as _progress
-
-	return _progress(machine_id)
-
-
-@frappe.whitelist()
-def request_template_fetch(machine_id):
-	"""Queue ADMS template pull for manual Fetch templates action."""
-
-	from timebridge.timebridge.services.device_mirror import request_template_fetch as _fetch
-
-	return _fetch(machine_id)
-
-
-@frappe.whitelist()
-def preview_employee_link(machine_id, skip_non_person=1, merge_same_name=1):
-    """
-    What would attaching this machine's users to TimeBridge Employees do?
-
-    Read-only on purpose. Names are the only evidence a device gives, so the
-    operator sees the whole plan — who is matched, who would be created under
-    which code, and who is left out — before anything is written.
-    """
-
-    from timebridge.timebridge.services.employee_link import plan
-
-    return plan(
-        machine_id,
-        skip_non_person=cint(skip_non_person),
-        merge_same_name=cint(merge_same_name),
-    )
-
-
-@frappe.whitelist()
-def create_and_link_employees(
-    machine_id,
-    date_of_joining,
-    organization,
-    branch,
-    shift=None,
-    skip_non_person=1,
-    merge_same_name=1,
-):
-    """
-    Create the TimeBridge Employees this machine's users need, attach them, and backfill.
-
-    Synchronous: a few hundred inserts finish well inside a request, and the
-    operator is waiting on the answer to decide whether to rebuild attendance.
-    """
-
-    from timebridge.timebridge.services.employee_link import apply_plan
-
-    return apply_plan(
-        machine_id,
-        date_of_joining=date_of_joining,
-        organization=organization,
-        branch=branch,
-        shift=shift or None,
-        skip_non_person=cint(skip_non_person),
-        merge_same_name=cint(merge_same_name),
-    )
-
-
-@frappe.whitelist()
-def employee_assignment_summary(machine_id):
-    """What TimeBridge Organization, TimeBridge Branch and TimeBridge Shift this machine's TimeBridge Employees carry now."""
-
-    from timebridge.timebridge.services.employee_link import assignment_summary
-
-    return assignment_summary(machine_id)
-
-
-@frappe.whitelist()
-def update_employee_assignment(machine_id, organization=None, branch=None, shift=None):
-    """
-    Change TimeBridge Organization / TimeBridge Branch / TimeBridge Shift on this machine's existing TimeBridge Employees.
-
-    Separate from create_and_link_employees on purpose: that one only ever fills
-    in people who have none, so it cannot be used to correct the people it
-    already created. This corrects them without disturbing a single link.
-    """
-
-    from timebridge.timebridge.services.employee_link import apply_assignment
-
-    return apply_assignment(
-        machine_id,
-        organization=organization or None,
-        branch=branch or None,
-        shift=shift or None,
-    )
+	return {
+		"status": "queued",
+		"mode": "push",
+		"serial": machine.serial_number,
+		"message": "Asked the device to re-send enrolled users.",
+	}
 
 
 @frappe.whitelist()
@@ -863,10 +666,8 @@ def photo_collection_status(machine_id):
 
     rows = frappe.db.sql(
         """
-        SELECT mu.name, mu.user_id, mu.user_name, mu.photo, mu.retake_photo,
-               emp.employee_name
+        SELECT mu.name, mu.user_id, mu.user_name, mu.photo, mu.retake_photo
         FROM `tabTimeBridge Machine User` mu
-        LEFT JOIN `tabTimeBridge Employee` emp ON emp.name = mu.employee
         WHERE mu.machine = %(machine)s
         ORDER BY CAST(mu.user_id AS UNSIGNED), mu.user_id
         """,
@@ -882,7 +683,7 @@ def photo_collection_status(machine_id):
         entry = {
             "machine_user": row.name,
             "user_id": row.user_id,
-            "name": row.employee_name or row.user_name or row.user_id,
+            "name": row.user_name or row.user_id,
             "photo": row.photo,
         }
 
@@ -913,3 +714,41 @@ def request_photo_retake(machine_user):
     frappe.db.commit()
 
     return {"machine_user": machine_user, "retake": True}
+
+
+@frappe.whitelist()
+def create_device_users(user_id, user_name, machines, privilege="User", card=None, password=None):
+	"""Create PIN+name on selected machines and push to each device."""
+
+	import json
+
+	if isinstance(machines, str):
+		machines = json.loads(machines)
+
+	from timebridge.timebridge.services.user_write import create_users
+
+	return create_users(
+		user_id, user_name, machines, privilege=privilege, card=card, password=password
+	)
+
+
+@frappe.whitelist()
+def update_device_user(machine_user, user_name=None, privilege=None, card=None, password=None, apply_same_pin=0):
+	from timebridge.timebridge.services.user_write import update_user
+
+	return update_user(
+		machine_user,
+		user_name=user_name,
+		privilege=privilege,
+		card=card,
+		password=password,
+		apply_same_pin=apply_same_pin,
+	)
+
+
+@frappe.whitelist()
+def delete_device_user(machine_user, apply_same_pin=0):
+	from timebridge.timebridge.services.user_write import delete_users
+
+	return delete_users(machine_user, apply_same_pin=apply_same_pin)
+
