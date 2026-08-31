@@ -25,11 +25,13 @@ def execute():
 		frappe.throw(f"Workspace must include number card {NEW_NUMBER_CARD!r}")
 
 	card_breaks = {row.label: row.link_count for row in ws.links if row.type == "Card Break"}
-	if card_breaks.get("Reports") != 2:
-		frappe.throw("Reports card must list Device Roll and Daily Punch Summary")
+	if card_breaks.get("Reports") != 3:
+		frappe.throw(
+			"Reports card must list Device Roll, Daily Punch Summary, and Employee Monthly Punch Summary"
+		)
 
 	_links = {row.link_to: row for row in ws.links if row.type == "Link"}
-	for link_to in ("Device Roll", "daily-punch-summary"):
+	for link_to in ("Device Roll", "daily-punch-summary", "employee-monthly-punch-summary"):
 		if link_to not in _links:
 			frappe.throw(f"Workspace missing link: {link_to}")
 
@@ -37,6 +39,8 @@ def execute():
 		frappe.throw("Device Roll workspace link must be a query report")
 	if _links["daily-punch-summary"].link_type != "Page":
 		frappe.throw("Daily Punch Summary workspace link must be a Page")
+	if _links["employee-monthly-punch-summary"].link_type != "Page":
+		frappe.throw("Employee Monthly Punch Summary workspace link must be a Page")
 
 	number_card_labels = {row.label for row in ws.number_cards}
 	for block in json.loads(ws.content):
