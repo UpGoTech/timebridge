@@ -232,12 +232,19 @@ def _body_line_count(body):
 def _operlog_ack_count(body, records, skipped, op_rows, photo_rows):
     """Lines the device sent — under-counting reads as a partial failure."""
 
-    return max(
+    count = max(
         _body_line_count(body),
         len(records) + len(skipped),
         len(op_rows),
         len(photo_rows),
     )
+    # Fabrixcel Gate (NCD8251400238) re-posts empty OPERLOG every ~200 ms when
+    # answered OK: 0. Same failure mode as ATTLOG duplicates — the batch was
+    # accepted, so the count must not read as zero.
+    if count == 0:
+        return 1
+
+    return count
 
 
 def _receive_attlog(machine, args, body):
@@ -367,30 +374,33 @@ def _receive_userinfo(machine, args, body):
 
     else:
         # Most OPERLOG uploads carry no people — operation rows, photo fields,
-        # or an empty heartbeat. Every POST is logged so nothing arrives unseen.
+        # or an empty heartbeat. Non-empty batches are logged; empty heartbeats
+        # only advance the stamp (Fabrixcel floods them when answered OK: 0).
         fetched = _body_line_count(body)
-        sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-        log_name = logger.open_sync_log(machine, "Users", sync_batch)
-        operlog_note = (
-            f"{len(op_rows)} operation row(s), {len(photo_rows)} photo row(s), "
-            "no user records"
-            if fetched
-            else "empty OPERLOG upload"
-        )
-        logger.close_sync_log(
-            log_name,
-            "Success",
-            fetched=fetched,
-            created=0,
-            skipped=len(skipped),
-            error=operlog_note,
-        )
-        write_machine_log(
-            machine=machine,
-            level="Info",
-            event="Upload",
-            message=f"OPERLOG: {operlog_note}",
-        )
+        empty_heartbeat = not fetched and not op_rows and not photo_rows
+
+        if not empty_heartbeat:
+            operlog_note = (
+                f"{len(op_rows)} operation row(s), {len(photo_rows)} photo row(s), "
+                "no user records"
+            )
+            sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+            log_name = logger.open_sync_log(machine, "Users", sync_batch)
+            logger.close_sync_log(
+                log_name,
+                "Success",
+                fetched=fetched,
+                created=0,
+                skipped=len(skipped),
+                error=operlog_note,
+            )
+            write_machine_log(
+                machine=machine,
+                level="Info",
+                event="Upload",
+                message=f"OPERLOG: {operlog_note}",
+            )
+
         stamps.record_operlog_stamp(machine, args, table, op_rows=op_rows)
         frappe.db.commit()
 
