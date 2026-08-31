@@ -14,6 +14,14 @@ from timebridge.timebridge.services.workspace_sync import (
 
 class TestWorkspaceSync(FrappeTestCase):
 
+	def test_sync_app_workspaces_includes_adms_request_log_link(self):
+		sync_app_workspaces(force=True)
+
+		self.assertTrue(
+			workspace_link_exists("TimeBridge", "TimeBridge ADMS Request Log"),
+			"TimeBridge ADMS Request Log must appear on the TimeBridge workspace after sync",
+		)
+
 	def test_sync_app_workspaces_includes_machine_log_link(self):
 		sync_app_workspaces(force=True)
 
@@ -78,7 +86,7 @@ class TestWorkspaceSync(FrappeTestCase):
 
 		self.assertEqual(card_breaks.get("Devices"), 2)
 		self.assertEqual(card_breaks.get("Data"), 1)
-		self.assertEqual(card_breaks.get("Logs"), 2)
+		self.assertEqual(card_breaks.get("Logs"), 3)
 		self.assertEqual(card_breaks.get("Reports"), 3)
 		self.assertNotIn("Setup", card_breaks)
 
@@ -88,6 +96,7 @@ class TestWorkspaceSync(FrappeTestCase):
 			"TimeBridge Machine User",
 			"TimeBridge Sync Log",
 			"TimeBridge Machine Log",
+			"TimeBridge ADMS Request Log",
 			"Device Roll",
 			"daily-punch-summary",
 			"employee-monthly-punch-summary",

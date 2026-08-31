@@ -20,9 +20,15 @@ class TestMachineLog(FrappeTestCase):
 
 	def setUp(self):
 		self.machine_id = "TB-ML-TEST-001"
+		self._old_silence = frappe.conf.get("timebridge_silence_device_logs")
+		frappe.conf.timebridge_silence_device_logs = 0
 		self._cleanup()
 
 	def tearDown(self):
+		if self._old_silence is None:
+			frappe.conf.pop("timebridge_silence_device_logs", None)
+		else:
+			frappe.conf.timebridge_silence_device_logs = self._old_silence
 		self._cleanup()
 
 	def _cleanup(self):

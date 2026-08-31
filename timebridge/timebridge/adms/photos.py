@@ -199,6 +199,7 @@ def save_photos_from_fields(machine, rows, source):
     return saved
 
 
+def save_photo(machine, user_id, image_bytes, source):
     """
     Attach the picture to the TimeBridge Machine User and show it on the record.
 
