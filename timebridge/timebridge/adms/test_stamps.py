@@ -223,6 +223,35 @@ class TestADMSStamps(FrappeTestCase):
             stamps.STAMP_FORMAT_ATTLOG,
         )
 
+    def test_record_operlog_stamp_falls_back_to_op_time(self):
+        machine = self._make_machine("STAMP-009")
+
+        stamps.record_operlog_stamp(
+            machine,
+            {"table": "OPERLOG", "Stamp": "9999"},
+            "OPERLOG",
+            op_rows=[{"op_time": "2026-08-31 09:19:01"}],
+        )
+
+        self.assertEqual(
+            frappe.db.get_value("TimeBridge Machine", machine, "adms_op_stamp"),
+            "2026-08-31 09:19:01",
+        )
+
+    def test_record_operlog_stamp_falls_back_to_now_when_empty(self):
+        machine = self._make_machine("STAMP-010")
+
+        stamps.record_operlog_stamp(
+            machine,
+            {"table": "OPERLOG", "Stamp": "9999"},
+            "OPERLOG",
+            op_rows=[],
+        )
+
+        stored = frappe.db.get_value("TimeBridge Machine", machine, "adms_op_stamp")
+        self.assertTrue(stored)
+        self.assertNotIn(stored, ("9999", "", None))
+
     def _make_machine(self, serial):
         doc = frappe.get_doc(
             {

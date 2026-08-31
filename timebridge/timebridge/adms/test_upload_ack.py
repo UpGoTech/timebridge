@@ -82,6 +82,28 @@ class TestADMSUploadAck(FrappeTestCase):
             "4455",
         )
 
+    def test_empty_operlog_advances_operlog_stamp(self):
+        """Placeholder Stamp=9999 + empty body must still move OPERLOGStamp."""
+
+        machine, serial = self._make_machine("ACK-009")
+
+        self.assertEqual(self._post(serial, OPERLOG_ARGS, ""), "OK: 0")
+
+        stored = frappe.db.get_value("TimeBridge Machine", machine, "adms_op_stamp")
+        self.assertTrue(stored)
+        self.assertNotEqual(stored, "9999")
+
+    def test_operlog_op_rows_fallback_stamp_when_placeholder(self):
+        machine, serial = self._make_machine("ACK-010")
+        body = "OPLOG 4\t1\t2026-08-31 09:19:01\t0\t0\t0\t\n"
+
+        self._post(serial, OPERLOG_ARGS, body)
+
+        self.assertEqual(
+            frappe.db.get_value("TimeBridge Machine", machine, "adms_op_stamp"),
+            "2026-08-31 09:19:01",
+        )
+
     def test_empty_operlog_does_not_flood_machine_log(self):
         """Firmware often POSTs empty OPERLOG heartbeats — still ack and stamp."""
 
@@ -116,7 +138,7 @@ class TestADMSUploadAck(FrappeTestCase):
 
         for flag in (api.TRANSFLAG_PUNCHES_ONLY, api.TRANSFLAG_WITH_PHOTOS):
             self.assertEqual(flag[0], "1", "AttLog")
-            self.assertEqual(flag[1], "1", "OpLog")
+            self.assertEqual(flag[1], "0", "OpLog audit channel disabled")
             self.assertEqual(flag[2], "1", "AttPhoto")
             self.assertEqual(flag[4], "1", "EnrollUser")
             self.assertEqual(flag[6], "1", "ChgUser")
