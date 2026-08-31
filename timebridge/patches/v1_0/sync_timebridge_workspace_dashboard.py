@@ -58,8 +58,10 @@ def execute():
 		frappe.throw("Data card must list only Machine User")
 	if card_breaks.get("Logs") != 2:
 		frappe.throw("Logs card must list Sync Log and Machine Log")
-	if card_breaks.get("Reports") != 2:
-		frappe.throw("Reports card must list Device Roll and Daily Punch Summary")
+	if card_breaks.get("Reports") != 3:
+		frappe.throw(
+			"Reports card must list Device Roll, Daily Punch Summary, and Employee Monthly Punch Summary"
+		)
 	if "Setup" in card_breaks:
 		frappe.throw("Setup card break must be removed from workspace")
 
@@ -71,6 +73,7 @@ def execute():
 		"TimeBridge Machine Log",
 		"Device Roll",
 		"daily-punch-summary",
+		"employee-monthly-punch-summary",
 	):
 		if link_to not in _links:
 			frappe.throw(f"Workspace missing link: {link_to}")
@@ -79,3 +82,5 @@ def execute():
 		frappe.throw("Device Roll workspace link must be a query report")
 	if _links["daily-punch-summary"].link_type != "Page":
 		frappe.throw("Daily Punch Summary workspace link must be a Page")
+	if _links["employee-monthly-punch-summary"].link_type != "Page":
+		frappe.throw("Employee Monthly Punch Summary workspace link must be a Page")
