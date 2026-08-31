@@ -260,7 +260,7 @@ def record_attlog_stamp(machine, args, table, records):
 		_persist_stamp(machine, ATTLOG_FIELD, stamp)
 
 
-def record_operlog_stamp(machine, args, table, op_rows=None):
+def record_operlog_stamp(machine, args, table, op_rows=None, heartbeat=False):
 	"""Persist operation stamp after an OPERLOG/USERINFO batch was accepted."""
 
 	stamp_format = resolve_operlog_stamp_format(machine)
@@ -268,6 +268,10 @@ def record_operlog_stamp(machine, args, table, op_rows=None):
 	if not stamp:
 		stamp = stamp_from_operlog_rows(op_rows or [], stamp_format)
 	if not stamp:
+		# Fabrixcel Gate always sends OpStamp=9999 on empty OPERLOG heartbeats
+		# and ignores Attendance DateTime cursors in OPERLOGStamp.
+		if heartbeat:
+			stamp_format = STAMP_FORMAT_UNIX
 		stamp = stamp_now(stamp_format)
 
 	if stamp:

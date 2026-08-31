@@ -74,4 +74,31 @@ class TestADMSRequestLogAudit(FrappeTestCase):
 			1,
 		)
 
+	def test_operlog_heartbeat_not_logged_when_users_toggle_on(self):
+		machine = frappe.get_doc(
+			{
+				"doctype": "TimeBridge Machine",
+				"machine_id": "AUDIT-009",
+				"machine_name": "Audit Heartbeat",
+				"device_brand": "ZKTeco",
+				"serial_number": "AUDIT-SN-009",
+				"ip_address": "192.168.1.1",
+				"sdk_type": "ADMS",
+				"log_adms_users": 1,
+			}
+		).insert()
+
+		audit.write_request_log(
+			serial="AUDIT-SN-009",
+			endpoint="cdata",
+			method="POST",
+			args={"SN": "AUDIT-SN-009", "table": "OPERLOG", "OpStamp": "9999"},
+			body="",
+			response="OK: 1",
+		)
+		self.assertEqual(
+			frappe.db.count("TimeBridge ADMS Request Log", {"machine": machine.name}),
+			0,
+		)
+
 		machine.delete()

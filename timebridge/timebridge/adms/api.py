@@ -229,6 +229,12 @@ def _body_line_count(body):
     return len([line for line in (body or "").splitlines() if line.strip()])
 
 
+def _operlog_is_heartbeat(records, op_rows, photo_rows):
+    """True when the POST carried nothing TimeBridge models as users/ops/photos."""
+
+    return not records and not op_rows and not photo_rows
+
+
 def _operlog_ack_count(body, records, skipped, op_rows, photo_rows):
     """Lines the device sent — under-counting reads as a partial failure."""
 
@@ -352,7 +358,13 @@ def _receive_userinfo(machine, args, body):
 
             frappe.db.set_value("TimeBridge Machine", machine, "last_user_sync",
                                 frappe.utils.now_datetime())
-            stamps.record_operlog_stamp(machine, args, table, op_rows=op_rows)
+            stamps.record_operlog_stamp(
+                machine,
+                args,
+                table,
+                op_rows=op_rows,
+                heartbeat=_operlog_is_heartbeat(records, op_rows, photo_rows),
+            )
             frappe.db.commit()
 
         except Exception:
@@ -377,9 +389,9 @@ def _receive_userinfo(machine, args, body):
         # or an empty heartbeat. Non-empty batches are logged; empty heartbeats
         # only advance the stamp (Fabrixcel floods them when answered OK: 0).
         fetched = _body_line_count(body)
-        empty_heartbeat = not fetched and not op_rows and not photo_rows
+        heartbeat = _operlog_is_heartbeat(records, op_rows, photo_rows)
 
-        if not empty_heartbeat:
+        if not heartbeat:
             operlog_note = (
                 f"{len(op_rows)} operation row(s), {len(photo_rows)} photo row(s), "
                 "no user records"
@@ -401,7 +413,9 @@ def _receive_userinfo(machine, args, body):
                 message=f"OPERLOG: {operlog_note}",
             )
 
-        stamps.record_operlog_stamp(machine, args, table, op_rows=op_rows)
+        stamps.record_operlog_stamp(
+            machine, args, table, op_rows=op_rows, heartbeat=_operlog_is_heartbeat(records, op_rows, photo_rows)
+        )
         frappe.db.commit()
 
     # Enrolment pictures often ride in OPERLOG as PIN + Content, not as a

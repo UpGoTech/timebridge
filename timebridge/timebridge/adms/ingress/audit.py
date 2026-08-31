@@ -13,7 +13,7 @@ import frappe
 
 from frappe.utils import add_days, cint, now_datetime, today
 
-from timebridge.timebridge.adms import logger
+from timebridge.timebridge.adms import logger, parser
 from timebridge.timebridge.adms.pending import remote_ip
 
 DOCTYPE = "TimeBridge ADMS Request Log"
@@ -108,6 +108,19 @@ def should_log(category, toggles):
 	return bool(cint(toggles.get(field)))
 
 
+def _is_operlog_heartbeat(args, body):
+	"""OPERLOG/USERINFO POST with no modelled rows — Fabrixcel floods these."""
+
+	table = (args.get("table") or args.get("Table") or "").upper()
+	if table not in ("OPERLOG", "USERINFO"):
+		return False
+
+	records, _skipped = parser.parse_userinfo(body or "")
+	op_rows = parser.parse_oplog(body or "")
+	photo_rows = parser.parse_photo_fields(body or "")
+	return not records and not op_rows and not photo_rows
+
+
 def write_request_log(
 	serial=None,
 	endpoint=None,
@@ -127,6 +140,9 @@ def write_request_log(
 		toggles = _machine_toggles(machine)
 
 		if not should_log(category, toggles):
+			return None
+
+		if category == "Users" and _is_operlog_heartbeat(args, body):
 			return None
 
 		include_bodies = True

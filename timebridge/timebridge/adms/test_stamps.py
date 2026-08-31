@@ -252,6 +252,20 @@ class TestADMSStamps(FrappeTestCase):
         self.assertTrue(stored)
         self.assertNotIn(stored, ("9999", "", None))
 
+    def test_record_operlog_heartbeat_uses_unix_stamp(self):
+        machine = self._make_machine("STAMP-011")
+
+        stamps.record_operlog_stamp(
+            machine,
+            {"table": "OPERLOG", "OpStamp": "9999"},
+            "OPERLOG",
+            op_rows=[],
+            heartbeat=True,
+        )
+
+        stored = frappe.db.get_value("TimeBridge Machine", machine, "adms_op_stamp")
+        self.assertTrue(stored.isdigit())
+
     def _make_machine(self, serial):
         doc = frappe.get_doc(
             {
