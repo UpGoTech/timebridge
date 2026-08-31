@@ -27,6 +27,7 @@
   "last_user_sync",
   "adms_stamp",
   "adms_op_stamp",
+  "adms_stamp_format",
   "other_information",
   "description"
  ],
@@ -177,6 +178,14 @@
    "fieldtype": "Data",
    "label": "ADMS Operation Stamp",
    "read_only": 1
+  },
+  {
+   "default": "Auto",
+   "description": "How to encode punch-time stamps when the device sends placeholder Stamp=9999. Auto picks Unix vs ISO vs compact from the stored cursor; Unix matches the numeric examples in the HTTP PUSH SDK.",
+   "fieldname": "adms_stamp_format",
+   "fieldtype": "Select",
+   "label": "ADMS Stamp Format",
+   "options": "Auto\nUnix Timestamp\nISO DateTime\nCompact (YYYYMMDDHHMMSS)"
   },
   {
    "fieldname": "other_information",
