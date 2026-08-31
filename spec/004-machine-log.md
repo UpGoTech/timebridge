@@ -26,6 +26,7 @@ Operators need a per-machine diagnostic ledger for everything **except successfu
 - Errors and Warnings always stored; routine ADMS handshake/heartbeat/ping Info only when **Enable Debug Log** is on in Settings.
 - Daily purge using existing **Log Retention (Days)** setting.
 - Workspace link + Machine form connections (Logs group with Sync Log).
+- `sync_app_workspaces()` patch + `after_install` so existing sites get the link (see frappe-workspace skill).
 
 Sync Log remains the honest measure of ingest success. Sync **failures** are also written to Machine Log.
 
