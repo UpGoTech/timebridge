@@ -13,6 +13,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from timebridge.timebridge.adms.parser import (
     parse_attlog,
+    parse_oplog,
     parse_photo_fields,
     parse_table_name,
     parse_userinfo,
@@ -136,3 +137,33 @@ class TestADMSParser(FrappeTestCase):
         self.assertEqual(rows[0]["content"], blob_a)
         self.assertEqual(rows[1]["content"], blob_b)
         self.assertEqual(rows[0]["type"], "9")
+
+    def test_parse_oplog_reads_operation_rows(self):
+        body = (
+            "OPLOG 4\t1\t2026-08-31 09:19:01\t0\t0\t0\t\n"
+            "OPLOG 6\t1\t2026-08-31 09:19:02\t0\t0\t0\t\n"
+        )
+        records = parse_oplog(body)
+
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[0]["op_type"], "4")
+        self.assertEqual(records[0]["op_who"], "1")
+        self.assertEqual(records[0]["op_time"], "2026-08-31 09:19:01")
+
+    def test_parse_oplog_ignores_user_and_blank_rows(self):
+        body = (
+            "USER PIN=1\tName=Asha\tPri=0\n"
+            "\n"
+            "OPLOG 4\t1\t2026-08-31 09:19:01\t0\t0\t0\t\n"
+        )
+        self.assertEqual(len(parse_oplog(body)), 1)
+
+    def test_parse_userinfo_still_ignores_operation_rows(self):
+        # An OPERLOG is a mixed bag; an OPLOG row must not become a person.
+        body = (
+            "OPLOG 4\t1\t2026-08-31 09:19:01\t0\t0\t0\t\n"
+            "USER PIN=7\tName=Manali\tPri=0\n"
+        )
+        records, _ = parse_userinfo(body)
+
+        self.assertEqual([r["user_id"] for r in records], ["7"])

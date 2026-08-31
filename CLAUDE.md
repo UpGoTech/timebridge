@@ -186,7 +186,17 @@ Four endpoints are answered, all in `adms/api.py`:
 
 An unlisted `/iclock/*` path falls through to a normal 404 rather than being silently acknowledged.
 
-**Every handler returns `OK`, even after a failure.** A 500 makes the firmware discard the batch it is holding, and losing punches is worse than losing one upload. Failures go to Error Log plus a `Failed` TimeBridge Sync Log row instead. Do not "fix" this by returning real HTTP error codes.
+**The HTTP status is always 200, even after a failure.** A 500 makes the firmware discard the batch it is holding, and losing punches is worse than losing one upload. Failures go to Error Log plus a `Failed` TimeBridge Sync Log row instead. Do not "fix" this by returning real HTTP error codes.
+
+**A data upload is answered `OK: <records processed>`, never a bare `OK`** (`api.ack`). This is the protocol's success entity; a bare `OK` reads as an error, so the firmware keeps the batch and re-sends it on every cycle. That is exactly what happened on `NCD8251400238`: 37,637 records arrived of which only 8,980 were new, 220 batches being the *same* 128-record chunk. The count includes duplicates — a punch already held was still processed successfully, and `OK: 0` restarts the loop. Retries are requested by replying an error *description* in a 200 body, which is what the ATTLOG/USERINFO failure paths now do.
+
+Note the reference for all of this is the **Attendance PUSH** protocol, not `spec/ZKteco Push SDK.pdf` — that PDF is the *Security* PUSH protocol (access control, `table=rtlog`, `/iclock/registry`), where a bare `OK` genuinely is correct and where `TransFlag` has a different digit order. The device announces `pushver=2.4.1&DeviceType=att` and posts `table=ATTLOG`, so it speaks Attendance PUSH. Trusting the wrong document is what produced both the ack bug and the `TransFlag` bug below.
+
+**`TransFlag` positions follow Attendance PUSH order:** `1 AttLog, 2 OpLog, 3 AttPhoto, 4 EnrollFP, 5 EnrollUser, 6 FPImage, 7 ChgUser, 8 ChgFP, 9 FACE, 10 UserPic`. The Security ordering puts EnrollUser at 4 and ChgUser at 5, and following it left `1111000000` requesting fingerprint enrolments while switching off the two flags that make the device report its people. Punches plus users is `1110101000`; with photos, `1110101011`.
+
+**An OPERLOG carrying no `PIN=` rows is still acknowledged and still advances `OPERLOGStamp`.** Most OPERLOG uploads are `OPLOG <OpType>\t<OpWho>\t<OpTime>…` audit rows (`parser.parse_oplog`) which nothing here models. Leaving the stamp write inside `if records:` meant 465 of 468 OPERLOG posts left no trace at all and the device re-sent its whole operation log — 181 times inside one minute.
+
+The handshake sends the spec's key names, `ATTLOGStamp` / `OPERLOGStamp` (plus `Stamp` as the documented ATTLOG alias). `OpStamp`, `AttLogStamp` and `OperLogStamp` were invented and the device ignored them. `TransTimes`, `TransInterval` and `TimeZone` are also required; `TimeZone` is minutes when the offset is not whole hours, so IST is `330`, not `5.5`, and it is derived from the site timezone because a wrong value shifts every punch the device reports afterwards.
 
 **Devices are matched on `SN` against `TimeBridge Machine.serial_number`, never on IP** (`logger.get_machine_by_serial`). A push whose serial matches nothing stores no records and writes an Error Log entry titled *"TimeBridge ADMS: unknown device serial"* containing the serial and the raw body — which doubles as the way to discover a new device's serial without reading it off the hardware.
 

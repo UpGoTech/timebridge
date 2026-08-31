@@ -325,6 +325,45 @@ def _parse_template_body(body, default_bio_type=None, source_table=None):
     return records, skipped
 
 
+def parse_oplog(body):
+    """
+    Parse the operation rows of an OPERLOG payload (Attendance PUSH §11.4):
+
+        OPLOG <OpType>\t<OpWho>\t<OpTime>\t<Value1>\t<Value2>\t<Value3>
+
+    None of this is modelled — they are device audit events such as a door
+    opening or an administrator signing in. They are parsed anyway because an
+    upload is acknowledged with the number of records processed, and a device
+    told it sent nothing keeps the batch and sends it again. OPERLOG carries
+    these rows mixed in with the USER rows parse_userinfo reads.
+    """
+
+    records = []
+
+    for line in (body or "").splitlines():
+
+        line = line.rstrip("\r")
+
+        if not line.strip():
+            continue
+
+        if not line.upper().startswith("OPLOG"):
+            continue
+
+        # "OPLOG 4" — the type rides on the first field, space-separated.
+        parts = line.split("\t")
+        head = parts[0].split()
+
+        records.append({
+            "op_type": head[1] if len(head) > 1 else None,
+            "op_who": parts[1].strip() if len(parts) > 1 else None,
+            "op_time": parts[2].strip() if len(parts) > 2 else None,
+            "raw": line,
+        })
+
+    return records
+
+
 def parse_userinfo(body):
     """
     Parse a USERINFO payload into user dicts.
