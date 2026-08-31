@@ -26,7 +26,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 002 Device Mirror             ░░░░░░░░░░░░░░░░░░░░    —    Discontinued (see 003)
 003 Device I/O reset          ████████████████████░  ~95%   Merged to develop
 004 Machine diagnostic log    ████████████████████░  ~95%   Merged to develop
-005 Workspace dashboard     ████████████████████░  ~95%   Implemented on feat/005-workspace-dashboard
+005 Workspace dashboard     ████████████████████░  ~95%   v2 on feat/005-workspace-dashboard-v2
+006 Daily Punch Summary     ░░░░░░░░░░░░░░░░░░░░    —    feat/006-daily-punch-summary
 ```
 
 | Spec | Title | Branch | Status | v1 progress | Next action |
@@ -35,7 +36,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**002**](002-device-mirror.md) | Device Mirror | — | **Discontinued** | — | Not shipping; templates/restore out of product |
 | [**003**](003-device-io.md) | Device I/O reset | — (merged) | **Merged** | Phases A–F | — |
 | [**004**](004-machine-log.md) | Machine diagnostic log | — (merged) | **Merged** | Phase 1–5 | — |
-| [**005**](005-workspace-dashboard.md) | Workspace dashboard & Add Machine | `feat/005-workspace-dashboard` | **Implemented** | Phase 1–6 | PR to develop |
+| [**005**](005-workspace-dashboard.md) | Workspace dashboard & Add Machine | `feat/005-workspace-dashboard-v2` | **In progress** | Phase 1–8 | PR to develop |
+| [**006**](006-daily-punch-summary.md) | Daily Punch Summary report | `feat/006-daily-punch-summary` | **In progress** | Phase 1–6 | Build + review |
 
 ---
 
@@ -108,18 +110,19 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | Field | Value |
 |-------|-------|
 | **Doc** | [005-workspace-dashboard.md](005-workspace-dashboard.md) |
-| **One-liner** | Dashboard number cards; Add Machine only from Machine list; block blank `/new` form |
-| **Status** | **In progress** on `feat/005-workspace-dashboard` |
+| **One-liner** | Slim dashboard (active users chart + 3 cards); Devices/Data/Logs/Reports sidebar; Add Machine from list only |
+| **Status** | **In progress** on `feat/005-workspace-dashboard-v2` |
 
 ### Phase rollup
 
 | Phase | Name | Rollup |
 |-------|------|--------|
 | 1 | Spec + programme index | `[x]` |
-| 2 | Number Card fixtures | `[x]` |
-| 3 | Workspace layout | `[x]` |
-| 4 | List + form wizard routing | `[x]` |
-| 5 | Wizard breadcrumbs | `[x]` |
+| 2 | Dashboard service + chart | `[x]` |
+| 3 | Number cards + workspace JSON | `[x]` |
+| 4 | Patch + tests | `[x]` |
+| 5 | List + form wizard routing (v1) | `[x]` |
+| 6 | Wizard breadcrumbs (v1) | `[x]` |
 
 ---
 
@@ -142,6 +145,7 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 2 | **003** ✓ merged | Product reset |
 | 3 | **004** ✓ merged | Machine diagnostic log |
 | 4 | **005** | Workspace dashboard |
+| 5 | **006** | Daily Punch Summary report |
 | — | **002** | Abandoned |
 
 ---
@@ -164,3 +168,4 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 2026-08-30 | 003 Device I/O reset; 002 discontinued |
 | 2026-08-31 | 004 Machine diagnostic log |
 | 2026-08-31 | 005 Workspace dashboard and Add Machine relocation |
+| 2026-08-31 | 006 Daily Punch Summary report |
