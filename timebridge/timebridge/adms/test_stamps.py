@@ -18,6 +18,46 @@ class TestADMSStamps(FrappeTestCase):
         args = {"table": "ATTLOG Stamp=12345"}
         self.assertEqual(stamps.parse_upload_stamp(args, "ATTLOG"), "12345")
 
+    def test_parse_upload_stamp_ignores_placeholder(self):
+        args = {"table": "ATTLOG", "Stamp": "9999"}
+        self.assertIsNone(stamps.parse_upload_stamp(args, "ATTLOG"))
+
+    def test_record_attlog_stamp_ignores_placeholder_9999(self):
+        machine = self._make_machine("STAMP-004")
+        args = {"table": "ATTLOG", "Stamp": "9999"}
+
+        stamps.record_attlog_stamp(
+            machine,
+            args,
+            "ATTLOG",
+            [
+                {"timestamp": "2026-08-31 17:40:30"},
+                {"timestamp": "2026-08-31 17:40:39"},
+            ],
+        )
+
+        self.assertEqual(
+            frappe.db.get_value("TimeBridge Machine", machine, "adms_stamp"),
+            "2026-08-31T17:40:39",
+        )
+
+    def test_handshake_ignores_persisted_placeholder(self):
+        machine = self._make_machine("STAMP-005")
+
+        frappe.db.set_value(
+            "TimeBridge Machine",
+            machine,
+            {"adms_stamp": "9999", "adms_op_stamp": "9999"},
+        )
+
+        reply = build_handshake("STAMP-005", machine=machine)
+        self.assertIn("Stamp=9999", reply)
+        self.assertIn("OpStamp=9999", reply)
+
+        frappe.db.set_value("TimeBridge Machine", machine, "adms_stamp", "2026-08-31T17:40:39")
+        reply = build_handshake("STAMP-005", machine=machine)
+        self.assertIn("Stamp=2026-08-31T17:40:39", reply)
+
     def test_parse_opstamp_for_operlog(self):
         args = {"table": "OPERLOG", "OpStamp": "9238883"}
         self.assertEqual(stamps.parse_upload_stamp(args, "OPERLOG"), "9238883")
