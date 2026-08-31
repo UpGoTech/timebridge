@@ -61,6 +61,7 @@ HANDSHAKE_TEMPLATE = (
     "Stamp={stamp}\n"
     "ATTLOGStamp={stamp}\n"
     "OPERLOGStamp={opstamp}\n"
+    "ATTPHOTOStamp=9999\n"
     "ErrorDelay=30\n"
     "Delay=30\n"
     "TransTimes=00:00;14:00\n"

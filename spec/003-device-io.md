@@ -5,7 +5,7 @@
 | **Spec ID** | `003` |
 | **Branch** | — (merged) |
 | **Status** | **Merged** — PR #7 (2026-08-31) |
-| **Authority** | [`ZKteco Push SDK.pdf`](./ZKteco%20Push%20SDK.pdf) for ADMS; [pyzk](https://github.com/fananimi/pyzk) for pull; this doc for product behaviour |
+| **Authority** | [`ZKteco Attendance PUSH Communication Protocol.pdf`](./ZKteco%20Attendance%20PUSH%20Communication%20Protocol.pdf) for ADMS attendance terminals; see [ADMS-PROTOCOL.md](./ADMS-PROTOCOL.md); [pyzk](https://github.com/fananimi/pyzk) for pull; this doc for product behaviour |
 | **Created** | 2026-08-30 |
 | **Last updated** | 2026-08-30 |
 | **Programme tracker** | [spec/README.md](./README.md) |

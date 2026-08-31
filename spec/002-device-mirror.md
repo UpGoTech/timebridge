@@ -5,7 +5,7 @@
 | **Spec ID** | `002` |
 | **Branch** | `feat/device-mirror` |
 | **Status** | **Implemented** — v1 on branch; manual QA pending (§10) |
-| **Authority** | [`ZKteco Push SDK.pdf`](./ZKteco%20Push%20SDK.pdf) for ADMS protocol; this doc for product behaviour |
+| **Authority** | [`ZKteco Attendance PUSH Communication Protocol.pdf`](./ZKteco%20Attendance%20PUSH%20Communication%20Protocol.pdf); [ADMS-PROTOCOL.md](./ADMS-PROTOCOL.md) |
 | **Created** | 2026-08-28 |
 | **Last updated** | 2026-08-29 |
 | **Programme tracker** | [spec/README.md](./README.md) |

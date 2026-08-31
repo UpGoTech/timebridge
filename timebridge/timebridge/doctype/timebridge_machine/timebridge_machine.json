@@ -173,7 +173,7 @@
    "read_only": 1
   },
   {
-   "description": "Latest user/operation upload marker echoed as OpStamp on ADMS handshake. Updated from each accepted OPERLOG/USERINFO POST.",
+   "description": "Latest user/operation upload marker echoed as OPERLOGStamp on ADMS handshake. Updated from each accepted OPERLOG/USERINFO POST.",
    "fieldname": "adms_op_stamp",
    "fieldtype": "Data",
    "label": "ADMS Operation Stamp",
@@ -181,11 +181,11 @@
   },
   {
    "default": "Auto",
-   "description": "How to encode punch-time stamps when the device sends placeholder Stamp=9999. Auto picks Unix vs ISO vs compact from the stored cursor; Unix matches the numeric examples in the HTTP PUSH SDK.",
+   "description": "How to encode punch-time stamps when the device sends placeholder Stamp=9999. Auto infers from the stored cursor; default fallback matches Attendance PUSH §11.2 punch time (YYYY-MM-DD HH:MM:SS).",
    "fieldname": "adms_stamp_format",
    "fieldtype": "Select",
    "label": "ADMS Stamp Format",
-   "options": "Auto\nUnix Timestamp\nISO DateTime\nCompact (YYYYMMDDHHMMSS)"
+   "options": "Auto\nAttendance DateTime\nUnix Timestamp\nISO DateTime\nCompact (YYYYMMDDHHMMSS)"
   },
   {
    "fieldname": "other_information",

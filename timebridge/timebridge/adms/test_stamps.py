@@ -44,14 +44,9 @@ class TestADMSStamps(FrappeTestCase):
             ],
         )
 
-        stored = frappe.db.get_value("TimeBridge Machine", machine, "adms_stamp")
-        self.assertTrue(stored.isdigit())
         self.assertEqual(
-            stored,
-            stamps.stamp_from_attlog_records(
-                [{"timestamp": "2026-08-31 17:40:39"}],
-                stamps.STAMP_FORMAT_UNIX,
-            ),
+            frappe.db.get_value("TimeBridge Machine", machine, "adms_stamp"),
+            "2026-08-31 17:40:39",
         )
 
     def test_handshake_ignores_persisted_placeholder(self):
@@ -80,6 +75,13 @@ class TestADMSStamps(FrappeTestCase):
         args = {"table": "OPERLOG", "OperLogStamp": "9238883", "OpStamp": "9999"}
         self.assertEqual(stamps.parse_upload_stamp(args, "OPERLOG"), "9238883")
 
+    def test_stamp_from_attlog_records_attendance_datetime(self):
+        records = [{"timestamp": "2026-07-30 19:02:44"}]
+        self.assertEqual(
+            stamps.stamp_from_attlog_records(records, stamps.STAMP_FORMAT_ATTLOG),
+            "2026-07-30 19:02:44",
+        )
+
     def test_stamp_from_attlog_records_unix(self):
         records = [
             {"timestamp": "2026-07-30 10:05:12"},
@@ -107,7 +109,7 @@ class TestADMSStamps(FrappeTestCase):
         self.assertIn("Stamp=9999", reply)
         self.assertIn("ATTLOGStamp=9999", reply)
         self.assertIn("OPERLOGStamp=9999", reply)
-        self.assertIn("GET OPTION FROM: SN123", reply)
+        self.assertIn("ATTPHOTOStamp=9999", reply)
 
     def test_handshake_echoes_persisted_stamps(self):
         machine = self._make_machine("STAMP-001")
@@ -154,7 +156,7 @@ class TestADMSStamps(FrappeTestCase):
         )
 
         stored = frappe.db.get_value("TimeBridge Machine", machine, "adms_stamp")
-        self.assertTrue(stored.isdigit())
+        self.assertEqual(stored, "2026-07-30 19:02:44")
 
     def test_record_attlog_stamp_respects_iso_format_setting(self):
         machine = self._make_machine("STAMP-006")
@@ -190,7 +192,7 @@ class TestADMSStamps(FrappeTestCase):
 
     def test_persist_stamp_advances_on_duplicate_batch(self):
         machine = self._make_machine("STAMP-008")
-        frappe.db.set_value("TimeBridge Machine", machine, "adms_stamp", "100")
+        frappe.db.set_value("TimeBridge Machine", machine, "adms_stamp", "2026-07-30 10:00:00")
 
         stamps.record_attlog_stamp(
             machine,
@@ -203,8 +205,8 @@ class TestADMSStamps(FrappeTestCase):
         )
 
         stored = frappe.db.get_value("TimeBridge Machine", machine, "adms_stamp")
-        self.assertTrue(stored.isdigit())
-        self.assertNotEqual(stored, "100")
+        self.assertEqual(stored, "2026-07-30 19:02:44")
+        self.assertNotEqual(stored, "2026-07-30 10:00:00")
 
     def test_infer_stamp_format_from_stored_value(self):
         self.assertEqual(stamps.infer_stamp_format("82983982"), stamps.STAMP_FORMAT_UNIX)
@@ -215,6 +217,10 @@ class TestADMSStamps(FrappeTestCase):
         self.assertEqual(
             stamps.infer_stamp_format("2026-08-31T17:40:39"),
             stamps.STAMP_FORMAT_ISO,
+        )
+        self.assertEqual(
+            stamps.infer_stamp_format("2026-07-30 19:02:44"),
+            stamps.STAMP_FORMAT_ATTLOG,
         )
 
     def _make_machine(self, serial):
