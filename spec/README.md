@@ -22,13 +22,13 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 ## Overall roadmap
 
 ```
-001 ADMS Device Discovery     ████████████████████░  ~96%   Merged (PR #3) — B7 deferred
+001 ADMS Device Discovery     ████████████████████░  ~96%   Merged (PR #3) — B7 e2e deferred
 002 Device Mirror             ░░░░░░░░░░░░░░░░░░░░    —    Discontinued (see 003)
-003 Device I/O reset          ████████████████████░  ~95%   Merged (PR #7)
-004 Machine diagnostic log    ████████████████████░  ~95%   Merged (PR #8)
-005 Workspace dashboard       ████████████████████░  ~95%   Merged (PR #10 + #11)
-006 Daily Punch Summary       ████████████████████░  ~95%   Merged (PR #11)
-007 Employee Monthly Punch    ████████████████████░  ~95%   PR pending (feat/007)
+003 Device I/O reset          █████████████████████  100%   Merged (PR #7)
+004 Machine diagnostic log    █████████████████████  100%   Merged (PR #8)
+005 Workspace dashboard       █████████████████████  100%   Merged (PR #10 + #11)
+006 Daily Punch Summary       █████████████████████  100%   Merged (PR #11)
+007 Employee Monthly Punch    █████████████████████  100%   Merged (PR #12)
 ```
 
 | Spec | Title | Branch | Status | Progress | Next action |
@@ -39,7 +39,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**004**](004-machine-log.md) | Machine diagnostic log | — (merged) | **Merged** PR #8 | Phase 1–5 | — |
 | [**005**](005-workspace-dashboard.md) | Workspace dashboard & Add Machine | — (merged) | **Merged** PR #10 + #11 | Phase 1–8 | v2 dashboard shipped in PR #11 |
 | [**006**](006-daily-punch-summary.md) | Daily Punch Summary report | — (merged) | **Merged** PR #11 | Phase 1–6 | — |
-| [**007**](007-employee-monthly-punch-summary.md) | Employee Monthly Punch Summary | `feat/007-employee-monthly-punch-summary` | **PR pending** | Phase 1–5 | Open PR to develop |
+| [**007**](007-employee-monthly-punch-summary.md) | Employee Monthly Punch Summary | — (merged) | **Merged** PR #12 | Phase 1–5 | — |
 
 ---
 
@@ -157,7 +157,7 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` was 
 |-------|-------|
 | **Doc** | [007-employee-monthly-punch-summary.md](007-employee-monthly-punch-summary.md) |
 | **One-liner** | Person-based punch list for a whole month; Desk Page + CSV export |
-| **Status** | **PR pending** on `feat/007-employee-monthly-punch-summary` |
+| **Status** | **Merged** — PR #12 (2026-08-31) |
 
 ### Phase rollup
 
@@ -193,7 +193,7 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` was 
 | 3 | **004** ✓ merged | Machine diagnostic log |
 | 4 | **005** ✓ merged | Workspace dashboard |
 | 5 | **006** ✓ merged | Daily Punch Summary report |
-| 6 | **007** | Employee Monthly Punch Summary |
+| 6 | **007** ✓ merged | Employee Monthly Punch Summary |
 | — | **002** | Abandoned |
 
 ---
@@ -218,3 +218,4 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` was 
 | 2026-08-31 | 005 Workspace dashboard and Add Machine relocation |
 | 2026-08-31 | 006 Daily Punch Summary report |
 | 2026-08-31 | Reconcile index: 005/006 merged; 007 PR pending |
+| 2026-08-31 | 007 merged (PR #12); programme complete at 100% (001 B7 e2e still deferred) |

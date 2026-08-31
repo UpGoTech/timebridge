@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | **Spec ID** | `007` |
-| **Branch** | `feat/007-employee-monthly-punch-summary` |
-| **Status** | **PR pending** |
+| **Branch** | — (merged) |
+| **Status** | **Merged** — PR #12 (2026-08-31) |
 | **Authority** | This doc; follows [006-daily-punch-summary.md](006-daily-punch-summary.md) |
 | **Created** | 2026-08-31 |
 | **Programme tracker** | [spec/README.md](README.md) |
