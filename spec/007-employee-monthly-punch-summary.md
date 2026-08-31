@@ -4,7 +4,7 @@
 |-------|-------|
 | **Spec ID** | `007` |
 | **Branch** | `feat/007-employee-monthly-punch-summary` |
-| **Status** | **Ready for review** |
+| **Status** | **PR pending** |
 | **Authority** | This doc; follows [006-daily-punch-summary.md](006-daily-punch-summary.md) |
 | **Created** | 2026-08-31 |
 | **Programme tracker** | [spec/README.md](README.md) |
