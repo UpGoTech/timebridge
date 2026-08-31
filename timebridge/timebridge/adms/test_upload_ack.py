@@ -87,11 +87,31 @@ class TestADMSUploadAck(FrappeTestCase):
 
         machine, serial = self._make_machine("ACK-009")
 
-        self.assertEqual(self._post(serial, OPERLOG_ARGS, ""), "OK: 0")
+        self.assertEqual(self._post(serial, OPERLOG_ARGS, ""), "OK: 1")
 
         stored = frappe.db.get_value("TimeBridge Machine", machine, "adms_op_stamp")
         self.assertTrue(stored)
         self.assertNotEqual(stored, "9999")
+
+    def test_empty_operlog_skips_sync_and_machine_log(self):
+        """Empty heartbeats must not flood Sync Log / Machine Log every 200 ms."""
+
+        machine, serial = self._make_machine("ACK-012")
+
+        self.assertEqual(self._post(serial, OPERLOG_ARGS, ""), "OK: 1")
+
+        self.assertFalse(
+            frappe.db.exists(
+                "TimeBridge Machine Log",
+                {"machine": machine, "event": "Upload"},
+            )
+        )
+        self.assertFalse(
+            frappe.db.exists(
+                "TimeBridge Sync Log",
+                {"machine": machine, "sync_type": "Users"},
+            )
+        )
 
     def test_operlog_op_rows_fallback_stamp_when_placeholder(self):
         machine, serial = self._make_machine("ACK-010")
@@ -104,12 +124,13 @@ class TestADMSUploadAck(FrappeTestCase):
             "2026-08-31 09:19:01",
         )
 
-    def test_empty_operlog_is_logged(self):
-        """Every OPERLOG POST leaves Machine Log and Sync Log rows."""
+    def test_operlog_with_op_rows_is_logged(self):
+        """OPERLOG with OPLOG rows leaves Machine Log and Sync Log rows."""
 
         machine, serial = self._make_machine("ACK-008")
+        body = "OPLOG 4\t1\t2026-08-31 09:19:01\t0\t0\t0\t\n"
 
-        self.assertEqual(self._post(serial, OPERLOG_ARGS, ""), "OK: 0")
+        self.assertEqual(self._post(serial, OPERLOG_ARGS, body), "OK: 1")
 
         self.assertTrue(
             frappe.db.exists(
