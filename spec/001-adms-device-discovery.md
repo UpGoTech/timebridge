@@ -5,7 +5,7 @@
 | **Spec ID** | `001` |
 | **Branch** | `feat/adms-device-discovery` |
 | **Status** | **Merged** — PR #3 into `develop` (2026-08-29) |
-| **Authority** | [`ZKteco Push SDK.pdf`](./ZKteco%20Push%20SDK.pdf) for protocol; this doc for product behaviour |
+| **Authority** | [`ZKteco Attendance PUSH Communication Protocol.pdf`](./ZKteco%20Attendance%20PUSH%20Communication%20Protocol.pdf); [ADMS-PROTOCOL.md](./ADMS-PROTOCOL.md) |
 | **Created** | 2026-08-27 |
 | **Last updated** | 2026-08-29 |
 | **Programme tracker** | [spec/README.md](./README.md) — overall progress across all specs |

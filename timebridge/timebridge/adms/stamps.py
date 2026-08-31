@@ -9,9 +9,9 @@ operation markers a device reported, then echo them back on the next GET
 handshake. Fixed placeholders make some firmware re-send the same log forever
 even when every POST was answered with OK.
 
-The HTTP PUSH SDK examples use numeric stamps (e.g. Stamp=82983982). When a
-device always sends placeholder nines, fall back to the latest punch time in a
-format chosen per machine (Unix seconds by default).
+The Attendance PUSH spec (§11.2) encodes punch times as YYYY-MM-DD HH:MM:SS.
+When a device always sends placeholder Stamp=9999, fall back to the latest
+punch time in a format chosen per machine (Attendance DateTime by default).
 """
 
 import frappe
@@ -26,6 +26,7 @@ PLACEHOLDER_STAMPS = frozenset({"9999", "0", ""})
 
 STAMP_FORMAT_UNIX = "Unix Timestamp"
 STAMP_FORMAT_ISO = "ISO DateTime"
+STAMP_FORMAT_ATTLOG = "Attendance DateTime"
 STAMP_FORMAT_COMPACT = "Compact (YYYYMMDDHHMMSS)"
 STAMP_FORMAT_AUTO = "Auto"
 
@@ -136,24 +137,27 @@ def infer_stamp_format(stored_stamp):
 
 	clean = normalize_upload_stamp(stored_stamp)
 	if not clean:
-		return STAMP_FORMAT_UNIX
+		return STAMP_FORMAT_ATTLOG
 
 	if clean.isdigit():
 		if len(clean) == 14:
 			return STAMP_FORMAT_COMPACT
 		return STAMP_FORMAT_UNIX
 
-	if "T" in clean or ("-" in clean and ":" in clean):
+	if "T" in clean:
 		return STAMP_FORMAT_ISO
 
-	return STAMP_FORMAT_UNIX
+	if " " in clean and "-" in clean and ":" in clean:
+		return STAMP_FORMAT_ATTLOG
+
+	return STAMP_FORMAT_ATTLOG
 
 
 def resolve_stamp_format(machine):
 	"""Effective stamp encoding for punch-time fallbacks on this machine."""
 
 	if not machine:
-		return STAMP_FORMAT_UNIX
+		return STAMP_FORMAT_ATTLOG
 
 	configured = frappe.db.get_value("TimeBridge Machine", machine, STAMP_FORMAT_FIELD)
 	if configured and configured != STAMP_FORMAT_AUTO:
@@ -182,15 +186,18 @@ def stamp_from_attlog_records(records, stamp_format=None):
 	if latest is None:
 		return None
 
-	stamp_format = stamp_format or STAMP_FORMAT_UNIX
+	stamp_format = stamp_format or STAMP_FORMAT_ATTLOG
 
 	if stamp_format == STAMP_FORMAT_ISO:
 		return latest.strftime("%Y-%m-%dT%H:%M:%S")
 
+	if stamp_format == STAMP_FORMAT_ATTLOG:
+		return latest.strftime("%Y-%m-%d %H:%M:%S")
+
 	if stamp_format == STAMP_FORMAT_COMPACT:
 		return latest.strftime("%Y%m%d%H%M%S")
 
-	# Unix seconds matches the numeric Stamp=82983982 style in the HTTP PUSH SDK.
+	# Legacy option — some middleware uses Unix seconds.
 	return str(cint(latest.timestamp()))
 
 

@@ -117,9 +117,10 @@ class ADMSRenderer(BaseRenderer):
                 title=f"TimeBridge ADMS: handler {endpoint} crashed",
                 message=tb,
             )
-            # Still answer OK: a 500 makes the firmware drop the batch it was
-            # holding, and losing punches is worse than losing this upload.
-            text = "OK"
+            # Still answer with an error description in a 200 body — never bare OK
+            # on a data POST, or the firmware treats the upload as failed and
+            # retries; never HTTP 500, or it discards the batch.
+            text = "Error: internal failure"
 
         return self.build_response(
             text,
