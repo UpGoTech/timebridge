@@ -24,6 +24,7 @@ import frappe
 from frappe.utils import cint
 
 from timebridge.timebridge.adms import parser
+from timebridge.timebridge.services.machine_log import write_machine_log
 
 # Tables that carry pictures rather than punches, across the firmwares that
 # name them differently.
@@ -214,10 +215,11 @@ def save_photos_from_fields(machine, rows, source):
     )
 
     if not existing:
-        frappe.log_error(
-            title="TimeBridge ADMS: photo for unknown user",
-            message=f"Machine {machine} sent a photo for user id {user_id!r}, "
-                    f"which has no TimeBridge Machine User record.",
+        write_machine_log(
+            machine=machine,
+            level="Warning",
+            event="Photo",
+            message=f"Photo for unknown user id {user_id!r}",
         )
         return None
 
@@ -313,9 +315,12 @@ def handle_photo(machine, args, raw_bytes, body_text, source):
 
         if not user_id or not image:
 
-            frappe.log_error(
-                title="TimeBridge ADMS: unrecognised photo payload",
-                message=(
+            write_machine_log(
+                machine=machine,
+                level="Warning",
+                event="Photo",
+                message="Unrecognised photo payload",
+                details=(
                     f"machine={machine} source={source}\n"
                     f"user_id={user_id!r} image_found={bool(image)}\n"
                     f"args={dict(args)}\n"
@@ -330,7 +335,15 @@ def handle_photo(machine, args, raw_bytes, body_text, source):
 
     except Exception:
         frappe.db.rollback()
+        tb = frappe.get_traceback()
+        write_machine_log(
+            machine=machine,
+            level="Error",
+            event="Photo",
+            message="Photo save failed",
+            details=tb,
+        )
         frappe.log_error(
             title="TimeBridge ADMS: photo save failed",
-            message=frappe.get_traceback(),
+            message=tb,
         )

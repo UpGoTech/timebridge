@@ -535,6 +535,15 @@ def test_connection(machine_id):
                 "Disconnected"
             )
 
+            from timebridge.timebridge.services.machine_log import write_machine_log
+
+            write_machine_log(
+                machine=machine.name,
+                level="Error",
+                event="Connect",
+                message=f"Cannot reach {ip}:{port}",
+            )
+
             return {
                 "status": "failed",
                 "message": "Machine not reachable"
@@ -543,8 +552,18 @@ def test_connection(machine_id):
 
     except Exception as e:
 
+        tb = frappe.get_traceback()
+        from timebridge.timebridge.services.machine_log import write_machine_log
+
+        write_machine_log(
+            machine=machine.name,
+            level="Error",
+            event="Connect",
+            message=str(e),
+            details=tb,
+        )
         frappe.log_error(
-            frappe.get_traceback(),
+            tb,
             "Biometric Connection Error"
         )
 

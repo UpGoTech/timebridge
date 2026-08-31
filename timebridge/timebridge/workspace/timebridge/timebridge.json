@@ -51,7 +51,7 @@
   {
    "hidden": 0,
    "label": "Data",
-   "link_count": 3,
+   "link_count": 4,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -76,6 +76,14 @@
    "hidden": 0,
    "label": "TimeBridge Sync Log",
    "link_to": "TimeBridge Sync Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "TimeBridge Machine Log",
+   "link_to": "TimeBridge Machine Log",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"

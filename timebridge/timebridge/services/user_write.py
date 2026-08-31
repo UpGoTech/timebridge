@@ -17,6 +17,7 @@ from frappe.utils import cint
 
 from timebridge.timebridge.adms import commands
 from timebridge.timebridge.services.connection import get_connector, is_push_device
+from timebridge.timebridge.services.machine_log import write_machine_log
 
 PRIVILEGE_ZK = {"User": 0, "Admin": 14}
 
@@ -168,6 +169,12 @@ def create_users(user_id, user_name, machines, privilege="User", card=None, pass
 				}
 			)
 		except Exception as e:
+			write_machine_log(
+				machine=machine,
+				level="Error",
+				event="User Write",
+				message=str(e),
+			)
 			results.append({"machine": machine, "ok": False, "message": str(e)})
 
 	return {"user_id": user_id, "results": results}
@@ -216,6 +223,12 @@ def update_user(machine_user, user_name=None, privilege=None, card=None, passwor
 			)
 			results.append({"machine_user": target.name, "ok": True, **device_result})
 		except Exception as e:
+			write_machine_log(
+				machine=target.machine,
+				level="Error",
+				event="User Write",
+				message=str(e),
+			)
 			results.append({"machine_user": target.name, "ok": False, "message": str(e)})
 
 	return {"results": results}
@@ -234,6 +247,12 @@ def delete_users(machine_user, apply_same_pin=0):
 			frappe.delete_doc("TimeBridge Machine User", row.name, ignore_permissions=True)
 			results.append({"machine_user": row.name, "ok": True, **device_result})
 		except Exception as e:
+			write_machine_log(
+				machine=row.machine,
+				level="Error",
+				event="User Write",
+				message=str(e),
+			)
 			results.append({"machine_user": row.name, "ok": False, "message": str(e)})
 
 	return {"results": results}

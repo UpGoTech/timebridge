@@ -20,6 +20,7 @@ import frappe
 from frappe.website.page_renderers.base_renderer import BaseRenderer
 
 from timebridge.timebridge.adms import api, logger, pending
+from timebridge.timebridge.services.machine_log import write_machine_log
 
 ADMS_PREFIX = "iclock"
 
@@ -70,27 +71,51 @@ class ADMSRenderer(BaseRenderer):
                 raw = request.get_data() or b""
                 body = raw.decode("utf-8", errors="replace")
             except Exception:
+                tb = frappe.get_traceback()
+                write_machine_log(
+                    serial=serial,
+                    level="Error",
+                    event="Upload",
+                    message="Could not read ADMS request body",
+                    details=tb,
+                )
                 frappe.log_error(
                     title="TimeBridge ADMS: could not read request body",
-                    message=frappe.get_traceback(),
+                    message=tb,
                 )
 
         if serial and not logger.get_machine_by_serial(serial):
             try:
                 pending.record_signal(serial, endpoint, request.method, args)
             except Exception:
+                tb = frappe.get_traceback()
+                write_machine_log(
+                    serial=serial,
+                    level="Error",
+                    event="Other",
+                    message="Could not record pending device signal",
+                    details=tb,
+                )
                 frappe.log_error(
                     title="TimeBridge ADMS: could not record pending signal",
-                    message=frappe.get_traceback(),
+                    message=tb,
                 )
 
         try:
             text = handler(serial, args, body, request.method, raw=raw)
 
         except Exception:
+            tb = frappe.get_traceback()
+            write_machine_log(
+                serial=serial,
+                level="Error",
+                event="Other",
+                message=f"ADMS handler {endpoint} crashed",
+                details=tb,
+            )
             frappe.log_error(
                 title=f"TimeBridge ADMS: handler {endpoint} crashed",
-                message=frappe.get_traceback(),
+                message=tb,
             )
             # Still answer OK: a 500 makes the firmware drop the batch it was
             # holding, and losing punches is worse than losing this upload.

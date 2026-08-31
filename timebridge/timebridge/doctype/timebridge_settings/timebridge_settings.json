@@ -115,6 +115,7 @@
   },
   {
    "default": "0",
+   "description": "Log every ADMS handshake and heartbeat on Machine Log. Errors and warnings are always stored.",
    "fieldname": "enable_debug_log",
    "fieldtype": "Check",
    "label": "Enable Debug Log"

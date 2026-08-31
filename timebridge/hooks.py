@@ -164,7 +164,10 @@ scheduler_events = {
 		"*/2 * * * *": [
 			"timebridge.timebridge.services.device_status.refresh_push_device_status"
 		],
-	}
+	},
+	"daily": [
+		"timebridge.timebridge.services.machine_log.clear_old_machine_logs",
+	],
 }
 
 # scheduler_events = {
@@ -214,6 +217,7 @@ scheduler_events = {
 ignore_links_on_delete = [
 	"TimeBridge Pending Device Signal",
 	"TimeBridge Device Command",
+	"TimeBridge Machine Log",
 ]
 
 # Request Events
