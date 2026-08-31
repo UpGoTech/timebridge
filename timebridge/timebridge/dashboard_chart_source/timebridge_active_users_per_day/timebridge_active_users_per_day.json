@@ -1,0 +1,13 @@
+{
+ "creation": "2026-08-31 12:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Dashboard Chart Source",
+ "idx": 0,
+ "modified": "2026-08-31 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge Active Users Per Day",
+ "owner": "Administrator",
+ "source_name": "TimeBridge Active Users Per Day",
+ "timeseries": 1
+}

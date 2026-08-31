@@ -36,7 +36,7 @@ page_renderer = [
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/timebridge/css/timebridge.css"
-# app_include_js removed: device-mirror page is dynamic (jinja html) and no longer cached stale
+# app_include_js = "/assets/timebridge/js/timebridge_desk.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/timebridge/css/timebridge.css"
