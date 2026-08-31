@@ -11,12 +11,13 @@ even when every POST was answered with OK.
 
 The Attendance PUSH spec (§11.2) encodes punch times as YYYY-MM-DD HH:MM:SS.
 When a device always sends placeholder Stamp=9999, fall back to the latest
-punch time in a format chosen per machine (Attendance DateTime by default).
+punch or operation time in a format chosen per machine (Attendance DateTime
+by default).
 """
 
 import frappe
 
-from frappe.utils import cint, get_datetime
+from frappe.utils import cint, get_datetime, now_datetime
 
 DEFAULT_STAMP = "9999"
 
@@ -167,6 +168,36 @@ def resolve_stamp_format(machine):
 	return infer_stamp_format(stored)
 
 
+def resolve_operlog_stamp_format(machine):
+	"""Stamp encoding for OPERLOG fallbacks — follow oper stamp, then attlog."""
+
+	if not machine:
+		return STAMP_FORMAT_ATTLOG
+
+	stored = frappe.db.get_value("TimeBridge Machine", machine, OPERLOG_FIELD)
+	if normalize_upload_stamp(stored):
+		return infer_stamp_format(stored)
+
+	return resolve_stamp_format(machine)
+
+
+def format_datetime_stamp(value, stamp_format=None):
+	"""Encode one datetime in the chosen stamp format."""
+
+	stamp_format = stamp_format or STAMP_FORMAT_ATTLOG
+
+	if stamp_format == STAMP_FORMAT_ISO:
+		return value.strftime("%Y-%m-%dT%H:%M:%S")
+
+	if stamp_format == STAMP_FORMAT_ATTLOG:
+		return value.strftime("%Y-%m-%d %H:%M:%S")
+
+	if stamp_format == STAMP_FORMAT_COMPACT:
+		return value.strftime("%Y%m%d%H%M%S")
+
+	return str(cint(value.timestamp()))
+
+
 def stamp_from_attlog_records(records, stamp_format=None):
 	"""Fallback when a batch omits Stamp: latest punch time in the chosen format."""
 
@@ -186,36 +217,59 @@ def stamp_from_attlog_records(records, stamp_format=None):
 	if latest is None:
 		return None
 
-	stamp_format = stamp_format or STAMP_FORMAT_ATTLOG
+	return format_datetime_stamp(latest, stamp_format or STAMP_FORMAT_ATTLOG)
 
-	if stamp_format == STAMP_FORMAT_ISO:
-		return latest.strftime("%Y-%m-%dT%H:%M:%S")
 
-	if stamp_format == STAMP_FORMAT_ATTLOG:
-		return latest.strftime("%Y-%m-%d %H:%M:%S")
+def stamp_from_operlog_rows(op_rows, stamp_format=None):
+	"""Fallback when OPERLOG omits Stamp: latest OPLOG row time in the batch."""
 
-	if stamp_format == STAMP_FORMAT_COMPACT:
-		return latest.strftime("%Y%m%d%H%M%S")
+	if not op_rows:
+		return None
 
-	# Legacy option — some middleware uses Unix seconds.
-	return str(cint(latest.timestamp()))
+	latest = None
+
+	for row in op_rows:
+		try:
+			stamp = get_datetime(row.get("op_time"))
+		except Exception:
+			continue
+		if latest is None or stamp > latest:
+			latest = stamp
+
+	if latest is None:
+		return None
+
+	return format_datetime_stamp(latest, stamp_format or STAMP_FORMAT_ATTLOG)
+
+
+def stamp_now(stamp_format=None):
+	"""Last-resort cursor when a POST carried no usable Stamp or row times."""
+
+	return format_datetime_stamp(now_datetime(), stamp_format or STAMP_FORMAT_ATTLOG)
 
 
 def record_attlog_stamp(machine, args, table, records):
 	"""Persist attendance stamp after a batch was accepted."""
 
+	stamp_format = resolve_stamp_format(machine)
 	stamp = parse_upload_stamp(args, table, (args or {}).get("table"))
 	if not stamp:
-		stamp = stamp_from_attlog_records(records, resolve_stamp_format(machine))
+		stamp = stamp_from_attlog_records(records, stamp_format)
 
 	if stamp:
 		_persist_stamp(machine, ATTLOG_FIELD, stamp)
 
 
-def record_operlog_stamp(machine, args, table):
-	"""Persist operation stamp after a user batch was accepted."""
+def record_operlog_stamp(machine, args, table, op_rows=None):
+	"""Persist operation stamp after an OPERLOG/USERINFO batch was accepted."""
 
+	stamp_format = resolve_operlog_stamp_format(machine)
 	stamp = parse_upload_stamp(args, table, (args or {}).get("table"))
+	if not stamp:
+		stamp = stamp_from_operlog_rows(op_rows or [], stamp_format)
+	if not stamp:
+		stamp = stamp_now(stamp_format)
+
 	if stamp:
 		_persist_stamp(machine, OPERLOG_FIELD, stamp)
 

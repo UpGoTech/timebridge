@@ -44,13 +44,13 @@ from timebridge.timebridge.services.machine_log import write_machine_log
 # "1111000000" asking for fingerprint enrolments while switching off the two
 # flags — EnrollUser and ChgUser — that make the device report its people at all.
 #
-# Punches need AttLog, OpLog and AttPhoto; TimeBridge Machine Users need
-# EnrollUser and ChgUser. FACE and UserPic (positions 9 and 10) are what permit
-# enrolment photographs — Bio-Photo — and are opened only while Fetch Photos is
-# running. The fingerprint switches stay off: they are unused here, and turning
-# every bit on is what some firmwares reject.
-TRANSFLAG_PUNCHES_ONLY = "1110101000"
-TRANSFLAG_WITH_PHOTOS = "1110101011"
+# Punches need AttLog and AttPhoto; TimeBridge Machine Users need EnrollUser
+# and ChgUser on the OPERLOG table. OpLog (position 2) is the device audit
+# channel (OPLOG rows — door opened, admin login). Fabrixcel Gate floods it
+# with empty POSTs when enabled; USER rows are gated by EnrollUser (5), not
+# OpLog (2). FACE and UserPic (positions 9 and 10) open during Fetch Photos.
+TRANSFLAG_PUNCHES_ONLY = "1010101000"
+TRANSFLAG_WITH_PHOTOS = "1010101011"
 
 # The device polls /iclock/getrequest every Delay seconds and looks for new data
 # to transmit every TransInterval minutes. Realtime=1 makes punches leave as
@@ -209,32 +209,54 @@ def _body_line_count(body):
     return len([line for line in (body or "").splitlines() if line.strip()])
 
 
+def _operlog_ack_count(body, records, skipped, op_rows, photo_rows):
+    """Lines the device sent — under-counting reads as a partial failure."""
+
+    return max(
+        _body_line_count(body),
+        len(records) + len(skipped),
+        len(op_rows),
+        len(photo_rows),
+    )
+
+
 def _receive_attlog(machine, args, body):
 
     records, skipped = parser.parse_attlog(body)
     table = parser.parse_table_name(args.get("table"))
-
-    sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-    log_name = logger.open_sync_log(machine, "Attendance", sync_batch)
+    fetched = len(records) + len(skipped)
 
     try:
-        result = logger.save_punches(machine, records, sync_batch=sync_batch)
+        result = logger.save_punches(machine, records)
 
-        logger.close_sync_log(
-            log_name,
-            "Success",
-            fetched=len(records) + len(skipped),
-            created=result["created"],
-            skipped=result["duplicates"] + result["invalid"] + len(skipped),
-            error=(
-                f"{len(skipped)} unparseable line(s), {result['invalid']} bad timestamp(s), "
-                f"{result['unmatched']} punch(es) with no TimeBridge Machine User"
-                if (skipped or result["invalid"] or result["unmatched"]) else None
-            ),
+        # Re-upload loops created thousands of identical Success rows. Skip the
+        # sync log when every parsed punch was a duplicate — ingest still ran,
+        # the stamp still advances, and the device still gets OK: <count>.
+        all_duplicates = (
+            records
+            and result["created"] == 0
+            and result["duplicates"] == len(records)
+            and not skipped
+            and not result["invalid"]
+            and not result["unmatched"]
         )
 
-        # Even duplicate-only batches were accepted — advance Stamp so the
-        # device stops re-sending the same log on the next handshake.
+        if not all_duplicates:
+            sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+            log_name = logger.open_sync_log(machine, "Attendance", sync_batch)
+            logger.close_sync_log(
+                log_name,
+                "Success",
+                fetched=fetched,
+                created=result["created"],
+                skipped=result["duplicates"] + result["invalid"] + len(skipped),
+                error=(
+                    f"{len(skipped)} unparseable line(s), {result['invalid']} bad timestamp(s), "
+                    f"{result['unmatched']} punch(es) with no TimeBridge Machine User"
+                    if (skipped or result["invalid"] or result["unmatched"]) else None
+                ),
+            )
+
         stamps.record_attlog_stamp(machine, args, table, records)
 
         frappe.db.commit()
@@ -247,8 +269,9 @@ def _receive_attlog(machine, args, body):
     except Exception:
         frappe.db.rollback()
         tb = frappe.get_traceback()
-        logger.close_sync_log(log_name, "Failed", fetched=len(records),
-                              error=tb[:1000])
+        sync_batch = frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+        log_name = logger.open_sync_log(machine, "Attendance", sync_batch)
+        logger.close_sync_log(log_name, "Failed", fetched=fetched, error=tb[:1000])
         write_machine_log(
             machine=machine,
             level="Error",
@@ -264,7 +287,7 @@ def _receive_attlog(machine, args, body):
         # makes the firmware throw the records away, and that is still avoided.
         return "Error: ATTLOG ingest failed"
 
-    return ack(len(records) + len(skipped))
+    return ack(fetched)
 
 
 def _receive_userinfo(machine, args, body):
@@ -297,7 +320,7 @@ def _receive_userinfo(machine, args, body):
 
             frappe.db.set_value("TimeBridge Machine", machine, "last_user_sync",
                                 frappe.utils.now_datetime())
-            stamps.record_operlog_stamp(machine, args, table)
+            stamps.record_operlog_stamp(machine, args, table, op_rows=op_rows)
             frappe.db.commit()
 
         except Exception:
@@ -335,7 +358,7 @@ def _receive_userinfo(machine, args, body):
                     f"{len(photo_rows)} photo row(s), no user records"
                 ),
             )
-        stamps.record_operlog_stamp(machine, args, table)
+        stamps.record_operlog_stamp(machine, args, table, op_rows=op_rows)
         frappe.db.commit()
 
     # Enrolment pictures often ride in OPERLOG as PIN + Content, not as a
@@ -363,7 +386,7 @@ def _receive_userinfo(machine, args, body):
     # Count every line the device sent, not just the ones we model. An OPERLOG
     # is a mixed bag of USER, OPLOG and photo rows, and under-counting it reads
     # to the firmware as a partial failure.
-    return ack(max(_body_line_count(body), len(records) + len(skipped)))
+    return ack(_operlog_ack_count(body, records, skipped, op_rows, photo_rows))
 
 
 def handle_getrequest(serial, args, body, method, raw=None):

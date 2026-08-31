@@ -17,6 +17,8 @@ and we need the raw POST payload.
 
 import frappe
 
+from email.utils import formatdate
+
 from frappe.website.page_renderers.base_renderer import BaseRenderer
 
 from timebridge.timebridge.adms import api, logger, pending
@@ -122,10 +124,16 @@ class ADMSRenderer(BaseRenderer):
             # retries; never HTTP 500, or it discards the batch.
             text = "Error: internal failure"
 
+        headers = {
+            "Content-Type": "text/plain; charset=utf-8",
+            # Attendance PUSH §5: required for device clock sync (GMT).
+            "Date": formatdate(usegmt=True),
+        }
+
         return self.build_response(
             text,
             http_status_code=200,
-            headers={"Content-Type": "text/plain; charset=utf-8"},
+            headers=headers,
         )
 
     @staticmethod

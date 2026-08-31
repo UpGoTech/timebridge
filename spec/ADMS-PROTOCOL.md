@@ -15,7 +15,9 @@ TimeBridge push devices (`sdk_type: ADMS`, `table=ATTLOG`, `/iclock/cdata`) impl
 
 3. **Wrong handshake keys** — Attendance names are `ATTLOGStamp`, `OPERLOGStamp`, `ATTPHOTOStamp`. Invented keys (`OpStamp`, `AttLogStamp`) are ignored. Handshake must also include `TransTimes`, `TransInterval`, and `TimeZone` (minutes for half-hour zones — IST = `330`).
 
-4. **OPERLOG stamp only on USER rows** — Most OPERLOG POSTs are `OPLOG …` audit lines with no `PIN=`. Stamp must advance on every accepted OPERLOG, not only when `parse_userinfo` finds people.
+4. **OPERLOG stamp only on USER rows** — Most OPERLOG POSTs are `OPLOG …` audit lines with no `PIN=`. Stamp must advance on every accepted OPERLOG, not only when `parse_userinfo` finds people. Empty POSTs with `Stamp=9999` fall back to server time so `OPERLOGStamp` is never stuck at `9999`.
+
+5. **OpLog TransFlag left off** — Position 2 (`OpLog`) gates the audit channel that Fabrixcel floods with empty POSTs. `USER` rows on `table=OPERLOG` are gated by `EnrollUser` (5), not `OpLog` (2). Handshake uses `1010101000` / `1010101011`.
 
 ## Fixes (merged to `develop`)
 
