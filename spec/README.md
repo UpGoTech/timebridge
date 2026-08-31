@@ -2,7 +2,7 @@
 
 Master tracker for all numbered specs under `spec/`. Each spec has its own detailed phase tracker; this file rolls up status so you can see the whole roadmap at a glance.
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-08-31
 
 ---
 
@@ -24,14 +24,16 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 ```
 001 ADMS Device Discovery     ████████████████████░  ~96%   Merged (PR #3) — B7 deferred
 002 Device Mirror             ░░░░░░░░░░░░░░░░░░░░    —    Discontinued (see 003)
-003 Device I/O reset          ████████████████████░  ~95%   Implemented on feat/003-device-io
+003 Device I/O reset          ████████████████████░  ~95%   Merged to develop
+004 Machine diagnostic log    ████████████████████░  ~95%   Implemented on feat/004-machine-log
 ```
 
 | Spec | Title | Branch | Status | v1 progress | Next action |
 |------|-------|--------|--------|-------------|-------------|
 | [**001**](001-adms-device-discovery.md) | ADMS Device Discovery & Registration | — (merged) | **Merged** PR #3 | **25 / 26** · B7 deferred | Folded into 003 wizard (push inbox) |
 | [**002**](002-device-mirror.md) | Device Mirror | — | **Discontinued** | — | Not shipping; templates/restore out of product |
-| [**003**](003-device-io.md) | Device I/O reset | `feat/003-device-io` | **Implemented** | Phases A–F | Manual QA; PR to develop |
+| [**003**](003-device-io.md) | Device I/O reset | — (merged) | **Merged** | Phases A–F | — |
+| [**004**](004-machine-log.md) | Machine diagnostic log | `feat/004-machine-log` | **Implemented** | Phase 1–5 | PR to develop |
 
 ---
 
@@ -65,16 +67,7 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 |-------|-------|
 | **Doc** | [003-device-io.md](003-device-io.md) |
 | **One-liner** | Strip HRIS + Mirror; Add Machine wizard; Desk-owned user write; diagnostic punched Yes/No |
-| **Status** | **In progress** on `feat/003-device-io` |
-
-### Locked decisions (summary)
-
-- TimeBridge is device I/O. Attendance as HR lives elsewhere.
-- Person = Machine User per (machine, PIN).
-- Roll sheet = punched Yes/No in a date range (not working-day Absent).
-- Wizard: operator picks Pull or Push.
-- Desk owns create/edit/delete of PIN+name; harvest JPEGs only; no templates.
-- Greenfield: no compatibility with old Employee/Attendance data.
+| **Status** | **Merged** to develop |
 
 ### Phase rollup
 
@@ -89,12 +82,32 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 
 ---
 
+## Spec 004 — Machine diagnostic log
+
+| Field | Value |
+|-------|-------|
+| **Doc** | [004-machine-log.md](004-machine-log.md) |
+| **One-liner** | Per-machine log for connect/ADMS/pull errors and warnings |
+| **Status** | **In progress** on `feat/004-machine-log` |
+
+### Phase rollup
+
+| Phase | Name | Rollup |
+|-------|------|--------|
+| 1 | Spec + DocType | `[x]` |
+| 2 | Helper + retention | `[x]` |
+| 3 | Instrument code paths | `[x]` |
+| 4 | Tests | `[x]` |
+
+---
+
 ## Cross-spec dependencies
 
 | Dependent | Depends on | Notes |
 |-----------|------------|-------|
 | 003 push wizard | 001 pending signals | Reuse Pending Device Signal + register |
 | 003 user write (push) | ADMS `/iclock/getrequest` | Durable command queue |
+| 004 machine log | 003 device I/O | Sync Log stays ingest-only |
 | 002 | — | Discontinued |
 
 ---
@@ -104,7 +117,8 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | Order | Spec | Rationale |
 |-------|------|-----------|
 | 1 | **001** ✓ merged | ADMS discovery |
-| 2 | **003** | Product reset (this version) |
+| 2 | **003** ✓ merged | Product reset |
+| 3 | **004** | Machine diagnostic log |
 | — | **002** | Abandoned |
 
 ---
@@ -125,3 +139,4 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` is r
 | 2026-08-28 | Initial index: 001 + 002 rollup |
 | 2026-08-29 | 001 merged (PR #3); reconcile tracker |
 | 2026-08-30 | 003 Device I/O reset; 002 discontinued |
+| 2026-08-31 | 004 Machine diagnostic log |

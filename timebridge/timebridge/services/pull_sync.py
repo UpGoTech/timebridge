@@ -35,6 +35,7 @@ from timebridge.timebridge.services.device_info import (
     set_machine_status,
     uses_udp,
 )
+from timebridge.timebridge.services.machine_log import write_machine_log
 
 PULL_SYNC_EVENT = "timebridge_pull_sync"
 
@@ -270,12 +271,19 @@ def pull_users_only(machine_id, on_stage=None):
     if not reachable:
 
         set_machine_status(device, "Disconnected")
+        msg = f"Cannot reach {device.ip_address}:{port} — {detail}"
+        write_machine_log(
+            machine=machine_id,
+            level="Error",
+            event="Pull",
+            message=msg,
+        )
 
         return {
             "status": "failed",
             "failed_step": STEP_NETWORK,
             "machine_status": "Disconnected",
-            "message": f"Cannot reach {device.ip_address}:{port} — {detail}"
+            "message": msg
         }
 
     connector = get_connector(device)
@@ -304,7 +312,15 @@ def pull_users_only(machine_id, on_stage=None):
 
     except Exception as e:
 
-        frappe.log_error(frappe.get_traceback(), "TimeBridge: Pull Users Error")
+        tb = frappe.get_traceback()
+        write_machine_log(
+            machine=machine_id,
+            level="Error",
+            event="Pull",
+            message=str(e),
+            details=tb,
+        )
+        frappe.log_error(tb, "TimeBridge: Pull Users Error")
 
         set_machine_status(device, "Disconnected")
 
@@ -322,8 +338,16 @@ def pull_users_only(machine_id, on_stage=None):
             connector.disconnect(conn)
 
         except Exception:
+            tb = frappe.get_traceback()
+            write_machine_log(
+                machine=machine_id,
+                level="Warning",
+                event="Pull",
+                message="Device disconnect failed after pull users",
+                details=tb,
+            )
             frappe.log_error(
-                frappe.get_traceback(),
+                tb,
                 "TimeBridge: Device Disconnect Error"
             )
 
@@ -456,12 +480,19 @@ def pull_all_data(machine_id, days=30, on_stage=None):
     if not reachable:
 
         set_machine_status(device, "Disconnected")
+        msg = f"Cannot reach {device.ip_address}:{port} — {detail}"
+        write_machine_log(
+            machine=machine_id,
+            level="Error",
+            event="Pull",
+            message=msg,
+        )
 
         return {
             "status": "failed",
             "failed_step": STEP_NETWORK,
             "machine_status": "Disconnected",
-            "message": f"Cannot reach {device.ip_address}:{port} — {detail}"
+            "message": msg
         }
 
     connector = get_connector(device)
@@ -504,15 +535,31 @@ def pull_all_data(machine_id, days=30, on_stage=None):
             try:
                 photos = getter(conn, users) or []
             except Exception:
+                tb = frappe.get_traceback()
+                write_machine_log(
+                    machine=machine_id,
+                    level="Warning",
+                    event="Photo",
+                    message="Pull photo read failed",
+                    details=tb,
+                )
                 frappe.log_error(
-                    frappe.get_traceback(),
+                    tb,
                     "TimeBridge: Pull Photo Read Error"
                 )
                 photos = []
 
     except Exception as e:
 
-        frappe.log_error(frappe.get_traceback(), "TimeBridge: Pull Sync Error")
+        tb = frappe.get_traceback()
+        write_machine_log(
+            machine=machine_id,
+            level="Error",
+            event="Pull",
+            message=str(e),
+            details=tb,
+        )
+        frappe.log_error(tb, "TimeBridge: Pull Sync Error")
 
         set_machine_status(device, "Disconnected")
 
@@ -533,8 +580,16 @@ def pull_all_data(machine_id, days=30, on_stage=None):
             connector.disconnect(conn)
 
         except Exception:
+            tb = frappe.get_traceback()
+            write_machine_log(
+                machine=machine_id,
+                level="Warning",
+                event="Pull",
+                message="Device disconnect failed after pull users",
+                details=tb,
+            )
             frappe.log_error(
-                frappe.get_traceback(),
+                tb,
                 "TimeBridge: Device Disconnect Error"
             )
 
@@ -589,7 +644,15 @@ def store_users(machine_id, users, sync_batch, stage):
 
     except Exception as e:
 
-        frappe.log_error(frappe.get_traceback(), "TimeBridge: Pull User Save Error")
+        tb = frappe.get_traceback()
+        write_machine_log(
+            machine=machine_id,
+            level="Error",
+            event="Pull",
+            message=f"Pull user save failed: {e}",
+            details=tb,
+        )
+        frappe.log_error(tb, "TimeBridge: Pull User Save Error")
 
         logger.close_sync_log(sync_log, "Failed", fetched=len(users), error=str(e))
 
@@ -676,7 +739,15 @@ def store_punches(machine_id, punches, days, sync_batch, stage):
 
     except Exception as e:
 
-        frappe.log_error(frappe.get_traceback(), "TimeBridge: Pull Punch Save Error")
+        tb = frappe.get_traceback()
+        write_machine_log(
+            machine=machine_id,
+            level="Error",
+            event="Pull",
+            message=f"Pull punch save failed: {e}",
+            details=tb,
+        )
+        frappe.log_error(tb, "TimeBridge: Pull Punch Save Error")
 
         logger.close_sync_log(
             sync_log,

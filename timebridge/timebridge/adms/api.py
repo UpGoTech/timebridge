@@ -26,6 +26,7 @@ cannot create records.
 import frappe
 
 from timebridge.timebridge.adms import commands, logger, parser, photos
+from timebridge.timebridge.services.machine_log import write_machine_log
 
 # Handshake reply. The device parses these keys to decide how often to talk to
 # us and what it is allowed to send. Realtime=1 asks it to push as punches
@@ -81,16 +82,25 @@ def handle_cdata(serial, args, body, method, raw=None):
         commands.record_contact(machine, "handshake" if method in ("GET", "HEAD") else "upload")
 
     if method in ("GET", "HEAD"):
+        if machine:
+            write_machine_log(
+                machine=machine,
+                serial=serial,
+                level="Info",
+                event="Handshake",
+                message="ADMS handshake",
+            )
         return HANDSHAKE_TEMPLATE.format(
             serial=serial or "UNKNOWN", transflag=current_transflag()
         )
 
     if not machine:
-        # Refuse to store data for a device nobody registered, but keep the
-        # payload so the serial can be matched up afterwards.
-        frappe.log_error(
-            title="TimeBridge ADMS: unknown device serial",
-            message=f"Serial {serial!r} matches no TimeBridge Machine.\n\nBody:\n{body[:2000]}",
+        write_machine_log(
+            serial=serial,
+            level="Warning",
+            event="Upload",
+            message=f"Upload from unknown serial {serial!r}",
+            details=body[:2000] if body else None,
         )
         return "OK"
 
@@ -114,7 +124,13 @@ def handle_cdata(serial, args, body, method, raw=None):
 
     # Unrecognised table: acknowledge so the device does not retry forever,
     # but leave a trace that something arrived we do not handle yet.
-    frappe.logger().info(f"[TimeBridge ADMS] {serial}: unhandled table {table!r}")
+    write_machine_log(
+        machine=machine,
+        serial=serial,
+        level="Warning",
+        event="Upload",
+        message=f"Unhandled ADMS table {table!r}",
+    )
 
     return "OK"
 
@@ -151,10 +167,18 @@ def _receive_attlog(machine, body):
 
     except Exception:
         frappe.db.rollback()
+        tb = frappe.get_traceback()
         logger.close_sync_log(log_name, "Failed", fetched=len(records),
-                              error=frappe.get_traceback()[:1000])
+                              error=tb[:1000])
+        write_machine_log(
+            machine=machine,
+            level="Error",
+            event="Upload",
+            message="ATTLOG ingest failed",
+            details=tb,
+        )
         frappe.db.commit()
-        frappe.log_error(title="TimeBridge ADMS: ATTLOG failed", message=frappe.get_traceback())
+        frappe.log_error(title="TimeBridge ADMS: ATTLOG failed", message=tb)
 
     # The device only wants an acknowledgement. Reporting a failure here would
     # make it discard the batch, and we would rather keep it for a retry.
@@ -193,10 +217,18 @@ def _receive_userinfo(machine, body):
 
         except Exception:
             frappe.db.rollback()
+            tb = frappe.get_traceback()
             logger.close_sync_log(log_name, "Failed", fetched=len(records),
-                                  error=frappe.get_traceback()[:1000])
+                                  error=tb[:1000])
+            write_machine_log(
+                machine=machine,
+                level="Error",
+                event="Upload",
+                message="USERINFO ingest failed",
+                details=tb,
+            )
             frappe.db.commit()
-            frappe.log_error(title="TimeBridge ADMS: USERINFO failed", message=frappe.get_traceback())
+            frappe.log_error(title="TimeBridge ADMS: USERINFO failed", message=tb)
 
     # Enrolment pictures often ride in OPERLOG as PIN + Content, not as a
     # USERPIC table. Harvest them even when the POST had no people to save.
@@ -207,9 +239,17 @@ def _receive_userinfo(machine, body):
                 frappe.db.commit()
         except Exception:
             frappe.db.rollback()
+            tb = frappe.get_traceback()
+            write_machine_log(
+                machine=machine,
+                level="Error",
+                event="Photo",
+                message="OPERLOG photo harvest failed",
+                details=tb,
+            )
             frappe.log_error(
                 title="TimeBridge ADMS: OPERLOG photo harvest failed",
-                message=frappe.get_traceback(),
+                message=tb,
             )
 
     return "OK"
@@ -231,11 +271,23 @@ def handle_getrequest(serial, args, body, method, raw=None):
 
     commands.record_contact(machine, "poll")
 
+    write_machine_log(
+        machine=machine,
+        serial=serial,
+        level="Info",
+        event="Heartbeat",
+        message="ADMS heartbeat (getrequest)",
+    )
+
     pending = commands.pop_commands(machine)
 
     if pending:
-        frappe.logger().info(
-            f"[TimeBridge ADMS] {machine}: sending {len(pending)} command(s)"
+        write_machine_log(
+            machine=machine,
+            serial=serial,
+            level="Info",
+            event="Command",
+            message=f"Sending {len(pending)} command(s) to device",
         )
 
     return commands.format_commands(pending)
@@ -254,7 +306,14 @@ def handle_devicecmd(serial, args, body, method, raw=None):
     if machine:
         commands.record_contact(machine, "command result")
 
-        frappe.logger().info(f"[TimeBridge ADMS] {machine}: command result {body[:200]!r}")
+        write_machine_log(
+            machine=machine,
+            serial=serial,
+            level="Info",
+            event="Command",
+            message="Device command result",
+            details=body[:500] if body else None,
+        )
 
     return "OK"
 
@@ -285,6 +344,16 @@ def handle_querydata(serial, args, body, method, raw=None):
 def handle_ping(serial, args, body, method, raw=None):
     """Some firmwares probe this before talking properly."""
 
+    machine = logger.get_machine_by_serial(serial)
+    if machine:
+        write_machine_log(
+            machine=machine,
+            serial=serial,
+            level="Info",
+            event="Ping",
+            message="ADMS ping",
+        )
+
     return "OK"
 
 
@@ -300,9 +369,11 @@ def handle_fdata(serial, args, body, method, raw=None):
 
     if not machine:
 
-        frappe.log_error(
-            title="TimeBridge ADMS: photo from unknown device serial",
-            message=f"Serial {serial!r} matches no TimeBridge Machine.",
+        write_machine_log(
+            serial=serial,
+            level="Warning",
+            event="Photo",
+            message=f"Photo from unknown serial {serial!r}",
         )
 
         return "OK"

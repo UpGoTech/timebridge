@@ -171,8 +171,17 @@ class PyZKConnector:
 
         except Exception:
 
+            from timebridge.timebridge.services.machine_log import write_machine_log
+
+            tb = frappe.get_traceback()
+            write_machine_log(
+                level="Warning",
+                event="Connect",
+                message="Device read_sizes failed",
+                details=tb,
+            )
             frappe.log_error(
-                frappe.get_traceback(),
+                tb,
                 "TimeBridge: read_sizes failed"
             )
 

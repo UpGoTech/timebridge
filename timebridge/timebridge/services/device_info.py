@@ -10,6 +10,7 @@ from timebridge.timebridge.sdk_connectors.pyzk_connector import (
     RETRY_BACKOFF_SECONDS,
 )
 from timebridge.timebridge.services.connection import get_connector
+from timebridge.timebridge.services.machine_log import write_machine_log
 
 DEVICE_INFO_EVENT = "timebridge_device_info"
 
@@ -331,12 +332,19 @@ def fetch_device_info(machine_id, on_stage=None):
     if not reachable:
 
         set_machine_status(device, "Disconnected")
+        msg = f"Cannot reach {device.ip_address}:{port} — {detail}"
+        write_machine_log(
+            machine=device.name,
+            level="Error",
+            event="Probe",
+            message=msg,
+        )
 
         return {
             "status": "failed",
             "failed_step": STEP_NETWORK,
             "machine_status": "Disconnected",
-            "message": f"Cannot reach {device.ip_address}:{port} — {detail}"
+            "message": msg
         }
 
     stage(
@@ -369,8 +377,16 @@ def fetch_device_info(machine_id, on_stage=None):
 
     except Exception as e:
 
+        tb = frappe.get_traceback()
+        write_machine_log(
+            machine=device.name,
+            level="Error",
+            event="Connect",
+            message=str(e),
+            details=tb,
+        )
         frappe.log_error(
-            frappe.get_traceback(),
+            tb,
             "TimeBridge: Device Info Error"
         )
 
@@ -394,8 +410,16 @@ def fetch_device_info(machine_id, on_stage=None):
 
         except Exception:
 
+            tb = frappe.get_traceback()
+            write_machine_log(
+                machine=device.name,
+                level="Warning",
+                event="Connect",
+                message="Device disconnect failed after device info fetch",
+                details=tb,
+            )
             frappe.log_error(
-                frappe.get_traceback(),
+                tb,
                 "TimeBridge: Device Disconnect Error"
             )
 
