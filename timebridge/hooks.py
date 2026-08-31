@@ -93,12 +93,12 @@ page_renderer = [
 # ------------
 
 before_install = "timebridge.install.before_install"
-# after_install = "timebridge.install.after_install"
+after_install = "timebridge.install.after_install"
 
 # Uninstallation
 # ------------
 
-# before_uninstall = "timebridge.uninstall.before_uninstall"
+before_uninstall = "timebridge.uninstall.before_uninstall"
 # after_uninstall = "timebridge.uninstall.after_uninstall"
 
 # Integration Setup

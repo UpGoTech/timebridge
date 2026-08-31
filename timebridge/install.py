@@ -21,6 +21,14 @@ def before_install():
 	ensure_pyzk()
 
 
+def after_install():
+	"""Desk workspaces must match module JSON on every fresh install-app."""
+
+	from timebridge.timebridge.services.workspace_sync import sync_app_workspaces
+
+	sync_app_workspaces(force=True)
+
+
 def ensure_pyzk():
 	"""Install pyzk into the bench virtualenv when it is missing."""
 

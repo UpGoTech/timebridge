@@ -17,6 +17,7 @@ Two transports, both implemented:
 
 Always load and use frappe-app-dev skills.
 
+When adding or changing **Desk Workspace** links, shortcuts, or cards (DocType / Page / Report on the app workspace), also load and follow **frappe-workspace** (`.agents/skills/frappe-workspace/SKILL.md`). Editing workspace JSON alone does not update existing sites — sync via patch + `after_install`.
 
 When creating or fixing **Desk Pages** (filters, Link autocomplete, breadcrumbs, double-click handlers, mobile layout), also load and follow **desk-page-ui** (`.agents/skills/desk-page-ui/SKILL.md`).
 
