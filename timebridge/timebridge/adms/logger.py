@@ -200,6 +200,10 @@ def link_unmatched_punches(machine):
 def open_sync_log(machine, sync_type, sync_batch):
     """Record that a push arrived, before doing the work."""
 
+    # Site config: bench --site <site> set-config timebridge_silence_device_logs 1
+    if frappe.conf.get("timebridge_silence_device_logs"):
+        return None
+
     doc = frappe.get_doc({
         "doctype": "TimeBridge Sync Log",
         "machine": machine,

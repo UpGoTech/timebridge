@@ -218,6 +218,7 @@ ignore_links_on_delete = [
 	"TimeBridge Pending Device Signal",
 	"TimeBridge Device Command",
 	"TimeBridge Machine Log",
+	"TimeBridge Sync Log",
 ]
 
 # Request Events
