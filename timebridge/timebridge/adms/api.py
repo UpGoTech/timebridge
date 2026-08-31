@@ -49,6 +49,8 @@ HANDSHAKE_TEMPLATE = (
     "GET OPTION FROM: {serial}\n"
     "Stamp={stamp}\n"
     "OpStamp={opstamp}\n"
+    "AttLogStamp={stamp}\n"
+    "OperLogStamp={opstamp}\n"
     "ErrorDelay=30\n"
     "Delay=30\n"
     "TransFlag={transflag}\n"
