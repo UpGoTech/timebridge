@@ -1,47 +1,73 @@
 // Copyright (c) 2026, UPGO and contributors
 // For license information, please see license.txt
 
-frappe.provide("timebridge.dashboard");
-
 const TODAYS_PUNCH_SUMMARY_METHOD =
 	"timebridge.timebridge.services.dashboard.get_users_punched_today";
 
-function patch_todays_punch_summary_card() {
-	if (frappe.widget?.__tb_todays_punch_summary_patched) {
-		return;
+function patch_number_card_widgets() {
+	const NumberCardWidget = frappe.widget?.widget_factory?.number_card;
+	if (!NumberCardWidget || NumberCardWidget.__tb_number_card_patched) {
+		return !!NumberCardWidget?.__tb_number_card_patched;
 	}
 
-	frappe
-		.require("frappe/public/js/frappe/widgets/number_card_widget.js")
-		.then((module) => {
-			if (frappe.widget?.__tb_todays_punch_summary_patched) {
+	const original_set_route = NumberCardWidget.prototype.set_route;
+	NumberCardWidget.prototype.set_route = function () {
+		if (this.card_doc?.method === TODAYS_PUNCH_SUMMARY_METHOD) {
+			frappe.route_options = {
+				date:
+					this.data?.route_options?.date ||
+					frappe.datetime.get_today(),
+			};
+			frappe.set_route(this.data?.route || "daily-punch-summary");
+			return;
+		}
+		return original_set_route.call(this);
+	};
+
+	NumberCardWidget.__tb_number_card_patched = true;
+	return true;
+}
+
+function bind_number_card_clicks() {
+	if (document.body.dataset.tbNumberCardClicks) {
+		return;
+	}
+	document.addEventListener(
+		"click",
+		(e) => {
+			const card = e.target.closest(".number-widget-box");
+			if (!card) {
 				return;
 			}
-
-			const NumberCardWidget = module.default;
-			const original_set_route = NumberCardWidget.prototype.set_route;
-
-			NumberCardWidget.prototype.set_route = function () {
-				if (this.card_doc?.method === TODAYS_PUNCH_SUMMARY_METHOD) {
-					timebridge.daily_punch_summary.show({
-						date: frappe.datetime.get_today(),
-					});
-					return;
-				}
-				return original_set_route.call(this);
-			};
-
-			frappe.widget.__tb_todays_punch_summary_patched = true;
-		});
+			if (
+				e.target.closest(
+					".widget-control, .drag-handle, .dropdown-menu, .menu-btn-group"
+				)
+			) {
+				return;
+			}
+			const body = card.querySelector(".widget-body");
+			if (body && !body.contains(e.target)) {
+				e.preventDefault();
+				body.click();
+			}
+		},
+		true
+	);
+	document.body.dataset.tbNumberCardClicks = "1";
 }
 
 (function bootstrap_timebridge_desk() {
-	if (typeof frappe === "undefined") {
+	if (typeof frappe === "undefined" || typeof jQuery === "undefined") {
 		setTimeout(bootstrap_timebridge_desk, 50);
 		return;
 	}
-	frappe.require("/assets/timebridge/js/daily_punch_summary.js").then(() => {
-		frappe.ready(patch_todays_punch_summary_card);
-		patch_todays_punch_summary_card();
-	});
+	const try_patch = () => {
+		bind_number_card_clicks();
+		if (!patch_number_card_widgets()) {
+			setTimeout(try_patch, 100);
+		}
+	};
+	frappe.ready(try_patch);
+	try_patch();
 })();

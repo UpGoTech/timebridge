@@ -27,7 +27,7 @@ Delivered as a **JavaScript modal** (Opening Headcount style) — not a Script R
 
 | Entry point | Behaviour |
 |-------------|-----------|
-| **Today's Punch Summary** card | Opens modal with today's date |
+| **Today's Punch Summary** card | Opens Desk Page with today's date |
 | **Reports → Daily Punch Summary** | Desk Page with the same panel inline |
 | **API** | `get_daily_punch_summary_list(date, machine?)` |
 
@@ -38,11 +38,13 @@ Delivered as a **JavaScript modal** (Opening Headcount style) — not a Script R
 
 | Column | Notes |
 |--------|-------|
-| Machine | Shown only when no machine filter (all machines) |
 | User Name | From TimeBridge Machine User, else device PIN |
 | Punched In | Earliest In punch, else first punch of the day |
 | Punched Out | Latest Out punch, else blank |
+| Working Hrs | Duration from Punched In to Punched Out (`H:MM`); blank when no out punch |
 | Punches | Row count for that user on that day |
+
+Machine is a **filter only** — the Machine column is never shown (including when all machines are selected).
 
 - Default sort: **Punched In** descending; click column headers to re-sort
 - Search bar in toolbar; footer shows user count + **Export CSV**
@@ -55,12 +57,13 @@ Data source: `TimeBridge Punch Log` only (no HR attendance table).
 |--------|-------|
 | Users Punched Today | **Today's Punch Summary** |
 
-Click behaviour: opens the **Daily Punch Summary modal** with `date` = today (card click handler in `timebridge_desk.js`).
+Click behaviour: opens the **Daily Punch Summary** Desk Page with `date` = today (`route` / `route_options` from `get_users_punched_today`).
 
 ### Removed
 
-- Script Report client UI (`daily_punch_summary.js` query report)
+- Script Report client UI (`daily_punch_summary.js` query report grid)
 - Broken earlier popup (`frappe.ui.Dialog` variant)
+- `timebridge_desk.js` Number Card monkey-patch (native `route` on custom card response)
 
 ---
 
@@ -101,6 +104,6 @@ Manual:
 |---|----------|
 | Q1 | Report name: **Daily Punch Summary** |
 | Q2 | Card label: **Today's Punch Summary** |
-| Q3 | Machine filter optional; Machine column when viewing all machines |
+| Q3 | Machine filter optional; Machine column never shown (filter only) |
 | Q4 | Active user = distinct `(machine, device_user_id)` per calendar day |
-| Q5 | Card click opens modal; Reports sidebar opens Desk Page with same panel |
+| Q5 | Card click opens Desk Page; Reports sidebar opens same page with filter sidebar |

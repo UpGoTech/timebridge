@@ -5,19 +5,19 @@ frappe.provide("timebridge.daily_punch_summary");
 
 const DPS_API = "timebridge.timebridge.services.dashboard.get_daily_punch_summary_list";
 
-const DPS_COLUMNS = (show_machine) => {
-	const cols = [];
-	if (show_machine) {
-		cols.push({ key: "machine", label: __("Machine"), sortable: true });
-	}
-	cols.push(
-		{ key: "user_name", label: __("User Name"), sortable: true },
-		{ key: "punched_in_display", label: __("Punched In"), sortable: true, sort_key: "punched_in" },
-		{ key: "punched_out_display", label: __("Punched Out"), sortable: true, sort_key: "punched_out" },
-		{ key: "punches", label: __("Punches"), sortable: true, align: "right" }
-	);
-	return cols;
-};
+const DPS_COLUMNS = () => [
+	{ key: "user_name", label: __("User Name"), sortable: true },
+	{ key: "punched_in_display", label: __("Punched In"), sortable: true, sort_key: "punched_in" },
+	{ key: "punched_out_display", label: __("Punched Out"), sortable: true, sort_key: "punched_out" },
+	{
+		key: "working_hours_display",
+		label: __("Working Hrs"),
+		sortable: true,
+		sort_key: "working_hours",
+		align: "right",
+	},
+	{ key: "punches", label: __("Punches"), sortable: true, align: "right" },
+];
 
 timebridge.daily_punch_summary.show = function (options = {}) {
 	inject_styles();
@@ -62,32 +62,55 @@ timebridge.daily_punch_summary.render_inline = function ($parent, options = {}) 
 		sort_order: "desc",
 		search: "",
 	};
-	const $shell = $('<div class="tb-dps-inline"></div>').appendTo($parent);
-	const ui = build_panel($shell, state, { modal: false });
+	const use_sidebar = Boolean(options.$sidebar);
+	const shell_class = use_sidebar ? "tb-dps-inline tb-dps-with-sidebar" : "tb-dps-inline";
+	const $shell = $(`<div class="${shell_class}"></div>`).appendTo($parent);
+	const ui = build_panel($shell, state, { modal: false, $sidebar: options.$sidebar });
 	wire_panel(ui, state);
 	load_rows(state, ui);
 	return { state, ui, reload: () => load_rows(state, ui) };
 };
 
-function build_panel($root, state, { modal }) {
+function build_panel($root, state, { modal, $sidebar = null }) {
+	const use_sidebar = Boolean($sidebar) && !modal;
 	const subtitle = format_subtitle(state.date, state.machine);
+	const filter_mount = use_sidebar
+		? $('<div class="list-sidebar overlay-sidebar tb-dps-sidebar"></div>').appendTo($sidebar)
+		: $root;
+
+	if (use_sidebar) {
+		filter_mount.html(`
+			<div class="sidebar-section">
+				<div class="sidebar-label">${__("Filters")}</div>
+				<div class="tb-dps-field tb-dps-field-machine">
+					<label class="tb-dps-field-label">${__("Machine")}</label>
+					<div class="tb-dps-link-wrap tb-dps-machine"></div>
+				</div>
+				<div class="tb-dps-field tb-dps-field-date">
+					<label class="tb-dps-field-label">${__("Date")}</label>
+					<div class="tb-dps-control-wrap tb-dps-date"></div>
+				</div>
+			</div>
+		`);
+	}
+
 	$root.append(`
-		<div class="tb-dps-header">
+		${use_sidebar ? "" : `<div class="tb-dps-header">
 			<div>
 				<div class="tb-dps-title">${__("Daily Punch Summary")}</div>
 				<div class="tb-dps-subtitle">${subtitle}</div>
 			</div>
 			${modal ? '<button type="button" class="tb-dps-close" title="Close">&times;</button>' : ""}
-		</div>
-		<div class="tb-dps-toolbar">
-			<div class="tb-dps-field tb-dps-field-machine">
+		</div>`}
+		<div class="tb-dps-toolbar${use_sidebar ? " tb-dps-toolbar-search-only" : ""}">
+			${use_sidebar ? "" : `<div class="tb-dps-field tb-dps-field-machine">
 				<label class="tb-dps-field-label">${__("Machine")}</label>
 				<div class="tb-dps-link-wrap tb-dps-machine"></div>
 			</div>
 			<div class="tb-dps-field tb-dps-field-date">
 				<label class="tb-dps-field-label">${__("Date")}</label>
 				<div class="tb-dps-control-wrap tb-dps-date"></div>
-			</div>
+			</div>`}
 			<div class="tb-dps-field tb-dps-field-search">
 				<label class="tb-dps-field-label">${__("Search")}</label>
 				<div class="tb-dps-search-inner">
@@ -107,6 +130,7 @@ function build_panel($root, state, { modal }) {
 		</div>
 	`);
 
+	const filter_root = use_sidebar ? filter_mount : $root;
 	const machine_control = frappe.ui.form.make_control({
 		df: {
 			fieldtype: "Link",
@@ -121,13 +145,13 @@ function build_panel($root, state, { modal }) {
 				load_rows(state, ui);
 			},
 		},
-		parent: $root.find(".tb-dps-machine"),
+		parent: filter_root.find(".tb-dps-machine"),
 		render_input: true,
 	});
 	if (state.machine) {
 		machine_control.set_value(state.machine);
 	}
-	normalize_frappe_control($root.find(".tb-dps-machine"));
+	normalize_frappe_control(filter_root.find(".tb-dps-machine"));
 
 	const date_control = frappe.ui.form.make_control({
 		df: {
@@ -141,11 +165,11 @@ function build_panel($root, state, { modal }) {
 				load_rows(state, ui);
 			},
 		},
-		parent: $root.find(".tb-dps-date"),
+		parent: filter_root.find(".tb-dps-date"),
 		render_input: true,
 	});
 	date_control.set_value(state.date);
-	normalize_frappe_control($root.find(".tb-dps-date"));
+	normalize_frappe_control(filter_root.find(".tb-dps-date"));
 
 	const ui = {
 		$root,
@@ -206,8 +230,7 @@ function load_rows(state, ui) {
 }
 
 function render_table(state, ui) {
-	const show_machine = !state.machine;
-	const columns = DPS_COLUMNS(show_machine);
+	const columns = DPS_COLUMNS();
 	const filtered = filter_rows(state.rows, columns, state.search);
 	const sorted = sort_rows(filtered, state);
 
@@ -231,7 +254,7 @@ function render_table(state, ui) {
 			const tds = columns
 				.map((col) => {
 					const val = row[col.key] ?? "";
-					const cls = col.align === "right" ? "r" : col.key === "machine" ? "muted" : "";
+					const cls = col.align === "right" ? "r" : "";
 					return `<td class="${cls}">${frappe.utils.escape_html(String(val))}</td>`;
 				})
 				.join("");
@@ -278,7 +301,7 @@ function sort_rows(rows, state) {
 	return [...rows].sort((a, b) => {
 		let left = a[sort_field];
 		let right = b[sort_field];
-		if (sort_field === "punches") {
+		if (sort_field === "punches" || sort_field === "working_hours") {
 			return ((left || 0) - (right || 0)) * dir;
 		}
 		if (!left && !right) return 0;
@@ -293,8 +316,7 @@ function sort_rows(rows, state) {
 }
 
 function export_csv(state, ui) {
-	const show_machine = !state.machine;
-	const columns = DPS_COLUMNS(show_machine);
+	const columns = DPS_COLUMNS();
 	const filtered = sort_rows(filter_rows(state.rows, columns, state.search), state);
 	if (!filtered.length) {
 		frappe.show_alert({ message: __("No rows to export"), indicator: "orange" });
@@ -335,6 +357,10 @@ function inject_styles() {
 			display: flex; flex-direction: column;
 		}
 		.tb-dps-inline { max-width: 960px; margin: 0 auto; padding: 0 8px 24px; overflow: visible; }
+		.tb-dps-inline.tb-dps-with-sidebar { max-width: none; margin: 0; padding: 0 0 24px; }
+		.tb-dps-sidebar { padding: 8px 0; }
+		.tb-dps-sidebar .tb-dps-field { width: 100%; margin-bottom: 12px; }
+		.tb-dps-toolbar-search-only .tb-dps-field-search { flex: 1 1 240px; min-width: 240px; }
 		.tb-dps-inline > .tb-dps-header,
 		.tb-dps-inline > .tb-dps-toolbar,
 		.tb-dps-inline > .tb-dps-body,

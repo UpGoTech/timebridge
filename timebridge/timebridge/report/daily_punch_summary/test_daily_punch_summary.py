@@ -74,7 +74,7 @@ class TestDailyPunchSummary(FrappeTestCase):
 		self._make_punch(machine.name, "8", other_day)
 
 		all_columns, all_rows = execute({"date": getdate(punch_day)})
-		self.assertTrue(any(col["fieldname"] == "machine" for col in all_columns))
+		self.assertFalse(any(col["fieldname"] == "machine" for col in all_columns))
 		test_rows = [row for row in all_rows if row["machine"] == machine.name]
 		self.assertEqual(len(test_rows), 1)
 		self.assertEqual(test_rows[0]["device_user_id"], "7")

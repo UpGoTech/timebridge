@@ -82,6 +82,19 @@ def _format_punch_time(timestamp):
 	return format_time(ts)
 
 
+def _compute_working_hours(punched_in, punched_out):
+	"""Return (decimal_hours, display) e.g. (9.5, '9:30'). Blank when out is missing."""
+	if not punched_in or not punched_out:
+		return None, ""
+	in_dt = get_datetime(punched_in)
+	out_dt = get_datetime(punched_out)
+	if out_dt <= in_dt:
+		return None, ""
+	total_minutes = int((out_dt - in_dt).total_seconds() // 60)
+	hours, minutes = divmod(total_minutes, 60)
+	return round(total_minutes / 60, 2), f"{hours}:{minutes:02d}"
+
+
 def _fetch_punches_for_date(punch_date, machine=None):
 	punch_date = getdate(punch_date)
 	conditions = ["DATE(timestamp) = %(punch_date)s"]
@@ -164,6 +177,9 @@ def build_daily_punch_summary_rows(punch_date, machine=None):
 
 		punched_in_dt = get_datetime(punched_in)
 		punched_out_dt = get_datetime(punched_out) if punched_out else None
+		working_hours, working_hours_display = _compute_working_hours(
+			punched_in_dt, punched_out_dt
+		)
 		rows.append(
 			{
 				"user_name": user_name,
@@ -171,6 +187,8 @@ def build_daily_punch_summary_rows(punch_date, machine=None):
 				"punched_in_display": _format_punch_time(punched_in),
 				"punched_out": punched_out_dt,
 				"punched_out_display": _format_punch_time(punched_out),
+				"working_hours": working_hours,
+				"working_hours_display": working_hours_display,
 				"punches": len(user_punches),
 				"machine": machine_id,
 				"device_user_id": device_user_id,
@@ -192,10 +210,12 @@ def get_daily_punch_summary_list(date=None, machine=None):
 
 @frappe.whitelist()
 def get_users_punched_today(filters=None):
-	"""Custom Number Card — Today's Punch Summary; click opens the summary modal."""
+	"""Custom Number Card — Today's Punch Summary; click opens the Desk Page."""
 
 	return {
 		"value": _count_distinct_users_today(),
+		"route": "daily-punch-summary",
+		"route_options": {"date": today()},
 	}
 
 

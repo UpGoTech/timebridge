@@ -1,18 +1,22 @@
 frappe.pages["daily-punch-summary"].on_page_load = function (wrapper) {
-	frappe.ui.make_app_page({
+	const page = frappe.ui.make_app_page({
 		parent: wrapper,
 		title: __("Daily Punch Summary"),
-		single_column: true,
+		single_column: false,
 	});
+	wrapper._dps_page = page;
 	frappe.pages["daily-punch-summary"].$wrapper = $(wrapper);
 };
 
-frappe.pages["daily-punch-summary"].on_page_show = function () {
+frappe.pages["daily-punch-summary"].on_page_show = function (wrapper) {
 	$("body").removeClass("full-width");
 	set_breadcrumbs();
 
-	const $main = frappe.pages["daily-punch-summary"].$wrapper.find(".layout-main-section");
+	const page = wrapper._dps_page;
+	const $main = $(wrapper).find(".layout-main-section");
+	const $sidebar = page.sidebar;
 	$main.empty();
+	$sidebar.empty();
 
 	const date =
 		(frappe.route_options && frappe.route_options.date) || frappe.datetime.get_today();
@@ -20,7 +24,11 @@ frappe.pages["daily-punch-summary"].on_page_show = function () {
 	frappe.route_options = null;
 
 	frappe.require("/assets/timebridge/js/daily_punch_summary.js").then(() => {
-		timebridge.daily_punch_summary.render_inline($main, { date, machine });
+		timebridge.daily_punch_summary.render_inline($main, {
+			date,
+			machine,
+			$sidebar,
+		});
 	});
 };
 

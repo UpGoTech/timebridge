@@ -5,7 +5,7 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import add_to_date, get_datetime, getdate, now_datetime
+from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, today
 
 from timebridge.timebridge.services.dashboard import (
 	build_daily_punch_summary_rows,
@@ -95,10 +95,11 @@ class TestDashboard(FrappeTestCase):
 		after = get_users_punched_today()["value"]
 		self.assertEqual(after - before, 2)
 
-	def test_users_punched_today_returns_count_only(self):
+	def test_users_punched_today_opens_daily_punch_summary(self):
 		result = get_users_punched_today()
 		self.assertIn("value", result)
-		self.assertNotIn("route", result)
+		self.assertEqual(result["route"], "daily-punch-summary")
+		self.assertEqual(result["route_options"]["date"], str(getdate(today())))
 
 	def test_daily_punch_summary_list_api(self):
 		machine_a = self._make_machine(self.MACHINE_A)
@@ -146,6 +147,9 @@ class TestDashboard(FrappeTestCase):
 			by_device[(machine_a.name, "1")]["punched_out"].strftime("%H:%M:%S"),
 			"18:30:00",
 		)
+		self.assertEqual(by_device[(machine_a.name, "1")]["working_hours"], 9.5)
+		self.assertEqual(by_device[(machine_a.name, "1")]["working_hours_display"], "9:30")
+		self.assertEqual(by_device[(machine_a.name, "2")]["working_hours_display"], "")
 		self.assertEqual(rows[0]["machine"], machine_b.name)
 
 	def test_active_users_per_day_chart(self):
