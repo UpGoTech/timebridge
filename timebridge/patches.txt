@@ -14,3 +14,5 @@ timebridge.patches.v1_0.sync_timebridge_workspace_dashboard
 timebridge.patches.v1_0.resync_timebridge_number_cards
 timebridge.patches.v1_0.sync_daily_punch_summary
 timebridge.patches.v1_0.sync_employee_monthly_punch_summary
+timebridge.patches.v1_0.reorder_timebridge_workspace_cards
+timebridge.patches.v1_0.set_active_users_chart_timespan_last_week

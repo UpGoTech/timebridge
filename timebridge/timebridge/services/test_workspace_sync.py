@@ -49,6 +49,15 @@ class TestWorkspaceSync(FrappeTestCase):
 			"Active Users Per Day chart must be on the workspace",
 		)
 
+		timespan = frappe.db.get_value(
+			"Dashboard Chart", "TimeBridge Active Users Per Day", "timespan"
+		)
+		self.assertEqual(
+			timespan,
+			"Last Week",
+			"Active Users Per Day chart default timespan must be Last Week",
+		)
+
 		for row in ws.links:
 			self.assertNotEqual(
 				row.link_to,
@@ -88,6 +97,15 @@ class TestWorkspaceSync(FrappeTestCase):
 		self.assertEqual(links["Device Roll"].is_query_report, 1)
 		self.assertEqual(links["daily-punch-summary"].link_type, "Page")
 		self.assertEqual(links["employee-monthly-punch-summary"].link_type, "Page")
+
+		card_order = [
+			row.label for row in ws.links if row.type == "Card Break"
+		]
+		self.assertEqual(
+			card_order,
+			["Devices", "Data", "Reports", "Logs"],
+			"Sidebar link cards must appear in Devices / Data / Reports / Logs order",
+		)
 
 	def test_sync_app_workspaces_content_matches_widget_labels(self):
 		sync_app_workspaces(force=True)

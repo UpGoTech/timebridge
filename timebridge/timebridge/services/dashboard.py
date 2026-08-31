@@ -70,6 +70,20 @@ def _active_users_by_day(from_date, to_date):
 	return {getdate(row.day): int(row.count) for row in rows}
 
 
+def _format_chart_day_label(day):
+	"""e.g. 30-Aug-26 (Sun) — Active Users Per Day chart axis."""
+	day = getdate(day)
+	return f"{day.day}-{day.strftime('%b')}-{day.strftime('%y')} ({calendar.day_abbr[day.weekday()]})"
+
+
+def _format_chart_axis_label(day, timegrain):
+	if timegrain == "Daily":
+		return _format_chart_day_label(day)
+	if timegrain == "Weekly":
+		return format_date(get_period(day, timegrain), parse_day_first=True)
+	return get_period(day, timegrain)
+
+
 def _build_active_users_chart(chart, from_date, to_date, timegrain):
 	counts_by_day = _active_users_by_day(from_date, to_date)
 	dates = get_dates_from_timegrain(getdate(from_date), getdate(to_date), timegrain)
@@ -77,9 +91,7 @@ def _build_active_users_chart(chart, from_date, to_date, timegrain):
 
 	return {
 		"labels": [
-			format_date(get_period(r[0], timegrain), parse_day_first=True)
-			if timegrain in ("Daily", "Weekly")
-			else get_period(r[0], timegrain)
+			_format_chart_axis_label(get_period(r[0], timegrain), timegrain)
 			for r in result
 		],
 		"datasets": [{"name": chart.name, "values": [r[1] for r in result]}],

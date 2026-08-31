@@ -15,6 +15,7 @@ from timebridge.timebridge.services.dashboard import (
 	get_daily_punch_summary_list,
 	get_employee_monthly_punch_summary_list,
 	get_users_punched_today,
+	_format_chart_day_label,
 	_format_monthly_summary_date,
 )
 
@@ -185,7 +186,7 @@ class TestDashboard(FrappeTestCase):
 					"chart_type": "Custom",
 					"source": "TimeBridge Active Users Per Day",
 					"timeseries": 1,
-					"timespan": "Last Month",
+					"timespan": "Last Week",
 					"time_interval": "Daily",
 					"type": "Line",
 					"filters_json": "[]",
@@ -202,6 +203,11 @@ class TestDashboard(FrappeTestCase):
 		)
 		values = chart["datasets"][0]["values"]
 		self.assertGreaterEqual(sum(values), 3)
+		self.assertIn(_format_chart_day_label(punch_day), chart["labels"])
+
+	def test_format_chart_day_label(self):
+		self.assertEqual(_format_chart_day_label(date(2026, 8, 30)), "30-Aug-26 (Sun)")
+		self.assertEqual(_format_chart_day_label(date(2026, 8, 5)), "5-Aug-26 (Wed)")
 
 	def test_employee_monthly_punch_summary_rows(self):
 		machine_a = self._make_machine(self.MACHINE_A)
