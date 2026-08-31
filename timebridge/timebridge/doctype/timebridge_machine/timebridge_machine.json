@@ -28,6 +28,16 @@
   "adms_stamp",
   "adms_op_stamp",
   "adms_stamp_format",
+  "adms_bootstrap_status",
+  "adms_request_log_section",
+  "log_adms_handshake",
+  "log_adms_heartbeat",
+  "log_adms_ping",
+  "log_adms_attendance",
+  "log_adms_users",
+  "log_adms_photos",
+  "log_adms_commands",
+  "log_adms_bodies",
   "other_information",
   "description"
  ],
@@ -188,6 +198,78 @@
    "options": "Auto\nAttendance DateTime\nUnix Timestamp\nISO DateTime\nCompact (YYYYMMDDHHMMSS)"
   },
   {
+   "default": "Complete",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_bootstrap_status",
+   "fieldtype": "Select",
+   "label": "ADMS Bootstrap Status",
+   "options": "Pending\nQueued\nUsers\nAttendance\nPhotos\nComplete",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_request_log_section",
+   "fieldtype": "Section Break",
+   "label": "ADMS Request Log",
+   "description": "Tick the inbound wire traffic categories to store in TimeBridge ADMS Request Log. Unticked categories are not recorded. Errors still go to TimeBridge Machine Log."
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "log_adms_handshake",
+   "fieldtype": "Check",
+   "label": "Log Handshake"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "log_adms_heartbeat",
+   "fieldtype": "Check",
+   "label": "Log Heartbeat (getrequest)"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "log_adms_ping",
+   "fieldtype": "Check",
+   "label": "Log Ping"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "log_adms_attendance",
+   "fieldtype": "Check",
+   "label": "Log Attendance (ATTLOG)"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "log_adms_users",
+   "fieldtype": "Check",
+   "label": "Log Users (USER / OPERLOG)"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "log_adms_photos",
+   "fieldtype": "Check",
+   "label": "Log Photos"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "log_adms_commands",
+   "fieldtype": "Check",
+   "label": "Log Commands"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "log_adms_bodies",
+   "fieldtype": "Check",
+   "label": "Include Request/Response Bodies"
+  },
+  {
    "fieldname": "other_information",
    "fieldtype": "Section Break",
    "label": "Other Information"
@@ -209,9 +291,14 @@
    "group": "Logs",
    "link_doctype": "TimeBridge Machine Log",
    "link_fieldname": "machine"
+  },
+  {
+   "group": "Logs",
+   "link_doctype": "TimeBridge ADMS Request Log",
+   "link_fieldname": "machine"
   }
  ],
- "modified": "2026-08-21 18:20:00.000000",
+ "modified": "2026-08-31 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Machine",

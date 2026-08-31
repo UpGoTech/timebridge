@@ -221,6 +221,10 @@ def register_machine(name, machine_id, machine_name, device_brand, ip_address):
     )
     machine.insert()
 
+    from timebridge.timebridge.adms.sync import bootstrap
+
+    bootstrap.queue_initial_sync(machine.name)
+
     frappe.db.set_value(
         DOCTYPE,
         name,

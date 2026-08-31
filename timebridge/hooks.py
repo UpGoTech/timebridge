@@ -155,6 +155,12 @@ before_uninstall = "timebridge.uninstall.before_uninstall"
 # 	}
 # }
 
+doc_events = {
+	"TimeBridge Machine User": {
+		"on_update": "timebridge.timebridge.adms.sync.push_user.on_machine_user_update",
+	},
+}
+
 # Scheduled Tasks
 # ---------------
 
@@ -167,6 +173,7 @@ scheduler_events = {
 	},
 	"daily": [
 		"timebridge.timebridge.services.machine_log.clear_old_machine_logs",
+		"timebridge.timebridge.adms.ingress.audit.clear_old_request_logs",
 	],
 }
 
@@ -218,6 +225,7 @@ ignore_links_on_delete = [
 	"TimeBridge Pending Device Signal",
 	"TimeBridge Device Command",
 	"TimeBridge Machine Log",
+	"TimeBridge ADMS Request Log",
 	"TimeBridge Sync Log",
 ]
 

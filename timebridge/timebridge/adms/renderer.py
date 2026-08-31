@@ -22,6 +22,7 @@ from email.utils import formatdate
 from frappe.website.page_renderers.base_renderer import BaseRenderer
 
 from timebridge.timebridge.adms import api, logger, pending
+from timebridge.timebridge.adms.ingress import audit
 from timebridge.timebridge.services.machine_log import write_machine_log
 
 ADMS_PREFIX = "iclock"
@@ -123,6 +124,18 @@ class ADMSRenderer(BaseRenderer):
             # on a data POST, or the firmware treats the upload as failed and
             # retries; never HTTP 500, or it discards the batch.
             text = "Error: internal failure"
+
+        try:
+            audit.write_request_log(
+                serial=serial,
+                endpoint=endpoint,
+                method=request.method,
+                args=args,
+                body=body or None,
+                response=text,
+            )
+        except Exception:
+            frappe.logger().error("TimeBridge: request log write failed", exc_info=True)
 
         headers = {
             "Content-Type": "text/plain; charset=utf-8",

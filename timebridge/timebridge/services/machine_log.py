@@ -44,10 +44,6 @@ def write_machine_log(
 	"""Append one diagnostic row. Never raises."""
 
 	try:
-		# Site config: bench --site <site> set-config timebridge_silence_device_logs 1
-		if frappe.conf.get("timebridge_silence_device_logs"):
-			return None
-
 		level = level or "Info"
 		event = event or "Other"
 		message = (message or "").strip() or event
