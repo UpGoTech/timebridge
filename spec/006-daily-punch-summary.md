@@ -4,7 +4,7 @@
 |-------|-------|
 | **Spec ID** | `006` |
 | **Branch** | `feat/006-daily-punch-summary` |
-| **Status** | **Ready for review** |
+| **Status** | **Ready for review** (modal UI) |
 | **Authority** | This doc; follows [005-workspace-dashboard.md](005-workspace-dashboard.md) |
 | **Created** | 2026-08-31 |
 | **Programme tracker** | [spec/README.md](README.md) |
@@ -21,7 +21,15 @@ The **Users Punched Today** number card opened a custom dialog (`timebridge_desk
 
 ## 2. What?
 
-### Daily Punch Summary (Script Report)
+### Daily Punch Summary (modal + Desk Page)
+
+Delivered as a **JavaScript modal** (Opening Headcount style) — not a Script Report grid.
+
+| Entry point | Behaviour |
+|-------------|-----------|
+| **Today's Punch Summary** card | Opens modal with today's date |
+| **Reports → Daily Punch Summary** | Desk Page with the same panel inline |
+| **API** | `get_daily_punch_summary_list(date, machine?)` |
 
 | Filter | Required | Default |
 |--------|----------|---------|
@@ -36,10 +44,8 @@ The **Users Punched Today** number card opened a custom dialog (`timebridge_desk
 | Punched Out | Latest Out punch, else blank |
 | Punches | Row count for that user on that day |
 
-- Default sort: **Punched In** descending
-- Column-header sort via Frappe datatable
-- Search bar above the table (client-side, all columns)
-- Footer: user count + **Export CSV** (filtered rows)
+- Default sort: **Punched In** descending; click column headers to re-sort
+- Search bar in toolbar; footer shows user count + **Export CSV**
 
 Data source: `TimeBridge Punch Log` only (no HR attendance table).
 
@@ -49,12 +55,12 @@ Data source: `TimeBridge Punch Log` only (no HR attendance table).
 |--------|-------|
 | Users Punched Today | **Today's Punch Summary** |
 
-Click behaviour: navigate to **Daily Punch Summary** with `date` = today (Frappe `route` + `route_options` from `get_users_punched_today()`). No custom JS popup.
+Click behaviour: opens the **Daily Punch Summary modal** with `date` = today (card click handler in `timebridge_desk.js`).
 
 ### Removed
 
-- [`timebridge/public/js/timebridge_desk.js`](../timebridge/public/js/timebridge_desk.js) — dialog + `NumberCardWidget` monkey-patch
-- `get_users_punched_today_list()` whitelisted API
+- Script Report client UI (`daily_punch_summary.js` query report)
+- Broken earlier popup (`frappe.ui.Dialog` variant)
 
 ---
 
@@ -97,4 +103,4 @@ Manual:
 | Q2 | Card label: **Today's Punch Summary** |
 | Q3 | Machine filter optional; Machine column when viewing all machines |
 | Q4 | Active user = distinct `(machine, device_user_id)` per calendar day |
-| Q5 | Card click uses native Frappe number-card routing (no desk JS patch) |
+| Q5 | Card click opens modal; Reports sidebar opens Desk Page with same panel |

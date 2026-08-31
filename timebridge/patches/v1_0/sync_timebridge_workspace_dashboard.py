@@ -70,12 +70,12 @@ def execute():
 		"TimeBridge Sync Log",
 		"TimeBridge Machine Log",
 		"Device Roll",
-		"Daily Punch Summary",
+		"daily-punch-summary",
 	):
 		if link_to not in _links:
 			frappe.throw(f"Workspace missing link: {link_to}")
 
 	if _links["Device Roll"].is_query_report != 1:
 		frappe.throw("Device Roll workspace link must be a query report")
-	if _links["Daily Punch Summary"].is_query_report != 1:
-		frappe.throw("Daily Punch Summary workspace link must be a query report")
+	if _links["daily-punch-summary"].link_type != "Page":
+		frappe.throw("Daily Punch Summary workspace link must be a Page")

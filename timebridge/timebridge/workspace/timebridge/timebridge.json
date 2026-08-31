@@ -96,10 +96,9 @@
   },
   {
    "hidden": 0,
-   "is_query_report": 1,
    "label": "Daily Punch Summary",
-   "link_to": "Daily Punch Summary",
-   "link_type": "Report",
+   "link_to": "daily-punch-summary",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   }

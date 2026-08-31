@@ -80,12 +80,12 @@ class TestWorkspaceSync(FrappeTestCase):
 			"TimeBridge Sync Log",
 			"TimeBridge Machine Log",
 			"Device Roll",
-			"Daily Punch Summary",
+			"daily-punch-summary",
 		):
 			self.assertIn(link_to, links)
 
 		self.assertEqual(links["Device Roll"].is_query_report, 1)
-		self.assertEqual(links["Daily Punch Summary"].is_query_report, 1)
+		self.assertEqual(links["daily-punch-summary"].link_type, "Page")
 
 	def test_sync_app_workspaces_content_matches_widget_labels(self):
 		sync_app_workspaces(force=True)

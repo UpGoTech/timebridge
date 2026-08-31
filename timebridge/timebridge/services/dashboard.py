@@ -14,9 +14,6 @@ from frappe.utils.dateutils import (
 	get_period_beginning,
 )
 
-DAILY_PUNCH_SUMMARY_REPORT = "Daily Punch Summary"
-
-
 def _distinct_user_key_sql():
 	if frappe.db.db_type == "postgres":
 		return "machine || '::' || device_user_id"
@@ -165,11 +162,15 @@ def build_daily_punch_summary_rows(punch_date, machine=None):
 		elif (machine_id, device_user_id) in name_by_device:
 			user_name = name_by_device[(machine_id, device_user_id)]
 
+		punched_in_dt = get_datetime(punched_in)
+		punched_out_dt = get_datetime(punched_out) if punched_out else None
 		rows.append(
 			{
 				"user_name": user_name,
-				"punched_in": get_datetime(punched_in),
-				"punched_out": get_datetime(punched_out) if punched_out else None,
+				"punched_in": punched_in_dt,
+				"punched_in_display": _format_punch_time(punched_in),
+				"punched_out": punched_out_dt,
+				"punched_out_display": _format_punch_time(punched_out),
 				"punches": len(user_punches),
 				"machine": machine_id,
 				"device_user_id": device_user_id,
@@ -181,13 +182,20 @@ def build_daily_punch_summary_rows(punch_date, machine=None):
 
 
 @frappe.whitelist()
+def get_daily_punch_summary_list(date=None, machine=None):
+	"""Rows for the Daily Punch Summary modal."""
+
+	if not date:
+		frappe.throw("Date is required")
+	return build_daily_punch_summary_rows(date, machine or None)
+
+
+@frappe.whitelist()
 def get_users_punched_today(filters=None):
-	"""Custom Number Card — Today's Punch Summary; click opens Daily Punch Summary."""
+	"""Custom Number Card — Today's Punch Summary; click opens the summary modal."""
 
 	return {
 		"value": _count_distinct_users_today(),
-		"route": ["query-report", DAILY_PUNCH_SUMMARY_REPORT],
-		"route_options": {"date": today()},
 	}
 
 
