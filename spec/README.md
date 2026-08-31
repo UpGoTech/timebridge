@@ -28,6 +28,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 004 Machine diagnostic log    ████████████████████░  ~95%   Merged to develop
 005 Workspace dashboard     ████████████████████░  ~95%   v2 on feat/005-workspace-dashboard-v2
 006 Daily Punch Summary     ░░░░░░░░░░░░░░░░░░░░    —    feat/006-daily-punch-summary
+007 Employee Monthly Punch  ░░░░░░░░░░░░░░░░░░░░    —    feat/007-employee-monthly-punch-summary
 ```
 
 | Spec | Title | Branch | Status | v1 progress | Next action |
@@ -38,6 +39,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**004**](004-machine-log.md) | Machine diagnostic log | — (merged) | **Merged** | Phase 1–5 | — |
 | [**005**](005-workspace-dashboard.md) | Workspace dashboard & Add Machine | `feat/005-workspace-dashboard-v2` | **In progress** | Phase 1–8 | PR to develop |
 | [**006**](006-daily-punch-summary.md) | Daily Punch Summary report | `feat/006-daily-punch-summary` | **In progress** | Phase 1–6 | Build + review |
+| [**007**](007-employee-monthly-punch-summary.md) | Employee Monthly Punch Summary | `feat/007-employee-monthly-punch-summary` | **In progress** | Phase 1–5 | Build + review |
 
 ---
 
