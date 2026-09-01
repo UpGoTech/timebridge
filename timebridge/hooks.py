@@ -12,7 +12,7 @@ app_license = "mit"
 # how an app claims arbitrary website paths, and it gives us the raw POST body
 # and a text/plain response, neither of which website_route_rules can provide.
 page_renderer = [
-	"timebridge.timebridge.adms.renderer.ADMSRenderer",
+	"timebridge.timebridge.iclock.renderer.IclockRenderer",
 ]
 
 # Apps
@@ -37,6 +37,10 @@ page_renderer = [
 # include js, css files in header of desk.html
 # app_include_css = "/assets/timebridge/css/timebridge.css"
 app_include_js = "/assets/timebridge/js/timebridge_desk.js"
+
+doctype_js = {
+	"TimeBridge Machine": "public/js/timebridge_machine_console.js",
+}
 
 # include js, css files in header of web template
 # web_include_css = "/assets/timebridge/css/timebridge.css"
@@ -157,7 +161,7 @@ before_uninstall = "timebridge.uninstall.before_uninstall"
 
 doc_events = {
 	"TimeBridge Machine User": {
-		"on_update": "timebridge.timebridge.adms.sync.push_user.on_machine_user_update",
+		"on_update": "timebridge.timebridge.iclock.push_user.on_machine_user_update",
 	},
 }
 
@@ -173,7 +177,7 @@ scheduler_events = {
 	},
 	"daily": [
 		"timebridge.timebridge.services.machine_log.clear_old_machine_logs",
-		"timebridge.timebridge.adms.ingress.audit.clear_old_request_logs",
+		"timebridge.timebridge.iclock.audit.clear_old_logs",
 	],
 }
 
@@ -222,10 +226,9 @@ scheduler_events = {
 # -----------------------------------------------------------
 
 ignore_links_on_delete = [
-	"TimeBridge Pending Device Signal",
 	"TimeBridge Device Command",
 	"TimeBridge Machine Log",
-	"TimeBridge ADMS Request Log",
+	"TimeBridge ADMS Log",
 	"TimeBridge Sync Log",
 ]
 

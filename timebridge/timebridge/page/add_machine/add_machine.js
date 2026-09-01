@@ -16,9 +16,36 @@ frappe.pages["add-machine"].on_page_show = function () {
 	$main.off(".addm");
 	render_shell($main);
 	bind_events($main);
+	const mode = (frappe.route_options && frappe.route_options.mode) || "pull";
+	$main.find(`.tb-am-pick[data-mode="${mode}"]`).trigger("click");
 	load_push_hint($main);
-	load_signals($main);
+	if (mode === "push") {
+		load_signals($main);
+		start_push_poll($main);
+	}
 };
+
+frappe.pages["add-machine"].on_page_hide = function () {
+	stop_push_poll();
+};
+
+let push_poll_timer = null;
+
+function start_push_poll($main) {
+	stop_push_poll();
+	push_poll_timer = setInterval(() => {
+		if ($main.find('.tb-am-pane[data-pane="push"]').hasClass("active")) {
+			load_signals($main);
+		}
+	}, 10000);
+}
+
+function stop_push_poll() {
+	if (push_poll_timer) {
+		clearInterval(push_poll_timer);
+		push_poll_timer = null;
+	}
+}
 
 function set_breadcrumbs() {
 	const $nb = $("#navbar-breadcrumbs");
@@ -109,16 +136,19 @@ function render_shell($main) {
 			</div>
 			<div class="tb-am-pane" data-pane="push">
 				<p class="tb-am-intro tb-am-push-hint"></p>
-				<div class="tb-am-status">${__("Waiting for device signals…")}</div>
+				<div class="tb-am-row" style="margin-bottom:8px;">
+					<button type="button" class="btn btn-default btn-sm tb-am-refresh-push">${__("Refresh")}</button>
+				</div>
+				<h6 style="margin:0 0 8px;">${__("Discovered devices — select to register")}</h6>
 				<div class="tb-dr-table-wrap" style="overflow-x:auto;">
 					<table class="tb-am-table">
 						<thead>
 							<tr>
 								<th>${__("Serial")}</th>
 								<th>${__("Signal")}</th>
+								<th>${__("Init")}</th>
 								<th>${__("IP")}</th>
 								<th>${__("Last seen")}</th>
-								<th>${__("Hits")}</th>
 								<th></th>
 							</tr>
 						</thead>
@@ -196,33 +226,38 @@ function bind_events($main) {
 		});
 	});
 
+	$main.on("click.addm", ".tb-am-refresh-push", function () {
+		load_signals($main);
+	});
+
 	$main.on("click.addm", ".tb-am-register", function () {
 		if ($main.data("busy")) return;
-		const name = $(this).data("name");
-		const serial = $(this).data("serial");
-		const ip = $(this).data("ip") || "0.0.0.0";
-		frappe.prompt(
-			[
-				{ fieldname: "machine_id", fieldtype: "Data", label: __("Machine ID"), reqd: 1, default: serial },
-				{ fieldname: "machine_name", fieldtype: "Data", label: __("Name"), reqd: 1, default: serial },
-				{ fieldname: "ip_address", fieldtype: "Data", label: __("IP (informational)"), default: ip },
-			],
-			(values) => {
-				$main.data("busy", true);
-				frappe.call({
-					method: "timebridge.timebridge.page.add_machine.add_machine.register_push_device",
-					args: { name, ...values },
-					callback(r) {
-						$main.data("busy", false);
-						frappe.set_route("Form", "TimeBridge Machine", r.message.machine);
-					},
-					error() {
-						$main.data("busy", false);
-					},
-				});
+		const $btn = $(this);
+		const name = $btn.data("name");
+		const serial = ($btn.data("serial") || "").trim();
+		if (name) {
+			frappe.set_route("Form", "TimeBridge Machine", name);
+			return;
+		}
+		if (!serial) return;
+		$main.data("busy", true);
+		frappe.call({
+			method: "timebridge.timebridge.page.add_machine.add_machine.adopt_discovered_peer",
+			args: {
+				serial_number: serial,
+				machine_id: serial,
+				machine_name: serial,
+				ip_address: $btn.data("ip") || undefined,
 			},
-			__("Register push device")
-		);
+			callback(r) {
+				$main.data("busy", false);
+				load_signals($main);
+				frappe.set_route("Form", "TimeBridge Machine", r.message.machine);
+			},
+			error() {
+				$main.data("busy", false);
+			},
+		});
 	});
 
 	$main.on("click.addm", ".tb-am-dismiss", function () {
@@ -252,26 +287,44 @@ function load_signals($main) {
 			const rows = r.message || [];
 			const $tb = $main.find(".tb-am-rows");
 			if (!rows.length) {
-				$tb.html(`<tr><td colspan="6" class="tb-am-empty">${__("No unregistered push devices yet.")}</td></tr>`);
+				$tb.html(
+					`<tr><td colspan="6" class="tb-am-empty">${__(
+						"No devices have checked in yet. Enable ADMS Server in Settings, point the device at /iclock/cdata, then reboot it if needed."
+					)}</td></tr>`
+				);
 				return;
 			}
-			$tb.html(rows.map((row) => `
+			$tb.html(
+				rows
+					.map((row) => {
+						const signal = row.last_category || __("Unknown");
+						const init = row.device_seen ? __("Yes") : __("Waiting");
+						const last = row.last_contact_at || row.adms_last_init_at || "—";
+						const register_label = row.name ? __("Open") : __("Register");
+						return `
 				<tr>
 					<td data-label="${__("Serial")}">${frappe.utils.escape_html(row.serial_number || "")}</td>
-					<td data-label="${__("Signal")}">${frappe.utils.escape_html(row.signal_type || "")}</td>
-					<td data-label="${__("IP")}">${frappe.utils.escape_html(row.remote_ip || "")}</td>
-					<td data-label="${__("Last seen")}">${frappe.utils.escape_html(row.last_seen || "")}</td>
-					<td data-label="${__("Hits")}">${row.hit_count || 0}</td>
+					<td data-label="${__("Signal")}">${frappe.utils.escape_html(signal)}</td>
+					<td data-label="${__("Init")}">${init}</td>
+					<td data-label="${__("IP")}">${frappe.utils.escape_html(row.ip_address || "")}</td>
+					<td data-label="${__("Last seen")}">${frappe.utils.escape_html(last)}</td>
 					<td>
 						<button type="button" class="btn btn-xs btn-primary tb-am-register"
-							data-name="${frappe.utils.escape_html(row.name)}"
+							data-name="${frappe.utils.escape_html(row.name || "")}"
 							data-serial="${frappe.utils.escape_html(row.serial_number || "")}"
-							data-ip="${frappe.utils.escape_html(row.remote_ip || "")}">${__("Register")}</button>
-						<button type="button" class="btn btn-xs btn-default tb-am-dismiss"
-							data-name="${frappe.utils.escape_html(row.name)}">${__("Dismiss")}</button>
+							data-ip="${frappe.utils.escape_html(row.ip_address || "")}">${register_label}</button>
+						${
+							row.name
+								? `<button type="button" class="btn btn-xs btn-default tb-am-dismiss"
+							data-name="${frappe.utils.escape_html(row.name)}">${__("Dismiss")}</button>`
+								: ""
+						}
 					</td>
-				</tr>
-			`).join(""));
+				</tr>`;
+					})
+					.join("")
+			);
 		},
 	});
 }
+

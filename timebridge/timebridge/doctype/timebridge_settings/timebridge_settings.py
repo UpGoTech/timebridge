@@ -30,4 +30,9 @@ class TimeBridgeSettings(Document):
         if self.sync_interval < 1:
             frappe.throw("Sync Interval must be at least 1 minute.")
 
+    def on_update(self):
+        from timebridge.timebridge.iclock.server import clear_server_enabled_cache
+
+        clear_server_enabled_cache()
+
 

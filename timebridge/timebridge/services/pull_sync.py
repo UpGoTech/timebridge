@@ -26,7 +26,7 @@ import frappe
 
 from frappe.utils import add_to_date, cint, get_datetime, now_datetime
 
-from timebridge.timebridge.adms import logger
+from timebridge.timebridge.services import device_records as logger
 from timebridge.timebridge.services.connection import get_connector, is_push_device
 from timebridge.timebridge.services.device_info import (
     failure_reason,
@@ -598,7 +598,7 @@ def pull_all_data(machine_id, days=30, on_stage=None):
 
     user_counts = store_users(machine_id, users, sync_batch, stage)
 
-    from timebridge.timebridge.adms.photos import save_photo
+    from timebridge.timebridge.iclock.photos import save_photo
 
     for photo in photos or []:
         if photo.get("user_id") and photo.get("image_bytes"):

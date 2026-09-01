@@ -41,7 +41,7 @@ def request_all_data(machine_id, days=30):
     the unique punch_key rejects anything already stored.
     """
 
-    from timebridge.timebridge.adms import commands
+    from timebridge.timebridge.iclock import commands
     from timebridge.timebridge.services.connection import is_push_device
     from timebridge.timebridge.services.pull_sync import enqueue_pull_sync
 
@@ -211,7 +211,7 @@ def request_photos(machine_id):
     that has happened.
     """
 
-    from timebridge.timebridge.adms import commands
+    from timebridge.timebridge.iclock import commands
 
     machine = frappe.get_doc("TimeBridge Machine", machine_id)
 
@@ -262,7 +262,7 @@ def photo_fetch_status(machine_id, last_contact_before=None):
 
     from frappe.utils import time_diff_in_seconds
 
-    from timebridge.timebridge.adms import commands
+    from timebridge.timebridge.iclock import commands
 
     contact = commands.last_contact(machine_id) or {}
 
@@ -333,8 +333,8 @@ def connection_health(machine_id):
 
     import subprocess
 
-    from timebridge.timebridge.adms import commands
-    from timebridge.timebridge.adms.server import web_port
+    from timebridge.timebridge.iclock import commands
+    from timebridge.timebridge.iclock.server import web_port
 
     machine = frappe.get_doc("TimeBridge Machine", machine_id)
 
@@ -397,7 +397,7 @@ def fetch_status(machine_id):
     have punches actually landed.
     """
 
-    from timebridge.timebridge.adms import commands
+    from timebridge.timebridge.iclock import commands
 
     # Sync Logs are the honest measure of whether the device answered.
     # Counting only *new* punches would call a correct re-fetch a failure —
@@ -426,7 +426,7 @@ def fetch_status(machine_id):
 def request_device_users(machine_id):
 	"""Queue a users-only fetch — PyZK pull or ADMS USERINFO request."""
 
-	from timebridge.timebridge.adms import commands
+	from timebridge.timebridge.iclock import commands
 	from timebridge.timebridge.services.connection import is_push_device
 	from timebridge.timebridge.services.pull_sync import enqueue_pull_users
 

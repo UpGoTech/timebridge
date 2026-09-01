@@ -15,7 +15,7 @@ import frappe
 
 from frappe.utils import cint
 
-from timebridge.timebridge.adms import commands
+from timebridge.timebridge.iclock import commands
 from timebridge.timebridge.services.connection import get_connector, is_push_device
 from timebridge.timebridge.services.machine_log import write_machine_log
 

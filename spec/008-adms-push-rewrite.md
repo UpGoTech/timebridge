@@ -4,7 +4,7 @@
 |-------|-------|
 | **Spec ID** | `008` |
 | **Branch** | `feat/008-adms-push-rewrite` |
-| **Status** | **Implemented** — branch `feat/008-adms-push-rewrite` |
+| **Status** | **Superseded** by [009-adms-onboarding.md](009-adms-onboarding.md) (2026-09-01) |
 | **Authority** | [`ZKteco Attendance PUSH Communication Protocol.pdf`](./ZKteco%20Attendance%20PUSH%20Communication%20Protocol.pdf); [ADMS-PROTOCOL.md](./ADMS-PROTOCOL.md) |
 | **Created** | 2026-08-31 |
 | **Programme tracker** | [spec/README.md](./README.md) |

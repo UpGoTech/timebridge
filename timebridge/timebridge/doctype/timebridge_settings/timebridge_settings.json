@@ -20,7 +20,24 @@
   "photo_settings",
   "enable_photo_transfer",
   "debug_settings",
-  "enable_debug_log"
+  "enable_debug_log",
+  "adms_settings",
+  "adms_server_enabled",
+  "adms_log_section",
+  "log_adms_handshake",
+  "log_adms_heartbeat",
+  "log_adms_ping",
+  "column_break_adms_log1",
+  "log_adms_attendance",
+  "log_adms_users",
+  "log_adms_photos",
+  "column_break_adms_log2",
+  "log_adms_commands",
+  "log_adms_options",
+  "log_adms_upload",
+  "log_adms_other",
+  "adms_console_section",
+  "adms_console_html"
  ],
  "fields": [
   {
@@ -119,11 +136,122 @@
    "fieldname": "enable_debug_log",
    "fieldtype": "Check",
    "label": "Enable Debug Log"
+  },
+  {
+   "fieldname": "adms_settings",
+   "fieldtype": "Tab Break",
+   "label": "ADMS Server"
+  },
+  {
+   "default": "0",
+   "description": "Off: /iclock is not served (devices see a 404). On: devices can reach the server; use the console below.",
+   "fieldname": "adms_server_enabled",
+   "fieldtype": "Check",
+   "label": "ADMS Server Enabled"
+  },
+  {
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "adms_log_section",
+   "fieldtype": "Section Break",
+   "label": "ADMS Log Categories"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_handshake",
+   "fieldtype": "Check",
+   "label": "Log Handshake"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_heartbeat",
+   "fieldtype": "Check",
+   "label": "Log Heartbeat"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_ping",
+   "fieldtype": "Check",
+   "label": "Log Ping"
+  },
+  {
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "column_break_adms_log1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_attendance",
+   "fieldtype": "Check",
+   "label": "Log Attendance"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_users",
+   "fieldtype": "Check",
+   "label": "Log Users"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_photos",
+   "fieldtype": "Check",
+   "label": "Log Photos"
+  },
+  {
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "column_break_adms_log2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_commands",
+   "fieldtype": "Check",
+   "label": "Log Commands"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_options",
+   "fieldtype": "Check",
+   "label": "Log Options"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_upload",
+   "fieldtype": "Check",
+   "label": "Log Upload"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "log_adms_other",
+   "fieldtype": "Check",
+   "label": "Log Other"
+  },
+  {
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "adms_console_section",
+   "fieldtype": "Section Break",
+   "label": "Connected Devices"
+  },
+  {
+   "depends_on": "eval:doc.adms_server_enabled",
+   "fieldname": "adms_console_html",
+   "fieldtype": "HTML",
+   "label": "ADMS Console",
+   "options": "<div class=\"tb-adms-console\"></div>"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-30 16:00:00.000000",
+ "modified": "2026-09-01 10:30:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Settings",
