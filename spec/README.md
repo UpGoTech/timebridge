@@ -30,7 +30,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 006 Daily Punch Summary       █████████████████████  100%   Merged (PR #11)
 007 Employee Monthly Punch    █████████████████████  100%   Merged (PR #12)
 008 ADMS PUSH rewrite         ░░░░░░░░░░░░░░░░░░░░    —    Superseded by 009
-009 ADMS iclock onboarding     ░░░░░░░░░░░░░░░░░░░░    0%   In progress
+009 ADMS iclock onboarding     ████████████████████░   95%   Ready for review
+010 ADMS Server Console        ████████████████████░   95%   Ready for review
 ```
 
 | Spec | Title | Branch | Status | Progress | Next action |
@@ -43,7 +44,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**006**](006-daily-punch-summary.md) | Daily Punch Summary report | — (merged) | **Merged** PR #11 | Phase 1–6 | — |
 | [**007**](007-employee-monthly-punch-summary.md) | Employee Monthly Punch Summary | — (merged) | **Merged** PR #12 | Phase 1–5 | — |
 | [**008**](008-adms-push-rewrite.md) | ADMS Attendance PUSH rewrite | — | **Superseded** by 009 | — | Do not continue 008 |
-| [**009**](009-adms-onboarding.md) | ADMS iclock server and onboarding | `feat/009-adms-onboarding` | **In progress** | Spec | Server switch + Pending Machine + Receive ticks |
+| [**009**](009-adms-onboarding.md) | ADMS iclock server and onboarding | `feat/009-adms-onboarding` | **Ready for review** | Phases 1–7 | Manual review on saral.localhost |
+| [**010**](010-adms-server-console.md) | ADMS Server Console | `feat/009-adms-onboarding` | **Ready for review** | Phases 1–6 | Manual review on saral.localhost |
 
 ---
 
@@ -222,7 +224,28 @@ Do not implement remaining 008 work. Request Log ticks and register bootstrap ar
 |-------|-------|
 | **Doc** | [009-adms-onboarding.md](009-adms-onboarding.md) |
 | **One-liner** | Enableable iclock server; Pending Machine discovery; handshake after Register; Receive ticks; manual download |
-| **Status** | **In progress** — branch `feat/009-adms-onboarding` |
+| **Status** | **Ready for review** — branch `feat/009-adms-onboarding` |
+
+---
+
+## Spec 010 — ADMS Server Console
+
+| Field | Value |
+|-------|-------|
+| **Doc** | [010-adms-server-console.md](010-adms-server-console.md) |
+| **One-liner** | Settings roster of ADMS peers, per-category log toggles, REBOOT recovery for Unknown/Pending |
+| **Status** | **Ready for review** — branch `feat/009-adms-onboarding` |
+
+### Phase rollup
+
+| Phase | Name | Rollup |
+|-------|------|--------|
+| 1 | Spec + programme index | `[x]` |
+| 2 | TimeBridge ADMS Peer + peers.py | `[x]` |
+| 3 | Settings log toggles + audit gating | `[x]` |
+| 4 | Peer REBOOT queue + APIs | `[x]` |
+| 5 | Settings console UI | `[x]` |
+| 6 | Tests + migrate | `[x]` |
 
 ---
 
@@ -249,3 +272,4 @@ Do not implement remaining 008 work. Request Log ticks and register bootstrap ar
 | 2026-08-31 | 007 merged (PR #12); programme complete at 100% (001 B7 e2e still deferred) |
 | 2026-08-31 | 008 ADMS Attendance PUSH rewrite started |
 | 2026-09-01 | 009 ADMS iclock onboarding; 008 superseded |
+| 2026-09-01 | 010 ADMS Server Console implemented; 009/010 ready for review |

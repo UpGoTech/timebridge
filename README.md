@@ -37,7 +37,7 @@ Same PIN on two machines is two Machine Users unless the operator copies it.
 
 ## Main workflows
 
-1. **Add Machine** — Pull: probe 4370, save, fetch. Push: enable ADMS Server, wait for `/iclock` serial (Pending machine), Register.
+1. **Add Machine** — Pull: probe 4370, save, fetch. Push: add machine with serial in Add Machine → Push, point device at `/iclock/cdata`, Register when it checks in.
 2. **Test Connection / Fetch All Data** — pull readout or ADMS re-query.
 3. **Create user** — PIN + name on one or more machines; biometrics enrol at the terminal.
 4. **Device Roll** — Yes/No punched in a date range per PIN.

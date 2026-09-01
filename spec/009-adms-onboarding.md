@@ -22,7 +22,7 @@ This spec treats `/iclock` as a **server** the device dials, rebuilds the receiv
 
 1. Global **ADMS Server** switch on TimeBridge Settings (default Off).
 2. Off: renderer does not claim `/iclock/*` → Frappe website 404. No log, no Pending machine, no handshake.
-3. On: every GET/POST logged to **TimeBridge ADMS Log**. Init `GET /iclock/cdata?options=all` creates a **Pending TimeBridge Machine**. Reply is `OK`, not `GET OPTION FROM`.
+3. On: every GET/POST logged to **TimeBridge ADMS Log** per Settings log toggles (Heartbeat/Ping off by default). Operator adds Pending machine in Add Machine → Push. Device init updates that row by serial; unknown serials get `OK` only. See [010-adms-server-console.md](010-adms-server-console.md) for the Settings roster and recovery commands.
 4. Register on the Machine form completes handshake (Format II TransFlag with no types). No QUERY on register.
 5. Custom Desk form: stats from getrequest INFO / INFO command; Receive ticks; Download queues `DATA QUERY` for ticked types only.
 6. Delete old onboarding DocTypes, Device Registration page, and the `adms/` package.
@@ -37,7 +37,7 @@ This spec treats `/iclock` as a **server** the device dials, rebuilds the receiv
 | Q2 | Delete entire `adms/` package. New `iclock/` package. Protocol semantics from the PDF (`OK: n`, stamp names, Attendance TransFlag order, HTTP 200 while On). |
 | Q3 | Desk TimeBridge Machine form — not a Vue SPA. |
 | Q4 | Unknown SN: no `GET OPTION FROM`. Discovery is the init GET. |
-| Q5 | First init (server On) creates Pending TimeBridge Machine. No Pending Device Signal DocType. |
+| Q5 | Operator adds Pending machine in Add Machine → Push (serial required). Device init only updates that row — never auto-creates. |
 | Q6 | First handshake: all TransFlag types off. Download only for ticked Receive types. |
 | Q7 | Global Settings **ADMS Server Enabled**. Off = do not claim `/iclock` (404). On = spec replies + log every request. Log ticks on Machine are gone. |
 | Q8 | Receive ticks control TransFlag only. ATTLOG POST is stored only when AttLog Receive is on. |
@@ -68,7 +68,11 @@ This spec treats `/iclock` as a **server** the device dials, rebuilds the receiv
 | 6 | Machine form + Add Machine inbox + workspace | `[x]` |
 | 7 | Tests + migrate | `[x]` |
 
-## 5. How to verify
+## 5. Related
+
+- [010-adms-server-console.md](010-adms-server-console.md) — Settings roster, log toggles, peer REBOOT recovery.
+
+## 6. How to verify
 
 ```bash
 bench --site saral.localhost migrate
@@ -78,15 +82,15 @@ bench --site saral.localhost run-tests --app timebridge --module timebridge.time
 Manual:
 
 1. Settings → ADMS Server off. `curl /iclock/cdata?SN=TEST&options=all` → 404. No Machine, no Log.
-2. Enable ADMS Server. Same curl → 200 `OK`, Pending Machine, Log row.
+2. Enable ADMS Server. Add machine in Add Machine → Push with serial TEST. `curl /iclock/cdata?SN=TEST&options=all` → 200 `OK`, row updated, Log row. Unknown serial → `OK`, no Machine row.
 3. Open the machine → Register. Next curl → `GET OPTION FROM` with empty TransData.
 4. Tick AttLog Receive. Download a date range. Device collects QUERY on getrequest. New punches land in Punch Log.
 5. Disable server → further `/iclock` is 404, no new Log rows.
 
-## 6. Review checklist
+## 7. Review checklist
 
 - [ ] Server Off → 404, no writes
-- [ ] Server On → every request in ADMS Log
+- [ ] Server On → requests in ADMS Log per category toggles
 - [ ] Pending init is not `GET OPTION FROM`
 - [ ] Format II TransFlag; never Format I zeros
 - [ ] No bootstrap QUERY on Register
