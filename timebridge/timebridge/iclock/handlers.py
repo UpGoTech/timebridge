@@ -12,6 +12,7 @@ from timebridge.timebridge.iclock import (
 	discovery,
 	handshake,
 	parser,
+	peers,
 	photos,
 	stamps,
 	stats,
@@ -60,7 +61,7 @@ def handle_getrequest(serial, args, body, method, raw=None):
 		return None
 	row = discovery.machine_row(serial)
 	if not row or row.adms_status != "Registered":
-		return "OK"
+		return peers.pop_serial_command(serial) or "OK"
 
 	commands.record_contact(row.name, "poll")
 	info = args.get("INFO") or args.get("info")

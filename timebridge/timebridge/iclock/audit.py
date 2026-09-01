@@ -1,10 +1,12 @@
 # Copyright (c) 2026, UPGO and contributors
 # For license information, please see license.txt
 
-"""Write every inbound /iclock request while the server is On."""
+"""Write inbound /iclock requests when the server is On and category is enabled."""
 
 import frappe
 from frappe.utils import now_datetime
+
+from timebridge.timebridge.iclock.server import log_category_enabled
 
 DOCTYPE = "TimeBridge ADMS Log"
 
@@ -35,6 +37,10 @@ def classify(endpoint, method, table=None):
 	return "Other"
 
 
+def should_log(category):
+	return log_category_enabled(category or "Other")
+
+
 def write_log(
 	serial,
 	endpoint,
@@ -56,13 +62,17 @@ def write_log(
 		except TypeError:
 			query = str(args)[:2000]
 
+	category = classify(endpoint, method, table)
+	if not should_log(category):
+		return
+
 	frappe.get_doc(
 		{
 			"doctype": DOCTYPE,
 			"machine": machine,
 			"serial_number": serial,
 			"logged_at": now_datetime(),
-			"category": classify(endpoint, method, table),
+			"category": category,
 			"method": method,
 			"endpoint": endpoint,
 			"remote_ip": remote,

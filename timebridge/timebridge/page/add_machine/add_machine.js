@@ -109,16 +109,36 @@ function render_shell($main) {
 			</div>
 			<div class="tb-am-pane" data-pane="push">
 				<p class="tb-am-intro tb-am-push-hint"></p>
-				<div class="tb-am-status">${__("Waiting for device signals…")}</div>
+				<div class="tb-am-row">
+					<div class="tb-am-fg"><span class="tb-am-fg-label">${__("Serial")}</span><input class="tb-am-serial" type="text" placeholder="${__("From device label or ADMS Log")}"></div>
+					<div class="tb-am-fg"><span class="tb-am-fg-label">${__("Machine ID")}</span><input class="tb-am-push-mid" type="text"></div>
+					<div class="tb-am-fg"><span class="tb-am-fg-label">${__("Name")}</span><input class="tb-am-push-mname" type="text"></div>
+				</div>
+				<div class="tb-am-row" style="margin-top:10px;">
+					<div class="tb-am-fg"><span class="tb-am-fg-label">${__("Brand")}</span>
+						<select class="tb-am-brand">
+							<option value="ZKTeco">ZKTeco</option>
+							<option value="eSSL">eSSL</option>
+							<option value="Matrix">Matrix</option>
+							<option value="Other">Other</option>
+						</select>
+					</div>
+					<div class="tb-am-fg"><span class="tb-am-fg-label">${__("IP (optional)")}</span><input class="tb-am-push-ip" type="text"></div>
+					<div class="tb-am-fg"><span class="tb-am-fg-label">&nbsp;</span>
+						<button type="button" class="btn btn-primary btn-sm tb-am-save-push">${__("Add push machine")}</button>
+					</div>
+				</div>
+				<div class="tb-am-msg tb-am-push-msg"></div>
+				<h6 style="margin:16px 0 8px;">${__("Pending — open to Register")}</h6>
 				<div class="tb-dr-table-wrap" style="overflow-x:auto;">
 					<table class="tb-am-table">
 						<thead>
 							<tr>
 								<th>${__("Serial")}</th>
-								<th>${__("Push ver")}</th>
+								<th>${__("Name")}</th>
+								<th>${__("Device")}</th>
 								<th>${__("IP")}</th>
 								<th>${__("Last seen")}</th>
-								<th></th>
 								<th></th>
 							</tr>
 						</thead>
@@ -196,6 +216,53 @@ function bind_events($main) {
 		});
 	});
 
+	$main.on("click.addm", ".tb-am-save-push", function () {
+		if ($main.data("busy")) return;
+		const serial = ($main.find(".tb-am-serial").val() || "").trim();
+		const machine_id = ($main.find(".tb-am-push-mid").val() || "").trim();
+		const machine_name = ($main.find(".tb-am-push-mname").val() || "").trim();
+		if (!serial) {
+			frappe.msgprint(__("Serial Number is required."));
+			return;
+		}
+		if (!machine_id) {
+			$main.find(".tb-am-push-mid").val(serial);
+		}
+		if (!machine_name) {
+			$main.find(".tb-am-push-mname").val(serial);
+		}
+		$main.data("busy", true);
+		frappe.call({
+			method: "timebridge.timebridge.page.add_machine.add_machine.create_push_machine",
+			args: {
+				serial_number: serial,
+				machine_id: machine_id || serial,
+				machine_name: machine_name || serial,
+				device_brand: $main.find(".tb-am-brand").val(),
+				ip_address: $main.find(".tb-am-push-ip").val(),
+			},
+			callback(r) {
+				$main.data("busy", false);
+				$main.find(".tb-am-push-msg").text(__("Machine added. Register after the device checks in."));
+				load_signals($main);
+				frappe.set_route("Form", "TimeBridge Machine", r.message.machine);
+			},
+			error() {
+				$main.data("busy", false);
+			},
+		});
+	});
+
+	$main.on("input.addm", ".tb-am-serial", function () {
+		const serial = ($(this).val() || "").trim();
+		if (serial && !$main.find(".tb-am-push-mid").val()) {
+			$main.find(".tb-am-push-mid").val(serial);
+		}
+		if (serial && !$main.find(".tb-am-push-mname").val()) {
+			$main.find(".tb-am-push-mname").val(serial);
+		}
+	});
+
 	$main.on("click.addm", ".tb-am-register", function () {
 		const name = $(this).data("name");
 		frappe.set_route("Form", "TimeBridge Machine", name);
@@ -228,16 +295,16 @@ function load_signals($main) {
 			const rows = r.message || [];
 			const $tb = $main.find(".tb-am-rows");
 			if (!rows.length) {
-				$tb.html(`<tr><td colspan="6" class="tb-am-empty">${__("No pending push devices yet.")}</td></tr>`);
+				$tb.html(`<tr><td colspan="6" class="tb-am-empty">${__("No pending push machines. Add one above with the device serial.")}</td></tr>`);
 				return;
 			}
 			$tb.html(rows.map((row) => `
 				<tr>
 					<td data-label="${__("Serial")}">${frappe.utils.escape_html(row.serial_number || "")}</td>
-					<td data-label="${__("Push ver")}">${frappe.utils.escape_html(row.adms_pushver || "")}</td>
+					<td data-label="${__("Name")}">${frappe.utils.escape_html(row.machine_name || "")}</td>
+					<td data-label="${__("Device")}">${row.device_seen ? __("Online") : __("Waiting")}</td>
 					<td data-label="${__("IP")}">${frappe.utils.escape_html(row.ip_address || "")}</td>
-					<td data-label="${__("Last seen")}">${frappe.utils.escape_html(row.last_contact_at || row.adms_last_init_at || "")}</td>
-					<td></td>
+					<td data-label="${__("Last seen")}">${frappe.utils.escape_html(row.last_contact_at || row.adms_last_init_at || "—")}</td>
 					<td>
 						<button type="button" class="btn btn-xs btn-primary tb-am-register"
 							data-name="${frappe.utils.escape_html(row.name)}">${__("Open")}</button>

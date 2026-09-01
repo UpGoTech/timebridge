@@ -65,6 +65,9 @@ class IclockRenderer(BaseRenderer):
 			text = "Error: internal failure"
 
 		try:
+			from timebridge.timebridge.iclock import peers
+
+			peers.record_contact(serial, endpoint, request.method, args)
 			row = discovery.machine_row(serial)
 			audit.write_log(
 				serial=serial,

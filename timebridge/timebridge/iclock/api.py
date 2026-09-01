@@ -6,7 +6,7 @@
 import frappe
 from frappe.utils import add_days, cint, now_datetime
 
-from timebridge.timebridge.iclock import commands, discovery
+from timebridge.timebridge.iclock import commands, discovery, peers
 from timebridge.timebridge.iclock.protocol import receives
 from timebridge.timebridge.iclock.server import adms_server_enabled, web_port
 
@@ -17,6 +17,42 @@ def server_status():
 		"enabled": adms_server_enabled(),
 		"web_port": web_port(),
 		"iclock_path": "/iclock/cdata",
+	}
+
+
+@frappe.whitelist()
+def list_adms_peers():
+	return peers.list_roster()
+
+
+@frappe.whitelist()
+def queue_peer_command(serial, command="REBOOT"):
+	return peers.queue_serial_command(serial, command)
+
+
+@frappe.whitelist()
+def queue_device_command(machine_id, command="INFO"):
+	machine = frappe.get_doc("TimeBridge Machine", machine_id)
+	if machine.sdk_type != "ADMS":
+		frappe.throw("Only ADMS machines accept device commands.")
+	if machine.adms_status != "Registered":
+		frappe.throw("Register the machine before sending device commands.")
+
+	command = (command or "INFO").strip().upper()
+	if command == "REBOOT":
+		payload = commands.reboot()
+		kind = "Control"
+	elif command == "INFO":
+		payload = commands.request_info()
+		kind = "Fetch"
+	else:
+		frappe.throw(f"Unsupported command: {command}")
+
+	commands.queue_command(machine_id, payload, kind=kind)
+	return {
+		"status": "queued",
+		"command": command,
+		"pending_commands": commands.pending_count(machine_id),
 	}
 
 

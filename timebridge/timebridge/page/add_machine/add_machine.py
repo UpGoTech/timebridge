@@ -41,8 +41,9 @@ def push_server_hint():
 		"iclock_path": "/iclock/cdata",
 		"enabled": True,
 		"hint": (
-			f"On the device, set Cloud / ADMS server to this Frappe host, port {port}. "
-			"Unregistered serials that GET /iclock/cdata?options=all appear below as Pending machines."
+			f"On the device, set Cloud / ADMS server to this Frappe host, port {port}, "
+			f"path /iclock/cdata. Add the machine below with the device serial, then "
+			"Register once it has checked in."
 		),
 	}
 
@@ -60,6 +61,23 @@ def register_push_device(name, machine_id=None, machine_name=None, device_brand=
 		doc.device_brand = device_brand
 	doc.save()
 	return discovery.register_machine(name)
+
+
+@frappe.whitelist()
+def create_push_machine(
+	machine_id,
+	machine_name,
+	serial_number,
+	device_brand="ZKTeco",
+	ip_address=None,
+):
+	return discovery.create_pending_machine(
+		machine_id=machine_id,
+		machine_name=machine_name,
+		serial_number=serial_number,
+		device_brand=device_brand,
+		ip_address=ip_address,
+	)
 
 
 @frappe.whitelist()

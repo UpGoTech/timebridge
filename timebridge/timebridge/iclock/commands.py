@@ -89,6 +89,10 @@ def request_info():
 	return "INFO"
 
 
+def reboot():
+	return "REBOOT"
+
+
 def format_userinfo_update(user_id, user_name, privilege="User", password="", card=""):
 	pri = "14" if privilege == "Admin" else "0"
 	return (
