@@ -2,7 +2,7 @@
 
 Master tracker for all numbered specs under `spec/`. Each spec has its own detailed phase tracker; this file rolls up status so you can see the whole roadmap at a glance.
 
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-01
 
 ---
 
@@ -29,7 +29,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 005 Workspace dashboard       █████████████████████  100%   Merged (PR #10 + #11)
 006 Daily Punch Summary       █████████████████████  100%   Merged (PR #11)
 007 Employee Monthly Punch    █████████████████████  100%   Merged (PR #12)
-008 ADMS PUSH rewrite         ██░░░░░░░░░░░░░░░░░░   ~10%   In progress
+008 ADMS PUSH rewrite         ░░░░░░░░░░░░░░░░░░░░    —    Superseded by 009
+009 ADMS iclock onboarding     ░░░░░░░░░░░░░░░░░░░░    0%   In progress
 ```
 
 | Spec | Title | Branch | Status | Progress | Next action |
@@ -41,7 +42,8 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**005**](005-workspace-dashboard.md) | Workspace dashboard & Add Machine | — (merged) | **Merged** PR #10 + #11 | Phase 1–8 | v2 dashboard shipped in PR #11 |
 | [**006**](006-daily-punch-summary.md) | Daily Punch Summary report | — (merged) | **Merged** PR #11 | Phase 1–6 | — |
 | [**007**](007-employee-monthly-punch-summary.md) | Employee Monthly Punch Summary | — (merged) | **Merged** PR #12 | Phase 1–5 | — |
-| [**008**](008-adms-push-rewrite.md) | ADMS Attendance PUSH rewrite | `feat/008-adms-push-rewrite` | **In progress** | Spec | Request Log + bootstrap + photo fix |
+| [**008**](008-adms-push-rewrite.md) | ADMS Attendance PUSH rewrite | — | **Superseded** by 009 | — | Do not continue 008 |
+| [**009**](009-adms-onboarding.md) | ADMS iclock server and onboarding | `feat/009-adms-onboarding` | **In progress** | Spec | Server switch + Pending Machine + Receive ticks |
 
 ---
 
@@ -197,17 +199,30 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` was 
 | 5 | **006** ✓ merged | Daily Punch Summary report |
 | 6 | **007** ✓ merged | Employee Monthly Punch Summary |
 | — | **002** | Abandoned |
-| 7 | **008** | ADMS PUSH rewrite — Request Log, bootstrap, photo fix |
+| — | **008** | Superseded by 009 |
+| 8 | **009** | ADMS iclock server, Pending Machine, manual download |
 
 ---
 
-## Spec 008 — ADMS Attendance PUSH rewrite
+## Spec 008 — ADMS Attendance PUSH rewrite — SUPERSEDED
 
 | Field | Value |
 |-------|-------|
 | **Doc** | [008-adms-push-rewrite.md](008-adms-push-rewrite.md) |
-| **One-liner** | Layered Attendance PUSH receiver; per-machine Request Log toggles; register bootstrap; Desk→device name sync |
-| **Status** | **In progress** — branch `feat/008-adms-push-rewrite` |
+| **One-liner** | Layered Attendance PUSH receiver; Request Log ticks; register bootstrap |
+| **Status** | **Superseded** 2026-09-01 by [009](009-adms-onboarding.md) |
+
+Do not implement remaining 008 work. Request Log ticks and register bootstrap are replaced by the global ADMS Server switch, Pending Machine, and manual Download.
+
+---
+
+## Spec 009 — ADMS iclock server and onboarding
+
+| Field | Value |
+|-------|-------|
+| **Doc** | [009-adms-onboarding.md](009-adms-onboarding.md) |
+| **One-liner** | Enableable iclock server; Pending Machine discovery; handshake after Register; Receive ticks; manual download |
+| **Status** | **In progress** — branch `feat/009-adms-onboarding` |
 
 ---
 
@@ -233,3 +248,4 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` was 
 | 2026-08-31 | Reconcile index: 005/006 merged; 007 PR pending |
 | 2026-08-31 | 007 merged (PR #12); programme complete at 100% (001 B7 e2e still deferred) |
 | 2026-08-31 | 008 ADMS Attendance PUSH rewrite started |
+| 2026-09-01 | 009 ADMS iclock onboarding; 008 superseded |
