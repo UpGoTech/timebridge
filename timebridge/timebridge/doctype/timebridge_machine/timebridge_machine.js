@@ -57,56 +57,27 @@ frappe.ui.form.on("TimeBridge Machine", {
     refresh(frm) {
 
         if (!frm.is_new()) {
-            show_connection_health(frm);
+            timebridge.machine_console.setup(frm);
         }
 
-        // Five buttons in a row crowded the header and gave no clue which
-        // belonged together. Two dropdowns instead: everything about the
-        // device's data in one, everything about pictures in the other.
         const DEVICE = __("Device");
-        const PHOTOS = __("Photos");
-
-        // Every action needs a saved record — an unsaved machine has no id for
-        // the server to work with — so the check lives here once instead of
-        // being repeated in each handler.
         const needs_saved = (fn) => function () {
-
             if (frm.is_new()) {
-
                 frappe.msgprint({
                     title: __("Not Saved"),
                     message: __("Save the machine first."),
-                    indicator: "orange"
+                    indicator: "orange",
                 });
-
                 return;
             }
-
             fn(frm);
         };
 
-        frm.add_custom_button(__("Test Connection"), needs_saved(start_connection_test), DEVICE);
-
-        if ((frm.doc.sdk_type || "") === "ADMS") {
-            show_adms_server_banner(frm);
-            if ((frm.doc.adms_status || "") === "Pending") {
-                frm.add_custom_button(__("Register"), needs_saved(register_adms_machine), DEVICE);
-                frm.add_custom_button(__("Dismiss"), needs_saved(dismiss_adms_machine), DEVICE);
-            } else if ((frm.doc.adms_status || "") === "Registered") {
-                frm.add_custom_button(__("Download"), needs_saved(start_adms_download), DEVICE);
-                frm.add_custom_button(__("Refresh Stats"), needs_saved(refresh_adms_stats), DEVICE);
-            }
-        } else {
-            frm.add_custom_button(__("Fetch All Data"), needs_saved(start_fetch_all), DEVICE);
-        }
-
-        frm.add_custom_button(__("Add User"), needs_saved(add_user_dialog), DEVICE);
-
         if ((frm.doc.sdk_type || "") !== "ADMS") {
-            frm.add_custom_button(__("Fetch Photos"), needs_saved(start_photo_fetch), PHOTOS);
-            frm.add_custom_button(__("Collect Photos"), needs_saved(start_photo_collection), PHOTOS);
+            frm.add_custom_button(__("Add User"), needs_saved(add_user_dialog), DEVICE);
+        } else if ((frm.doc.adms_status || "") === "Registered") {
+            frm.add_custom_button(__("Add User"), needs_saved(add_user_dialog), DEVICE);
         }
-
     }
 
 });

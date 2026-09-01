@@ -2,6 +2,8 @@
 // For license information, please see license.txt
 
 const ADMS_POLL_MS = 10000;
+const INFO_POLL_MS = 2000;
+const INFO_TIMEOUT_SECONDS = 120;
 let adms_poll_timer = null;
 
 frappe.ui.form.on("TimeBridge Settings", {
@@ -91,11 +93,12 @@ function render_adms_table(rows) {
 			<td>${frappe.utils.escape_html(row.status || "")}</td>
 			<td>${frappe.utils.escape_html(row.machine_name || row.machine || "—")}</td>
 			<td>${frappe.utils.escape_html(row.remote_ip || "")}</td>
-			<td>${frappe.utils.escape_html(row.last_seen_at || "—")}</td>
+			<td>${format_last_seen(row.last_seen_at)}</td>
 			<td>${frappe.utils.escape_html(row.last_category || "—")}</td>
 			<td>
 				<button type="button" class="btn btn-default btn-xs tb-adms-menu-btn"
 					data-serial="${frappe.utils.escape_html(row.serial_number || "")}"
+					data-peer="${frappe.utils.escape_html(row.peer || "")}"
 					data-machine="${frappe.utils.escape_html(row.machine || "")}"
 					data-status="${frappe.utils.escape_html(row.status || "")}">
 					&#8942;
@@ -103,6 +106,14 @@ function render_adms_table(rows) {
 			</td>
 		</tr>`).join("");
 	return `${head}${body}</tbody></table>`;
+}
+
+function format_last_seen(value) {
+	if (!value) return "—";
+	if (typeof frappe.datetime.str_to_user === "function") {
+		return frappe.utils.escape_html(frappe.datetime.str_to_user(value));
+	}
+	return frappe.utils.escape_html(value);
 }
 
 function show_adms_menu(frm, data, $anchor) {
@@ -115,8 +126,8 @@ function show_adms_menu(frm, data, $anchor) {
 			action: () => queue_device_cmd(data.machine, "REBOOT"),
 		});
 		items.push({
-			label: __("Refresh stats"),
-			action: () => queue_device_cmd(data.machine, "INFO"),
+			label: __("Get info"),
+			action: () => get_device_info(data.machine, data.serial),
 		});
 		items.push({
 			label: __("Open machine"),
@@ -137,8 +148,18 @@ function show_adms_menu(frm, data, $anchor) {
 			action: () => queue_peer_cmd(data.serial),
 		});
 		items.push({
-			label: __("Add push machine"),
-			action: () => add_push_machine(data.serial),
+			label: __("Register"),
+			action: () => {
+				frappe.route_options = { mode: "push" };
+				frappe.set_route("add-machine");
+			},
+		});
+	}
+
+	if (status !== "Registered") {
+		items.push({
+			label: __("Dismiss"),
+			action: () => dismiss_adms_peer(data, frm),
 		});
 	}
 
@@ -158,6 +179,28 @@ function show_adms_menu(frm, data, $anchor) {
 	});
 	d.$body.append($body);
 	d.show();
+}
+
+function dismiss_adms_peer(data, frm) {
+	frappe.confirm(
+		__(
+			"Remove {0} from Connected Devices? The peer record is deleted; a device that is still polling will reappear.",
+			[data.serial]
+		),
+		() => {
+			frappe.call({
+				method: "timebridge.timebridge.iclock.api.dismiss_adms_peer",
+				args: { serial: data.serial, peer: data.peer },
+				callback() {
+					frappe.show_alert({ message: __("Device dismissed"), indicator: "green" });
+					const $console = $(frm.fields_dict.adms_console_html?.wrapper || []).find(
+						".tb-adms-console"
+					);
+					if ($console.length) load_adms_roster(frm, $console);
+				},
+			});
+		}
+	);
 }
 
 function queue_peer_cmd(serial) {
@@ -183,17 +226,142 @@ function queue_device_cmd(machine, command) {
 	});
 }
 
-function add_push_machine(serial) {
+function get_device_info(machine, serial) {
+	let poll_timer = null;
+	let command_id = null;
+	let can_close = false;
+
+	const d = new frappe.ui.Dialog({
+		title: __("Get info — {0}", [serial || machine]),
+		size: "large",
+	});
+
+	d.$body.html(`
+		<div class="tb-info-status text-muted" style="font-size:13px;margin-bottom:12px;"></div>
+		<div class="tb-info-wait text-muted" style="font-size:12px;margin-bottom:12px;"></div>
+		<div class="tb-info-result hidden"></div>
+	`);
+
+	d.footer.empty();
+	const $close_btn = $(`<button type="button" class="btn btn-primary btn-sm">${__("Close")}</button>`)
+		.prop("disabled", true)
+		.appendTo(d.footer);
+	$close_btn.on("click", () => {
+		if (!can_close) return;
+		stop_info_poll();
+		d.hide();
+	});
+
+	d.$wrapper.modal({ backdrop: "static", keyboard: false });
+	d.$wrapper.find(".modal-header .btn-close, .modal-header .close").hide();
+
+	d.show();
+
+	const $status = d.$body.find(".tb-info-status");
+	const $wait = d.$body.find(".tb-info-wait");
+	const $result = d.$body.find(".tb-info-result");
+
+	function set_status(text, indicator) {
+		const color =
+			indicator === "green"
+				? "var(--green-500)"
+				: indicator === "orange"
+					? "var(--orange-500)"
+					: indicator === "red"
+						? "var(--red-500)"
+						: "var(--text-muted)";
+		$status.html(`<span style="color:${color};">${frappe.utils.escape_html(text)}</span>`);
+	}
+
+	function render_info(info) {
+		const rows = Object.entries(info || {});
+		if (!rows.length) {
+			return `<p class="text-muted">${__("No info fields were returned.")}</p>`;
+		}
+		const body = rows
+			.map(
+				([label, value]) =>
+					`<tr><td style="width:40%;font-weight:600;">${frappe.utils.escape_html(label)}</td>` +
+					`<td>${frappe.utils.escape_html(String(value))}</td></tr>`
+			)
+			.join("");
+		return `<table class="table table-bordered table-condensed" style="font-size:13px;margin:0;"><tbody>${body}</tbody></table>`;
+	}
+
+	function finish(message, info, indicator) {
+		stop_info_poll();
+		can_close = true;
+		$close_btn.prop("disabled", false);
+		set_status(message, indicator || "green");
+		$wait.text("");
+		if (info && Object.keys(info).length) {
+			$result.removeClass("hidden").html(render_info(info));
+		}
+	}
+
+	function stop_info_poll() {
+		if (poll_timer) {
+			clearInterval(poll_timer);
+			poll_timer = null;
+		}
+	}
+
+	function poll_progress() {
+		if (!command_id) return;
+		frappe.call({
+			method: "timebridge.timebridge.iclock.api.device_info_progress",
+			args: { machine_id: machine, command_id },
+			callback(r) {
+				const st = r.message || {};
+				if (st.phase === "done") {
+					finish(st.message || __("Info received from device."), st.info, "green");
+					return;
+				}
+				if (st.phase === "timeout" || st.phase === "error") {
+					finish(st.message || __("Could not get device info."), null, "orange");
+					return;
+				}
+				set_status(st.message || __("Waiting for device…"));
+				if (st.wait_seconds != null) {
+					$wait.text(__("Elapsed: {0}s / {1}s", [st.wait_seconds, INFO_TIMEOUT_SECONDS]));
+				}
+			},
+		});
+	}
+
+	set_status(__("Queueing INFO command…"));
+
 	frappe.call({
-		method: "timebridge.timebridge.page.add_machine.add_machine.create_push_machine",
-		args: {
-			serial_number: serial,
-			machine_id: serial,
-			machine_name: serial,
-		},
+		method: "timebridge.timebridge.iclock.api.request_device_info",
+		args: { machine_id: machine },
 		callback(r) {
-			frappe.set_route("Form", "TimeBridge Machine", r.message.machine);
+			const res = r.message || {};
+			if (res.status !== "queued" || !res.command_id) {
+				finish(__("Could not queue INFO command."), null, "red");
+				return;
+			}
+			command_id = res.command_id;
+			set_status(__("INFO command queued — waiting for device to poll…"));
+			$wait.text(
+				__(
+					"The device checks in roughly every 30 seconds. It must poll before it can receive the command."
+				)
+			);
+			poll_progress();
+			poll_timer = setInterval(poll_progress, INFO_POLL_MS);
 		},
+		error() {
+			finish(__("Could not reach the server."), null, "red");
+		},
+	});
+
+	d.$wrapper.on("hide.bs.modal", function (e) {
+		if (!can_close) {
+			e.preventDefault();
+			e.stopImmediatePropagation();
+		} else {
+			stop_info_poll();
+		}
 	});
 }
 

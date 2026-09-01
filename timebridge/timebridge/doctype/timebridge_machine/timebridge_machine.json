@@ -12,6 +12,7 @@
   "device_brand",
   "device_model",
   "serial_number",
+  "machine_console_html",
   "connection_information",
   "ip_address",
   "port",
@@ -99,6 +100,12 @@
    "label": "Serial Number"
   },
   {
+   "depends_on": "eval:!doc.__islocal",
+   "fieldname": "machine_console_html",
+   "fieldtype": "HTML",
+   "label": "Console"
+  },
+  {
    "fieldname": "connection_information",
    "fieldtype": "Tab Break",
    "label": "Connection"
@@ -134,6 +141,7 @@
    "fieldtype": "Select",
    "label": "SDK Type",
    "options": "PyZK\nADMS\nMatrix\nCustom",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -155,6 +163,7 @@
   {
    "fieldname": "status_information",
    "fieldtype": "Tab Break",
+   "hidden": 1,
    "label": "Status"
   },
   {
@@ -228,6 +237,7 @@
    "depends_on": "eval:doc.sdk_type == 'ADMS'",
    "fieldname": "adms_status",
    "fieldtype": "Select",
+   "hidden": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "ADMS Status",
@@ -424,6 +434,7 @@
   {
    "fieldname": "other_information",
    "fieldtype": "Section Break",
+   "hidden": 1,
    "label": "Other Information"
   },
   {
@@ -450,7 +461,7 @@
    "link_fieldname": "machine"
   }
  ],
- "modified": "2026-09-01 10:30:00.000000",
+ "modified": "2026-09-01 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Machine",

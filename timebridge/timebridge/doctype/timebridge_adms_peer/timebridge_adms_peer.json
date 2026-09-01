@@ -7,7 +7,6 @@
  "engine": "InnoDB",
  "field_order": [
   "serial_number",
-  "machine",
   "column_break_peer",
   "remote_ip",
   "hit_count",
@@ -31,14 +30,6 @@
    "label": "Serial Number",
    "reqd": 1,
    "unique": 1
-  },
-  {
-   "fieldname": "machine",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "TimeBridge Machine",
-   "options": "TimeBridge Machine",
-   "read_only": 1
   },
   {
    "fieldname": "column_break_peer",
@@ -119,7 +110,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-09-01 11:30:00.000000",
+ "modified": "2026-09-01 12:20:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge ADMS Peer",

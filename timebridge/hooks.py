@@ -38,6 +38,10 @@ page_renderer = [
 # app_include_css = "/assets/timebridge/css/timebridge.css"
 app_include_js = "/assets/timebridge/js/timebridge_desk.js"
 
+doctype_js = {
+	"TimeBridge Machine": "public/js/timebridge_machine_console.js",
+}
+
 # include js, css files in header of web template
 # web_include_css = "/assets/timebridge/css/timebridge.css"
 # web_include_js = "/assets/timebridge/js/timebridge.js"

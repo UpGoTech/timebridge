@@ -112,7 +112,13 @@ def parse_photo_fields(body):
 			key, _, value = chunk.partition("=")
 			fields[key.strip().upper()] = value.strip()
 		user_id = fields.get("PIN")
-		content = fields.get("CONTENT") or fields.get("PHOTO")
+		content = (
+			fields.get("CONTENT")
+			or fields.get("PHOTO")
+			or fields.get("IMAGE")
+			or fields.get("BIOPHOTO")
+			or fields.get("BIOPIC")
+		)
 		if user_id and content:
 			records.append({"user_id": user_id, "content": content})
 	return records

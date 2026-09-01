@@ -37,7 +37,7 @@ This spec treats `/iclock` as a **server** the device dials, rebuilds the receiv
 | Q2 | Delete entire `adms/` package. New `iclock/` package. Protocol semantics from the PDF (`OK: n`, stamp names, Attendance TransFlag order, HTTP 200 while On). |
 | Q3 | Desk TimeBridge Machine form — not a Vue SPA. |
 | Q4 | Unknown SN: no `GET OPTION FROM`. Discovery is the init GET. |
-| Q5 | Operator adds Pending machine in Add Machine → Push (serial required). Device init only updates that row — never auto-creates. |
+| Q5 | Add Machine → Push lists devices that sent **Handshake** or **Heartbeat** only. Operator adopts from that list — never types a serial manually. Device init updates the Pending row by serial; unknown serials get `OK` only (peer row only). |
 | Q6 | First handshake: all TransFlag types off. Download only for ticked Receive types. |
 | Q7 | Global Settings **ADMS Server Enabled**. Off = do not claim `/iclock` (404). On = spec replies + log every request. Log ticks on Machine are gone. |
 | Q8 | Receive ticks control TransFlag only. ATTLOG POST is stored only when AttLog Receive is on. |
@@ -82,7 +82,7 @@ bench --site saral.localhost run-tests --app timebridge --module timebridge.time
 Manual:
 
 1. Settings → ADMS Server off. `curl /iclock/cdata?SN=TEST&options=all` → 404. No Machine, no Log.
-2. Enable ADMS Server. Add machine in Add Machine → Push with serial TEST. `curl /iclock/cdata?SN=TEST&options=all` → 200 `OK`, row updated, Log row. Unknown serial → `OK`, no Machine row.
+2. Enable ADMS Server. Reboot or wait for device heartbeat/handshake. Add Machine → Push lists the serial. Register on the Machine form. Unknown serial → `OK`, peer row only, no Machine row.
 3. Open the machine → Register. Next curl → `GET OPTION FROM` with empty TransData.
 4. Tick AttLog Receive. Download a date range. Device collects QUERY on getrequest. New punches land in Punch Log.
 5. Disable server → further `/iclock` is 404, no new Log rows.

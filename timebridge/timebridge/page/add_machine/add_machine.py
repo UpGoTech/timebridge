@@ -14,7 +14,7 @@ from timebridge.timebridge.services.pull_sync import enqueue_pull_sync
 
 @frappe.whitelist()
 def list_pending_signals():
-	return discovery.list_pending()
+	return discovery.list_discoverable()
 
 
 @frappe.whitelist()
@@ -41,9 +41,9 @@ def push_server_hint():
 		"iclock_path": "/iclock/cdata",
 		"enabled": True,
 		"hint": (
-			f"On the device, set Cloud / ADMS server to this Frappe host, port {port}, "
-			f"path /iclock/cdata. Add the machine below with the device serial, then "
-			"Register once it has checked in."
+			f"Point the device at this Frappe host, port {port}, path /iclock/cdata. "
+			"Devices appear below after they send a handshake or heartbeat. "
+			"Select one to register — serial numbers cannot be typed in manually."
 		),
 	}
 
@@ -64,6 +64,23 @@ def register_push_device(name, machine_id=None, machine_name=None, device_brand=
 
 
 @frappe.whitelist()
+def adopt_discovered_peer(
+	serial_number,
+	machine_id=None,
+	machine_name=None,
+	device_brand="ZKTeco",
+	ip_address=None,
+):
+	return discovery.adopt_discovered_peer(
+		serial_number=serial_number,
+		machine_id=machine_id,
+		machine_name=machine_name,
+		device_brand=device_brand,
+		ip_address=ip_address,
+	)
+
+
+@frappe.whitelist()
 def create_push_machine(
 	machine_id,
 	machine_name,
@@ -71,10 +88,10 @@ def create_push_machine(
 	device_brand="ZKTeco",
 	ip_address=None,
 ):
-	return discovery.create_pending_machine(
+	return discovery.adopt_discovered_peer(
+		serial_number=serial_number,
 		machine_id=machine_id,
 		machine_name=machine_name,
-		serial_number=serial_number,
 		device_brand=device_brand,
 		ip_address=ip_address,
 	)

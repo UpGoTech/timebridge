@@ -6,12 +6,14 @@
 import json
 
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, format_datetime
 
 from timebridge.timebridge.iclock.protocol import RECEIVE_FIELDS
 from timebridge.timebridge.services.device_records import get_machine_by_serial
 
 MACHINE = "TimeBridge Machine"
+PEER = "TimeBridge ADMS Peer"
+DISCOVERABLE_CATEGORIES = frozenset({"Handshake", "Heartbeat"})
 MACHINE_FIELDS = [
 	"name",
 	"adms_status",
@@ -83,14 +85,30 @@ def record_init(serial, args):
 	return machine_row(serial)
 
 
+def peer_is_discoverable(serial):
+	serial = (serial or "").strip()
+	if not serial:
+		return False
+
+	existing = machine_row(serial)
+	if existing:
+		return existing.adms_status == "Pending"
+
+	peer = frappe.db.get_value(PEER, {"serial_number": serial}, "last_category")
+	if not peer:
+		return False
+	return peer in DISCOVERABLE_CATEGORIES
+
+
 def create_pending_machine(
 	machine_id,
 	machine_name,
 	serial_number,
 	device_brand="ZKTeco",
 	ip_address=None,
+	require_discovery=True,
 ):
-	"""Operator-created Pending ADMS machine (Add Machine → Push)."""
+	"""Create a Pending ADMS machine after the device has checked in."""
 
 	serial_number = (serial_number or "").strip()
 	machine_id = (machine_id or "").strip()
@@ -102,7 +120,15 @@ def create_pending_machine(
 		frappe.throw("Machine ID is required.")
 	if not machine_name:
 		frappe.throw("Machine Name is required.")
-	if get_machine_by_serial(serial_number):
+	if require_discovery and not peer_is_discoverable(serial_number):
+		frappe.throw(
+			"This device has not sent a handshake or heartbeat yet. "
+			"Reboot it from Settings or wait for it to check in."
+		)
+	existing = machine_row(serial_number)
+	if existing:
+		if existing.adms_status == "Pending":
+			return {"machine": existing.name, "machine_id": existing.machine_id}
 		frappe.throw(f"A machine with serial {serial_number!r} already exists.")
 	if frappe.db.exists(MACHINE, {"machine_id": machine_id}):
 		frappe.throw(f"Machine ID {machine_id!r} already exists.")
@@ -124,8 +150,29 @@ def create_pending_machine(
 	doc.insert()
 	from timebridge.timebridge.iclock import peers
 
-	peers.ensure_peer_for_machine(serial_number, doc.name)
+	peers.ensure_peer(serial_number)
+	_apply_peer_init_to_machine(serial_number, doc.name)
 	return {"machine": doc.name, "machine_id": doc.machine_id}
+
+
+def adopt_discovered_peer(
+	serial_number,
+	machine_id=None,
+	machine_name=None,
+	device_brand="ZKTeco",
+	ip_address=None,
+):
+	"""Add Machine → Push: create Pending row from a discovered peer."""
+
+	serial_number = (serial_number or "").strip()
+	return create_pending_machine(
+		machine_id=machine_id or serial_number,
+		machine_name=machine_name or serial_number,
+		serial_number=serial_number,
+		device_brand=device_brand,
+		ip_address=ip_address,
+		require_discovery=True,
+	)
 
 
 def register_machine(name):
@@ -149,7 +196,16 @@ def dismiss_machine(name):
 
 
 def list_pending():
-	rows = frappe.get_all(
+	return list_discoverable()
+
+
+def list_discoverable():
+	"""Devices that contacted /iclock and can be opened for Register."""
+
+	rows = []
+	seen_serials = set()
+
+	for machine in frappe.get_all(
 		MACHINE,
 		filters={"sdk_type": "ADMS", "adms_status": "Pending"},
 		fields=[
@@ -162,10 +218,87 @@ def list_pending():
 			"adms_last_init_at",
 		],
 		order_by="modified desc",
-	)
-	for row in rows:
-		row["device_seen"] = bool(row.adms_last_init_at)
+	):
+		if not machine.serial_number:
+			continue
+		seen_serials.add(machine.serial_number)
+		peer = frappe.db.get_value(
+			PEER,
+			{"serial_number": machine.serial_number},
+			["last_category", "last_seen_at"],
+			as_dict=True,
+		)
+		last_at = machine.last_contact_at or machine.adms_last_init_at
+		if not last_at and peer:
+			last_at = peer.last_seen_at
+		rows.append(
+			{
+				"name": machine.name,
+				"serial_number": machine.serial_number,
+				"ip_address": machine.ip_address,
+				"machine_name": machine.machine_name,
+				"adms_pushver": machine.adms_pushver,
+				"last_contact_at": format_datetime(last_at) if last_at else None,
+				"adms_last_init_at": format_datetime(machine.adms_last_init_at)
+				if machine.adms_last_init_at
+				else None,
+				"last_category": peer.last_category if peer else None,
+				"device_seen": bool(machine.adms_last_init_at),
+				"discovered": True,
+			}
+		)
+
+	from timebridge.timebridge.iclock.peers import _fetch_peers
+
+	for peer in _fetch_peers():
+		if not peer.serial_number or peer.serial_number in seen_serials:
+			continue
+		if get_machine_by_serial(peer.serial_number):
+			continue
+		if peer.last_category not in DISCOVERABLE_CATEGORIES:
+			continue
+		rows.append(
+			{
+				"name": None,
+				"peer": peer.name,
+				"serial_number": peer.serial_number,
+				"ip_address": peer.remote_ip,
+				"machine_name": peer.serial_number,
+				"adms_pushver": peer.adms_pushver,
+				"last_contact_at": format_datetime(peer.last_seen_at)
+				if peer.last_seen_at
+				else None,
+				"adms_last_init_at": format_datetime(peer.last_seen_at)
+				if peer.last_category == "Handshake" and peer.last_seen_at
+				else None,
+				"last_category": peer.last_category,
+				"device_seen": peer.last_category == "Handshake",
+				"discovered": True,
+			}
+		)
+
 	return rows
+
+
+def _apply_peer_init_to_machine(serial, machine_name):
+	peer = frappe.db.get_value(
+		PEER,
+		{"serial_number": serial},
+		["last_category", "last_seen_at", "adms_pushver", "remote_ip"],
+		as_dict=True,
+	)
+	if not peer or peer.last_category != "Handshake" or not peer.last_seen_at:
+		return
+
+	updates = {
+		"adms_last_init_at": peer.last_seen_at,
+		"last_contact_at": peer.last_seen_at,
+	}
+	if peer.adms_pushver:
+		updates["adms_pushver"] = peer.adms_pushver
+	if peer.remote_ip and _valid_ip(peer.remote_ip):
+		updates["ip_address"] = peer.remote_ip
+	frappe.db.set_value(MACHINE, machine_name, updates, update_modified=False)
 
 
 def _valid_ip(value):

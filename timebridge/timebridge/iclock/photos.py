@@ -21,6 +21,48 @@ PHOTO_FILENAME = re.compile(
 )
 
 
+PENDING_PHOTO_TTL = 600
+
+
+def _pending_photo_key(machine):
+	return f"timebridge_pending_photos::{machine}"
+
+
+def stash_pending_photo(machine, user_id, image_bytes):
+	import base64
+
+	pending = frappe.cache().get_value(_pending_photo_key(machine)) or {}
+	pending[str(user_id)] = base64.b64encode(image_bytes).decode("ascii")
+	frappe.cache().set_value(
+		_pending_photo_key(machine), pending, expires_in_sec=PENDING_PHOTO_TTL
+	)
+
+
+def flush_pending_photos(machine, source):
+	import base64
+
+	pending = frappe.cache().get_value(_pending_photo_key(machine)) or {}
+	if not pending:
+		return 0
+	saved = 0
+	remaining = dict(pending)
+	for user_id, encoded in pending.items():
+		try:
+			image = base64.b64decode(encoded, validate=False)
+		except Exception:
+			continue
+		if save_photo(machine, user_id, image, source, stash_if_missing=False):
+			saved += 1
+			remaining.pop(user_id, None)
+	if remaining:
+		frappe.cache().set_value(
+			_pending_photo_key(machine), remaining, expires_in_sec=PENDING_PHOTO_TTL
+		)
+	else:
+		frappe.cache().delete_value(_pending_photo_key(machine))
+	return saved
+
+
 def looks_like_image(data):
 	return isinstance(data, bytes) and data.startswith(IMAGE_SIGNATURES)
 
@@ -77,18 +119,23 @@ def decode_field_image(content):
 	return decoded if looks_like_image(decoded) else None
 
 
-def save_photos_from_fields(machine, rows, source):
+def save_photos_from_fields(machine, rows, source, stash_if_missing=False):
 	saved = 0
 	for row in rows:
 		image = decode_field_image(row.get("content"))
 		if not image:
 			continue
-		if save_photo(machine, row["user_id"], image, source):
+		result = save_photo(
+			machine, row["user_id"], image, source, stash_if_missing=stash_if_missing
+		)
+		if result and result != "pending":
 			saved += 1
+		elif result == "pending":
+			saved += 0  # counted on flush
 	return saved
 
 
-def save_photo(machine, user_id, image_bytes, source):
+def save_photo(machine, user_id, image_bytes, source, stash_if_missing=False):
 	existing = frappe.db.get_value(
 		"TimeBridge Machine User",
 		{"machine": machine, "user_id": user_id},
@@ -96,6 +143,9 @@ def save_photo(machine, user_id, image_bytes, source):
 		as_dict=True,
 	)
 	if not existing:
+		if stash_if_missing:
+			stash_pending_photo(machine, user_id, image_bytes)
+			return "pending"
 		write_machine_log(
 			machine=machine,
 			level="Warning",
@@ -135,22 +185,29 @@ def save_photo(machine, user_id, image_bytes, source):
 	return file_doc.file_url
 
 
-def handle_photo(machine, args, raw_bytes, body_text, source):
+def handle_photo(machine, args, raw_bytes, body_text, source, stash_if_missing=False):
+	saved = 0
 	try:
 		if is_punch_snapshot(source, args):
-			return
+			return 0
 		from timebridge.timebridge.iclock import parser
 
 		rows = parser.parse_photo_fields(body_text)
 		if rows:
-			save_photos_from_fields(machine, rows, source)
-			return
+			return save_photos_from_fields(
+				machine, rows, source, stash_if_missing=stash_if_missing
+			)
 		user_id = extract_user_id(args, body_text)
 		image = decode_image(raw_bytes, body_text)
 		if user_id and image:
-			save_photo(machine, user_id, image, source)
+			result = save_photo(
+				machine, user_id, image, source, stash_if_missing=stash_if_missing
+			)
+			if result and result != "pending":
+				saved = 1
 	except Exception:
 		frappe.log_error(
 			title="TimeBridge iclock: photo failed",
 			message=frappe.get_traceback(),
 		)
+	return saved

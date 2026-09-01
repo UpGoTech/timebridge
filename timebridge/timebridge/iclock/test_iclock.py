@@ -6,7 +6,7 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from timebridge.timebridge.iclock import commands, discovery, handshake, handlers, peers
+from timebridge.timebridge.iclock import commands, discovery, handshake, handlers, peers, photos
 from timebridge.timebridge.iclock.protocol import transflag_line
 from timebridge.timebridge.iclock.renderer import IclockRenderer
 from timebridge.timebridge.iclock.server import clear_server_enabled_cache, log_category_enabled
@@ -22,7 +22,20 @@ def create_pending(serial):
 		machine_id=serial,
 		machine_name=serial,
 		serial_number=serial,
+		require_discovery=False,
 	)["machine"]
+
+
+def _test_jpeg_bytes():
+	"""Minimal valid JPEG — Frappe File rejects fake \\xff\\xd8 headers."""
+
+	import io
+
+	from PIL import Image
+
+	buf = io.BytesIO()
+	Image.new("RGB", (8, 8), color=(120, 80, 40)).save(buf, format="JPEG")
+	return buf.getvalue()
 
 
 class TestIclockServer(FrappeTestCase):
@@ -157,16 +170,163 @@ class TestIclockServer(FrappeTestCase):
 		self.assertIn("ATTLOG", queued["queued"])
 		self.assertNotIn("USERINFO", queued["queued"])
 
+	def test_userinfo_stored_on_explicit_download_without_receive_toggled(self):
+		enable_server(1)
+		serial = f"UQ-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		command_id = commands.queue_command(name, commands.request_users(), kind="Fetch")
+		commands.start_download_session(name, "users", [command_id])
+		handlers.handle_getrequest(serial, {"SN": serial}, "", "GET")
+
+		body = "PIN=5\tName=Asha\tPri=0\tCard=99\nPIN=6\tName=Biju\tPri=0\n"
+		with patch.object(frappe.db, "commit"):
+			reply = handlers.handle_cdata(
+				serial,
+				{"SN": serial, "table": "USERINFO", "OpStamp": "1"},
+				body,
+				"POST",
+			)
+		self.assertEqual(reply, "OK: 2")
+		self.assertEqual(frappe.db.count("TimeBridge Machine User", {"machine": name}), 2)
+
+	def test_userinfo_multibatch_while_download_session_active(self):
+		enable_server(1)
+		serial = f"MB-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		command_id = commands.queue_command(name, commands.request_users(), kind="Fetch")
+		session = commands.start_download_session(name, "users", [command_id])
+		handlers.handle_getrequest(serial, {"SN": serial}, "", "GET")
+
+		batch1 = "PIN=1\tName=One\tPri=0\n" + "PIN=2\tName=Two\tPri=0\n"
+		batch2 = "PIN=3\tName=Three\tPri=0\n"
+		with patch.object(frappe.db, "commit"):
+			handlers.handle_cdata(
+				serial,
+				{"SN": serial, "table": "USERINFO", "OpStamp": "1"},
+				batch1,
+				"POST",
+			)
+			handlers.handle_cdata(
+				serial,
+				{"SN": serial, "table": "USERINFO", "OpStamp": "2"},
+				batch2,
+				"POST",
+			)
+		self.assertEqual(frappe.db.count("TimeBridge Machine User", {"machine": name}), 3)
+		progress = commands.download_progress(name, session["session_id"])
+		self.assertIn(progress["phase"], ("receiving", "waiting", "done"))
+		self.assertEqual(progress["stats"]["Machine users created"], 3)
+
+	def test_biophoto_during_users_download_session(self):
+		import base64
+
+		enable_server(1)
+		serial = f"BP-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		command_id = commands.queue_command(name, commands.request_users(), kind="Fetch")
+		commands.start_download_session(name, "users", [command_id])
+		handlers.handle_getrequest(serial, {"SN": serial}, "", "GET")
+
+		content = base64.b64encode(_test_jpeg_bytes()).decode("ascii")
+		with patch.object(frappe.db, "commit"):
+			handlers.handle_cdata(
+				serial,
+				{"SN": serial, "table": "USERINFO", "OpStamp": "1"},
+				"PIN=9\tName=Nine\tPri=0\n",
+				"POST",
+			)
+			handlers.handle_cdata(
+				serial,
+				{"SN": serial, "table": "BIOPHOTO"},
+				f"PIN=9\tCONTENT={content}\n",
+				"POST",
+			)
+		photo = frappe.db.get_value(
+			"TimeBridge Machine User",
+			{"machine": name, "user_id": "9"},
+			"photo",
+		)
+		self.assertTrue(photo)
+
+	def test_attlog_stored_on_explicit_download_without_receive_toggled(self):
+		enable_server(1)
+		serial = f"AQ-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		commands.queue_command(
+			name,
+			commands.resend_attendance_between("2026-09-01 00:00:00", "2026-09-01 23:59:59"),
+			kind="Fetch",
+		)
+		handlers.handle_getrequest(serial, {"SN": serial}, "", "GET")
+
+		body = "5\t2026-09-01 10:00:00\t0\t15\t0\t0\n"
+		with patch.object(frappe.db, "commit"):
+			reply = handlers.handle_cdata(
+				serial, {"SN": serial, "table": "ATTLOG", "Stamp": "9999"}, body, "POST"
+			)
+		self.assertEqual(reply, "OK: 1")
+		self.assertEqual(frappe.db.count("TimeBridge Punch Log", {"machine": name}), 1)
+
 	def test_create_pending_machine(self):
 		serial = f"ADD-{frappe.generate_hash(length=6)}"
-		result = discovery.create_pending_machine(serial, serial, serial)
+		peers.record_contact(serial, "getrequest", "GET", {"SN": serial})
+		result = discovery.adopt_discovered_peer(serial)
 		self.assertTrue(frappe.db.exists("TimeBridge Machine", result["machine"]))
 		self.assertEqual(
 			frappe.db.get_value("TimeBridge Machine", result["machine"], "adms_status"),
 			"Pending",
 		)
+		serial2 = f"ADD2-{frappe.generate_hash(length=6)}"
+		peers.record_contact(serial2, "getrequest", "GET", {"SN": serial2})
 		with self.assertRaises(frappe.ValidationError):
-			discovery.create_pending_machine(serial, f"{serial}-2", serial)
+			discovery.adopt_discovered_peer(serial2, machine_id=serial)
+
+	def test_undiscovered_serial_cannot_adopt(self):
+		serial = f"NOPE-{frappe.generate_hash(length=6)}"
+		with self.assertRaises(frappe.ValidationError):
+			discovery.adopt_discovered_peer(serial)
+
+	def test_list_discoverable_includes_heartbeat_peer(self):
+		serial = f"HB-D-{frappe.generate_hash(length=6)}"
+		peers.record_contact(serial, "getrequest", "GET", {"SN": serial})
+		rows = discovery.list_discoverable()
+		serials = [r["serial_number"] for r in rows]
+		self.assertIn(serial, serials)
+
+	def test_list_discoverable_includes_handshake_peer(self):
+		serial = f"HS-D-{frappe.generate_hash(length=6)}"
+		peers.record_contact(serial, "cdata", "GET", {"SN": serial, "options": "all"})
+		rows = discovery.list_discoverable()
+		self.assertIn(serial, [r["serial_number"] for r in rows])
+
+	def test_list_discoverable_excludes_ping_only_peer(self):
+		serial = f"PG-D-{frappe.generate_hash(length=6)}"
+		peers.record_contact(serial, "ping", "GET", {"SN": serial})
+		rows = discovery.list_discoverable()
+		self.assertNotIn(serial, [r["serial_number"] for r in rows])
+
+	def test_adopt_backfills_init_from_handshake_peer(self):
+		serial = f"BF-{frappe.generate_hash(length=6)}"
+		peers.record_contact(
+			serial, "cdata", "GET", {"SN": serial, "options": "all", "pushver": "2.4.1"}
+		)
+		result = discovery.adopt_discovered_peer(serial)
+		machine = frappe.db.get_value(
+			"TimeBridge Machine",
+			result["machine"],
+			["adms_last_init_at", "adms_pushver"],
+			as_dict=True,
+		)
+		self.assertTrue(machine.adms_last_init_at)
+		self.assertEqual(machine.adms_pushver, "2.4.1")
 
 	def test_timezone_minutes_for_ist(self):
 		with patch("frappe.utils.get_system_timezone", return_value="Asia/Kolkata"):
@@ -238,6 +398,46 @@ class TestAdmsConsole(FrappeTestCase):
 		peers.queue_serial_command(serial, "REBOOT")
 		reply = handlers.handle_getrequest(serial, {"SN": serial}, "", "GET")
 		self.assertIn("REBOOT", reply)
+
+	def test_list_roster_includes_last_seen_at(self):
+		serial = f"LS-{frappe.generate_hash(length=6)}"
+		peers.record_contact(serial, "getrequest", "GET", {"SN": serial})
+		rows = peers.list_roster()
+		match = [r for r in rows if r["serial_number"] == serial]
+		self.assertEqual(len(match), 1)
+		self.assertTrue(match[0]["last_seen_at"])
+
+	def test_dismiss_peer_removes_unknown(self):
+		serial = f"DS-{frappe.generate_hash(length=6)}"
+		peers.record_contact(serial, "getrequest", "GET", {"SN": serial})
+		peer = frappe.db.get_value("TimeBridge ADMS Peer", {"serial_number": serial}, "name")
+		peers.dismiss_peer(serial=serial)
+		self.assertFalse(frappe.db.exists("TimeBridge ADMS Peer", peer))
+
+	def test_info_request_progress(self):
+		from timebridge.timebridge.iclock import stats
+
+		serial = f"INF-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		queued = commands.start_info_request(name)
+		cmd_id = queued["command_id"]
+		self.assertEqual(commands.info_progress(name, cmd_id)["phase"], "queued")
+
+		cmd_name = frappe.db.get_value(
+			"TimeBridge Device Command",
+			{"machine": name, "command_id": cmd_id},
+			"name",
+		)
+		frappe.db.set_value("TimeBridge Device Command", cmd_name, "status", "Sent")
+		stats.apply_info_command_body(name, "UserCount=5\tTransactionCount=10\tFWVersion=1.0")
+
+		done = commands.info_progress(name, cmd_id)
+		self.assertEqual(done["phase"], "done")
+		self.assertEqual(done["info"].get("Users"), 5)
+		self.assertEqual(done["info"].get("Attendance records"), 10)
+		self.assertEqual(done["info"].get("Firmware"), "1.0")
 
 
 class TestIclockParser(FrappeTestCase):

@@ -22,7 +22,7 @@ Spec 009 removed auto-created machines and per-machine log ticks. This spec adds
 1. **TimeBridge ADMS Peer** — upsert on every `/iclock` request by serial (observability only).
 2. **TimeBridge Settings → ADMS Server** — live roster (10s poll + Refresh), per-category log toggles (Heartbeat/Ping off by default).
 3. **Commands** — `REBOOT` via peer queue for Unknown/Pending; `REBOOT`/`INFO` via Device Command for Registered.
-4. **Recovery** — after DB wipe, operator Reboots Unknown peer → next `getrequest` delivers `C:id:REBOOT` → device inits → Add push machine → Register.
+4. **Recovery** — after DB wipe, operator Reboots Unknown peer → next `getrequest` delivers `C:id:REBOOT` → device inits → appears in Add Machine → Push → Register.
 
 ## 3. Locked decisions
 
@@ -32,7 +32,7 @@ Spec 009 removed auto-created machines and per-machine log ticks. This spec adds
 | G2 | Log defaults: all categories on except **Heartbeat** and **Ping**. |
 | G3 | `INFO`/QUERY Registered-only; `REBOOT` also on Unknown/Pending peer queue. |
 | G4 | Roster auto-refresh 10s + manual Refresh on Settings tab. |
-| G5 | Registration still via Add Machine → Push + Machine form Register. |
+| G5 | Registration via Add Machine → Push (discovered peers only) + Machine form Register. |
 
 ## 4. Progress tracker
 
@@ -57,4 +57,4 @@ Manual:
 1. Enable ADMS Server; Heartbeat/Ping log toggles off by default.
 2. Device polls → roster shows Unknown; no Heartbeat ADMS Log rows unless enabled.
 3. ⋮ Reboot on Unknown → next getrequest returns `C:…:REBOOT`.
-4. After init → Add push machine → Register → ⋮ INFO works.
+4. After init → Add Machine → Push → Register → ⋮ INFO works.

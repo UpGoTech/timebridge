@@ -50,3 +50,6 @@ def _write(machine_name, parsed):
 	frappe.db.set_value(
 		"TimeBridge Machine", machine_name, updates, update_modified=False
 	)
+	from timebridge.timebridge.iclock import commands
+
+	commands.maybe_finish_info_wait(machine_name)
