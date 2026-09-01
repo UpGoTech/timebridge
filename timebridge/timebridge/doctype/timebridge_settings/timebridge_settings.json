@@ -20,7 +20,9 @@
   "photo_settings",
   "enable_photo_transfer",
   "debug_settings",
-  "enable_debug_log"
+  "enable_debug_log",
+  "adms_settings",
+  "adms_server_enabled"
  ],
  "fields": [
   {
@@ -119,11 +121,23 @@
    "fieldname": "enable_debug_log",
    "fieldtype": "Check",
    "label": "Enable Debug Log"
+  },
+  {
+   "fieldname": "adms_settings",
+   "fieldtype": "Tab Break",
+   "label": "ADMS Server"
+  },
+  {
+   "default": "0",
+   "description": "Off: /iclock is not served (devices see a 404). On: handshake, discovery, and every GET/POST is written to TimeBridge ADMS Log.",
+   "fieldname": "adms_server_enabled",
+   "fieldtype": "Check",
+   "label": "ADMS Server Enabled"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-30 16:00:00.000000",
+ "modified": "2026-09-01 10:30:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Settings",

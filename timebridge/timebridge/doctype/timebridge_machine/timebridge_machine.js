@@ -87,17 +87,120 @@ frappe.ui.form.on("TimeBridge Machine", {
 
         frm.add_custom_button(__("Test Connection"), needs_saved(start_connection_test), DEVICE);
 
-        frm.add_custom_button(__("Fetch All Data"), needs_saved(start_fetch_all), DEVICE);
+        if ((frm.doc.sdk_type || "") === "ADMS") {
+            show_adms_server_banner(frm);
+            if ((frm.doc.adms_status || "") === "Pending") {
+                frm.add_custom_button(__("Register"), needs_saved(register_adms_machine), DEVICE);
+                frm.add_custom_button(__("Dismiss"), needs_saved(dismiss_adms_machine), DEVICE);
+            } else if ((frm.doc.adms_status || "") === "Registered") {
+                frm.add_custom_button(__("Download"), needs_saved(start_adms_download), DEVICE);
+                frm.add_custom_button(__("Refresh Stats"), needs_saved(refresh_adms_stats), DEVICE);
+            }
+        } else {
+            frm.add_custom_button(__("Fetch All Data"), needs_saved(start_fetch_all), DEVICE);
+        }
 
         frm.add_custom_button(__("Add User"), needs_saved(add_user_dialog), DEVICE);
 
-        frm.add_custom_button(__("Fetch Photos"), needs_saved(start_photo_fetch), PHOTOS);
-
-        frm.add_custom_button(__("Collect Photos"), needs_saved(start_photo_collection), PHOTOS);
+        if ((frm.doc.sdk_type || "") !== "ADMS") {
+            frm.add_custom_button(__("Fetch Photos"), needs_saved(start_photo_fetch), PHOTOS);
+            frm.add_custom_button(__("Collect Photos"), needs_saved(start_photo_collection), PHOTOS);
+        }
 
     }
 
 });
+
+
+function show_adms_server_banner(frm) {
+    frappe.call({
+        method: "timebridge.timebridge.iclock.api.server_status",
+        callback(r) {
+            const enabled = (r.message || {}).enabled;
+            if (enabled) {
+                frm.dashboard.clear_headline();
+                return;
+            }
+            frm.dashboard.set_headline(
+                __("ADMS Server is off. Enable it in TimeBridge Settings. Devices see a 404 until then.")
+            );
+        },
+    });
+}
+
+
+function register_adms_machine(frm) {
+    frappe.call({
+        method: "timebridge.timebridge.iclock.api.register_machine",
+        args: { name: frm.doc.name },
+        callback() {
+            frm.reload_doc();
+        },
+    });
+}
+
+
+function dismiss_adms_machine(frm) {
+    frappe.call({
+        method: "timebridge.timebridge.iclock.api.dismiss_machine",
+        args: { name: frm.doc.name },
+        callback() {
+            frm.reload_doc();
+        },
+    });
+}
+
+
+function refresh_adms_stats(frm) {
+    frappe.call({
+        method: "timebridge.timebridge.iclock.api.refresh_stats",
+        args: { machine_id: frm.doc.name },
+        callback(r) {
+            frappe.show_alert({ message: __("INFO command queued"), indicator: "green" });
+        },
+    });
+}
+
+
+function start_adms_download(frm) {
+    const dialog = new frappe.ui.Dialog({
+        title: __("Download From Device"),
+        fields: [
+            {
+                fieldname: "window",
+                fieldtype: "Select",
+                label: __("How far back"),
+                default: "30",
+                options: [
+                    { value: "7", label: __("Last 7 days") },
+                    { value: "30", label: __("Last 30 days") },
+                    { value: "90", label: __("Last 90 days") },
+                    { value: "0", label: __("Everything") },
+                ],
+            },
+        ],
+        primary_action_label: __("Download"),
+        primary_action(values) {
+            dialog.hide();
+            frappe.call({
+                method: "timebridge.timebridge.iclock.api.download_data",
+                args: { machine_id: frm.doc.name, days: cint(values.window) },
+                callback(r) {
+                    const msg = r.message || {};
+                    if (msg.status === "empty") {
+                        frappe.msgprint(msg.message);
+                        return;
+                    }
+                    frappe.show_alert({
+                        message: __("Queued: {0}", [(msg.queued || []).join(", ")]),
+                        indicator: "green",
+                    });
+                },
+            });
+        },
+    });
+    dialog.show();
+}
 
 
 function add_user_dialog(frm) {

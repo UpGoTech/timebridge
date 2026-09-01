@@ -5,8 +5,8 @@ import frappe
 
 from frappe.utils import cint
 
-from timebridge.timebridge.adms import pending
-from timebridge.timebridge.adms.server import web_port
+from timebridge.timebridge.iclock import discovery
+from timebridge.timebridge.iclock.server import adms_server_enabled, web_port
 from timebridge.timebridge.sdk_connectors.pyzk_connector import PyZKConnector
 from timebridge.timebridge.services.device_info import probe_socket
 from timebridge.timebridge.services.pull_sync import enqueue_pull_sync
@@ -14,43 +14,56 @@ from timebridge.timebridge.services.pull_sync import enqueue_pull_sync
 
 @frappe.whitelist()
 def list_pending_signals():
-	return pending.list_pending()
+	return discovery.list_pending()
 
 
 @frappe.whitelist()
 def dismiss_signal(name):
-	pending.dismiss_signal(name)
-	return {"ok": True}
+	return discovery.dismiss_machine(name)
 
 
 @frappe.whitelist()
 def push_server_hint():
 	port = web_port()
+	enabled = adms_server_enabled()
+	if not enabled:
+		return {
+			"web_port": port,
+			"iclock_path": "/iclock/cdata",
+			"enabled": False,
+			"hint": (
+				"ADMS Server is off. Enable it in TimeBridge Settings before devices "
+				"can appear here. While it is off, /iclock replies with a 404."
+			),
+		}
 	return {
 		"web_port": port,
 		"iclock_path": "/iclock/cdata",
+		"enabled": True,
 		"hint": (
 			f"On the device, set Cloud / ADMS server to this Frappe host, port {port}. "
-			"The device must POST to /iclock/cdata. Serials that are not registered yet appear below."
+			"Unregistered serials that GET /iclock/cdata?options=all appear below as Pending machines."
 		),
 	}
 
 
 @frappe.whitelist()
-def register_push_device(name, machine_id, machine_name, device_brand="ZKTeco", ip_address=None):
-	return pending.register_machine(
-		name,
-		machine_id,
-		machine_name,
-		device_brand,
-		ip_address or "0.0.0.0",
-	)
+def register_push_device(name, machine_id=None, machine_name=None, device_brand=None, ip_address=None):
+	doc = frappe.get_doc("TimeBridge Machine", name)
+	if machine_id:
+		doc.machine_id = machine_id
+	if machine_name:
+		doc.machine_name = machine_name
+	if ip_address:
+		doc.ip_address = ip_address
+	if device_brand:
+		doc.device_brand = device_brand
+	doc.save()
+	return discovery.register_machine(name)
 
 
 @frappe.whitelist()
 def probe_pull(ip_address, port=4370, communication_password=0, force_udp=0):
-	"""Dial 4370 without saving a machine. Failure is not 'this must be push'."""
-
 	ip_address = (ip_address or "").strip()
 	port = cint(port) or 4370
 

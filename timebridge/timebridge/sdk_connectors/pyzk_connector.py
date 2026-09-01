@@ -285,7 +285,7 @@ class PyZKConnector:
         pull of users and punches is not lost to a missing photograph.
         """
 
-        from timebridge.timebridge.adms.photos import looks_like_image
+        from timebridge.timebridge.iclock.photos import looks_like_image
 
         getter = getattr(conn, "get_userpic", None) or getattr(conn, "get_user_pic", None)
 

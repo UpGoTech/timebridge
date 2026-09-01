@@ -56,7 +56,7 @@ class ADMSConnector:
 		a push device without a special case at every call site.
 		"""
 
-		from timebridge.timebridge.adms import commands
+		from timebridge.timebridge.iclock import commands
 
 		contact = commands.last_contact(device.name) or {}
 
@@ -114,7 +114,7 @@ def push_device_status(machine_name):
 	without constructing one per machine.
 	"""
 
-	from timebridge.timebridge.adms import commands
+	from timebridge.timebridge.iclock import commands
 
 	contact = commands.last_contact(machine_name) or {}
 

@@ -115,10 +115,10 @@ function render_shell($main) {
 						<thead>
 							<tr>
 								<th>${__("Serial")}</th>
-								<th>${__("Signal")}</th>
+								<th>${__("Push ver")}</th>
 								<th>${__("IP")}</th>
 								<th>${__("Last seen")}</th>
-								<th>${__("Hits")}</th>
+								<th></th>
 								<th></th>
 							</tr>
 						</thead>
@@ -197,32 +197,8 @@ function bind_events($main) {
 	});
 
 	$main.on("click.addm", ".tb-am-register", function () {
-		if ($main.data("busy")) return;
 		const name = $(this).data("name");
-		const serial = $(this).data("serial");
-		const ip = $(this).data("ip") || "0.0.0.0";
-		frappe.prompt(
-			[
-				{ fieldname: "machine_id", fieldtype: "Data", label: __("Machine ID"), reqd: 1, default: serial },
-				{ fieldname: "machine_name", fieldtype: "Data", label: __("Name"), reqd: 1, default: serial },
-				{ fieldname: "ip_address", fieldtype: "Data", label: __("IP (informational)"), default: ip },
-			],
-			(values) => {
-				$main.data("busy", true);
-				frappe.call({
-					method: "timebridge.timebridge.page.add_machine.add_machine.register_push_device",
-					args: { name, ...values },
-					callback(r) {
-						$main.data("busy", false);
-						frappe.set_route("Form", "TimeBridge Machine", r.message.machine);
-					},
-					error() {
-						$main.data("busy", false);
-					},
-				});
-			},
-			__("Register push device")
-		);
+		frappe.set_route("Form", "TimeBridge Machine", name);
 	});
 
 	$main.on("click.addm", ".tb-am-dismiss", function () {
@@ -252,21 +228,19 @@ function load_signals($main) {
 			const rows = r.message || [];
 			const $tb = $main.find(".tb-am-rows");
 			if (!rows.length) {
-				$tb.html(`<tr><td colspan="6" class="tb-am-empty">${__("No unregistered push devices yet.")}</td></tr>`);
+				$tb.html(`<tr><td colspan="6" class="tb-am-empty">${__("No pending push devices yet.")}</td></tr>`);
 				return;
 			}
 			$tb.html(rows.map((row) => `
 				<tr>
 					<td data-label="${__("Serial")}">${frappe.utils.escape_html(row.serial_number || "")}</td>
-					<td data-label="${__("Signal")}">${frappe.utils.escape_html(row.signal_type || "")}</td>
-					<td data-label="${__("IP")}">${frappe.utils.escape_html(row.remote_ip || "")}</td>
-					<td data-label="${__("Last seen")}">${frappe.utils.escape_html(row.last_seen || "")}</td>
-					<td data-label="${__("Hits")}">${row.hit_count || 0}</td>
+					<td data-label="${__("Push ver")}">${frappe.utils.escape_html(row.adms_pushver || "")}</td>
+					<td data-label="${__("IP")}">${frappe.utils.escape_html(row.ip_address || "")}</td>
+					<td data-label="${__("Last seen")}">${frappe.utils.escape_html(row.last_contact_at || row.adms_last_init_at || "")}</td>
+					<td></td>
 					<td>
 						<button type="button" class="btn btn-xs btn-primary tb-am-register"
-							data-name="${frappe.utils.escape_html(row.name)}"
-							data-serial="${frappe.utils.escape_html(row.serial_number || "")}"
-							data-ip="${frappe.utils.escape_html(row.remote_ip || "")}">${__("Register")}</button>
+							data-name="${frappe.utils.escape_html(row.name)}">${__("Open")}</button>
 						<button type="button" class="btn btn-xs btn-default tb-am-dismiss"
 							data-name="${frappe.utils.escape_html(row.name)}">${__("Dismiss")}</button>
 					</td>

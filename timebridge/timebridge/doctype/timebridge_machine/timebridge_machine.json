@@ -28,16 +28,35 @@
   "adms_stamp",
   "adms_op_stamp",
   "adms_stamp_format",
-  "adms_bootstrap_status",
-  "adms_request_log_section",
-  "log_adms_handshake",
-  "log_adms_heartbeat",
-  "log_adms_ping",
-  "log_adms_attendance",
-  "log_adms_users",
-  "log_adms_photos",
-  "log_adms_commands",
-  "log_adms_bodies",
+  "adms_photo_stamp",
+  "adms_status",
+  "adms_handshake_at",
+  "adms_last_init_at",
+  "adms_pushver",
+  "adms_language",
+  "adms_pushcommkey",
+  "adms_last_query",
+  "adms_stats_section",
+  "adms_firmware",
+  "adms_user_count",
+  "adms_attlog_count",
+  "adms_face_count",
+  "adms_fp_count",
+  "adms_photo_count",
+  "adms_device_ip",
+  "adms_receive_section",
+  "receive_attlog",
+  "receive_oplog",
+  "receive_attphoto",
+  "receive_enrolluser",
+  "receive_chguser",
+  "receive_enrollfp",
+  "receive_chgfp",
+  "receive_fpimage",
+  "receive_face",
+  "receive_userpic",
+  "receive_workcode",
+  "receive_biophoto",
   "other_information",
   "description"
  ],
@@ -198,76 +217,209 @@
    "options": "Auto\nAttendance DateTime\nUnix Timestamp\nISO DateTime\nCompact (YYYYMMDDHHMMSS)"
   },
   {
-   "default": "Complete",
    "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "adms_bootstrap_status",
+   "fieldname": "adms_photo_stamp",
+   "fieldtype": "Data",
+   "label": "ADMS Photo Stamp",
+   "read_only": 1
+  },
+  {
+   "default": "Registered",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_status",
    "fieldtype": "Select",
-   "label": "ADMS Bootstrap Status",
-   "options": "Pending\nQueued\nUsers\nAttendance\nPhotos\nComplete",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "ADMS Status",
+   "options": "Pending\nRegistered\nDismissed"
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_handshake_at",
+   "fieldtype": "Datetime",
+   "label": "Handshake Completed",
    "read_only": 1
   },
   {
    "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "adms_request_log_section",
+   "fieldname": "adms_last_init_at",
+   "fieldtype": "Datetime",
+   "label": "Last Init Request",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_pushver",
+   "fieldtype": "Data",
+   "label": "Push Protocol Version",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_language",
+   "fieldtype": "Data",
+   "label": "Device Language",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_pushcommkey",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Push Comm Key"
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_last_query",
+   "fieldtype": "Small Text",
+   "label": "Last Init Query",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_stats_section",
    "fieldtype": "Section Break",
-   "label": "ADMS Request Log",
-   "description": "Tick the inbound wire traffic categories to store in TimeBridge ADMS Request Log. Unticked categories are not recorded. Errors still go to TimeBridge Machine Log."
+   "label": "Device Statistics"
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_firmware",
+   "fieldtype": "Data",
+   "label": "Firmware",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_user_count",
+   "fieldtype": "Int",
+   "label": "Users On Device",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_attlog_count",
+   "fieldtype": "Int",
+   "label": "Transaction Log Count",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_face_count",
+   "fieldtype": "Int",
+   "label": "Faces On Device",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_fp_count",
+   "fieldtype": "Int",
+   "label": "Fingerprints On Device",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_photo_count",
+   "fieldtype": "Int",
+   "label": "Photos On Device",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "adms_device_ip",
+   "fieldtype": "Data",
+   "label": "Device Reported IP",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "description": "Types the device may auto-upload after the next handshake. Download only queries ticked types.",
+   "fieldname": "adms_receive_section",
+   "fieldtype": "Section Break",
+   "label": "Receive From Device"
   },
   {
    "default": "0",
    "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "log_adms_handshake",
+   "fieldname": "receive_attlog",
    "fieldtype": "Check",
-   "label": "Log Handshake"
+   "label": "Attendance (AttLog)"
   },
   {
    "default": "0",
    "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "log_adms_heartbeat",
+   "fieldname": "receive_oplog",
    "fieldtype": "Check",
-   "label": "Log Heartbeat (getrequest)"
+   "label": "Operation Log (OpLog)"
   },
   {
    "default": "0",
    "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "log_adms_ping",
+   "fieldname": "receive_attphoto",
    "fieldtype": "Check",
-   "label": "Log Ping"
-  },
-  {
-   "default": "1",
-   "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "log_adms_attendance",
-   "fieldtype": "Check",
-   "label": "Log Attendance (ATTLOG)"
-  },
-  {
-   "default": "1",
-   "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "log_adms_users",
-   "fieldtype": "Check",
-   "label": "Log Users (USER / OPERLOG)"
-  },
-  {
-   "default": "1",
-   "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "log_adms_photos",
-   "fieldtype": "Check",
-   "label": "Log Photos"
-  },
-  {
-   "default": "1",
-   "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "log_adms_commands",
-   "fieldtype": "Check",
-   "label": "Log Commands"
+   "label": "Attendance Photo (AttPhoto)"
   },
   {
    "default": "0",
    "depends_on": "eval:doc.sdk_type == 'ADMS'",
-   "fieldname": "log_adms_bodies",
+   "fieldname": "receive_enrolluser",
    "fieldtype": "Check",
-   "label": "Include Request/Response Bodies"
+   "label": "Enroll User"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "receive_chguser",
+   "fieldtype": "Check",
+   "label": "Change User"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "receive_enrollfp",
+   "fieldtype": "Check",
+   "label": "Enroll Fingerprint"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "receive_chgfp",
+   "fieldtype": "Check",
+   "label": "Change Fingerprint"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "receive_fpimage",
+   "fieldtype": "Check",
+   "label": "Fingerprint Image"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "receive_face",
+   "fieldtype": "Check",
+   "label": "Face Template (FACE)"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "receive_userpic",
+   "fieldtype": "Check",
+   "label": "User Picture"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "receive_workcode",
+   "fieldtype": "Check",
+   "label": "Work Code"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.sdk_type == 'ADMS'",
+   "fieldname": "receive_biophoto",
+   "fieldtype": "Check",
+   "label": "Comparison Photo (BioPhoto)"
   },
   {
    "fieldname": "other_information",
@@ -294,11 +446,11 @@
   },
   {
    "group": "Logs",
-   "link_doctype": "TimeBridge ADMS Request Log",
+   "link_doctype": "TimeBridge ADMS Log",
    "link_fieldname": "machine"
   }
  ],
- "modified": "2026-08-31 21:00:00.000000",
+ "modified": "2026-09-01 10:30:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Machine",

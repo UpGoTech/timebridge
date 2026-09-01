@@ -5,7 +5,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import now_datetime
 
-from timebridge.timebridge.adms.logger import save_users
+from timebridge.timebridge.services.device_records import save_users
 from timebridge.timebridge.report.device_roll.device_roll import build_rows
 from timebridge.timebridge.services.user_write import create_users, upsert_local_user
 

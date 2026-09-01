@@ -20,9 +20,7 @@ class TimeBridgeMachine(Document):
         self.validate_port()
 
     def on_trash(self):
-        from timebridge.timebridge.adms import pending
-
-        pending.unlink_machine(self.name)
+        pass
 
     def validate_ip(self):
         if self.ip_address:

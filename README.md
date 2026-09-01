@@ -29,15 +29,15 @@ Push devices that reject ZK pull (e.g. some AIFace units) must use ADMS — pull
 TimeBridge Machine  →  Machine User (PIN + name + optional photo)
                     →  Punch Log (PIN + timestamp)
                     →  Device Command (durable ADMS outbound queue)
-Pending Device Signal   (unregistered push serials)
-TimeBridge Settings     (connection / photo harvest)
+TimeBridge Settings     (connection / photo harvest / ADMS Server)
+TimeBridge ADMS Log      (every /iclock GET/POST while the server is On)
 ```
 
 Same PIN on two machines is two Machine Users unless the operator copies it.
 
 ## Main workflows
 
-1. **Add Machine** — Pull: probe 4370, save, fetch. Push: wait for `/iclock` serial, register.
+1. **Add Machine** — Pull: probe 4370, save, fetch. Push: enable ADMS Server, wait for `/iclock` serial (Pending machine), Register.
 2. **Test Connection / Fetch All Data** — pull readout or ADMS re-query.
 3. **Create user** — PIN + name on one or more machines; biometrics enrol at the terminal.
 4. **Device Roll** — Yes/No punched in a date range per PIN.
@@ -49,12 +49,12 @@ timebridge/
   api.py                 # whitelisted Desk APIs
   doctype/               # machines, users, punches, commands, …
   sdk_connectors/        # PyZKConnector, ADMSConnector
-  services/              # device info, pull sync, user write
-  adms/                  # ADMS push receiver (parser, logger, commands, renderer)
+  services/              # device info, pull sync, user write, shared persist
+  iclock/                # ADMS push receiver (renderer, handshake, handlers)
   page/add_machine/      # wizard
 ```
 
-ADMS is registered via a `page_renderer` hook so firmware-hardcoded paths like `/iclock/cdata` can return raw `text/plain` responses. Handlers acknowledge with `OK` even on soft failures so the device does not drop its batch.
+ADMS is registered via a `page_renderer` hook so firmware-hardcoded paths like `/iclock/cdata` can return raw `text/plain` responses. While the server is On, handlers always return HTTP 200 and ACK ATTLOG with `OK: n` so the device does not drop its batch.
 
 ## Install
 

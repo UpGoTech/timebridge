@@ -61,12 +61,12 @@ This spec treats `/iclock` as a **server** the device dials, rebuilds the receiv
 | # | Item | Status |
 |---|------|--------|
 | 1 | Spec + programme index | `[x]` |
-| 2 | Remove `adms/`, Pending Device Signal, Device Registration, ADMS Request Log | `[ ]` |
-| 3 | Settings `adms_server_enabled`; `can_render` False when Off | `[ ]` |
-| 4 | `iclock/` handshake, stamps, ack, discovery → Pending Machine | `[ ]` |
-| 5 | Upload persist, INFO/stats, Device Command QUERY, ADMS Log | `[ ]` |
-| 6 | Machine form + Add Machine inbox + workspace | `[ ]` |
-| 7 | Tests + migrate | `[ ]` |
+| 2 | Remove `adms/`, Pending Device Signal, Device Registration, ADMS Request Log | `[x]` |
+| 3 | Settings `adms_server_enabled`; `can_render` False when Off | `[x]` |
+| 4 | `iclock/` handshake, stamps, ack, discovery → Pending Machine | `[x]` |
+| 5 | Upload persist, INFO/stats, Device Command QUERY, ADMS Log | `[x]` |
+| 6 | Machine form + Add Machine inbox + workspace | `[x]` |
+| 7 | Tests + migrate | `[x]` |
 
 ## 5. How to verify
 
