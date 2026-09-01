@@ -288,7 +288,7 @@ def create_bulk_leaves(leave_type, rows):
 			# reporting back at them.
 			continue
 
-		name = frappe.db.get_value("TimeBridge Employee", employee, "employee_name") or employee
+		name = frappe.db.get_value("TimeBridge Employee", employee, "employee") or employee
 
 		# A day the person actually punched is almost always a mistyped date.
 		# Refusing it protects attendance that was built from real evidence —

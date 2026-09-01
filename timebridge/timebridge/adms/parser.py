@@ -153,6 +153,53 @@ def parse_table_name(table):
     return parts[0].upper() if parts else None
 
 
+USER_COUNT_KEYS = {"USERCOUNT", "USERS"}
+
+
+def parse_device_user_count(args=None, body=None):
+    """
+    Enrollment count as the device reports it — not how many names we stored.
+
+    ADMS INFO / options payloads are key=value, sometimes packed on one line
+    with commas, sometimes as query args on /iclock/cdata or /iclock/getrequest.
+    """
+
+    chunks = []
+
+    for key, value in (args or {}).items():
+        chunks.append(f"{key}={value}")
+
+    text = body or ""
+
+    for piece in text.replace(",", "\n").splitlines():
+        chunks.append(piece)
+
+    for chunk in chunks:
+
+        chunk = chunk.strip()
+
+        if "=" not in chunk:
+            continue
+
+        key, _, value = chunk.partition("=")
+        key = key.strip().upper().lstrip("~")
+
+        if key not in USER_COUNT_KEYS:
+            continue
+
+        raw = value.strip().split()[0] if value.strip() else ""
+
+        try:
+            count = int(raw)
+        except ValueError:
+            continue
+
+        if count >= 0:
+            return count
+
+    return None
+
+
 def parse_photo_fields(body):
     """
     PIN + base64 Content rows — how enrolment pictures travel in USERPIC /

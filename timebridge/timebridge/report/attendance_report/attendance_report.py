@@ -93,11 +93,11 @@ def get_employees(filters):
     return frappe.db.sql(
         f"""
         SELECT
-            emp.name, emp.employee_code, emp.employee_name,
+            emp.name, emp.employee_code, emp.employee AS employee_name,
             emp.organization, emp.branch, emp.department, emp.shift
         FROM `tabTimeBridge Employee` emp
         WHERE 1 = 1 {conditions}
-        ORDER BY emp.employee_name ASC
+        ORDER BY emp.employee ASC
         """,
         values,
         as_dict=True,

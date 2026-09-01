@@ -60,7 +60,7 @@
   {
    "default": "0",
    "depends_on": "photo",
-   "description": "The first photograph a device sends is kept and later ones ignored, so a face does not change with every punch. Tick this to accept the next one instead — it clears itself once the new photo arrives.",
+   "description": "The first photograph a device sends is kept and later ones ignored, so a face does not change with every punch. Tick this to accept the next one instead \u2014 it clears itself once the new photo arrives.",
    "fieldname": "retake_photo",
    "fieldtype": "Check",
    "label": "Retake Photo on Next Punch"
@@ -125,11 +125,11 @@
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-11 18:40:00.000000",
+ "modified": "2026-08-27 14:12:17.509316",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Machine User",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -145,6 +145,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "user_id",
  "show_title_field_in_link": 1,
  "sort_field": "modified",

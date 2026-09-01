@@ -25,6 +25,7 @@
   "sync_enabled",
   "last_sync",
   "last_user_sync",
+  "device_registered_users",
   "other_information",
   "description"
  ],
@@ -171,15 +172,22 @@
    "fieldname": "description",
    "fieldtype": "Small Text",
    "label": "Description"
+  },
+  {
+   "description": "Enrollment total the device last reported (ADMS INFO). Separate from Users stored after Fetch All.",
+   "fieldname": "device_registered_users",
+   "fieldtype": "Int",
+   "label": "Registered on Device",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-21 18:20:00.000000",
+ "modified": "2026-08-28 16:22:51.529234",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Machine",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -195,6 +203,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "machine_id,ip_address,serial_number",
  "show_title_field_in_link": 1,
  "sort_field": "modified",

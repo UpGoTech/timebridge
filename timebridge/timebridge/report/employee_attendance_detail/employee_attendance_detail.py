@@ -291,7 +291,7 @@ def report_summary(totals):
 def heading(employee, month, year):
 
     emp = frappe.db.get_value(
-        "TimeBridge Employee", employee, ["employee_name", "employee_code", "shift"], as_dict=True
+        "TimeBridge Employee", employee, ["employee", "employee_code", "shift"], as_dict=True
     ) or frappe._dict()
 
     shift = ""
@@ -321,7 +321,7 @@ def heading(employee, month, year):
     return (
         "<div style='text-align:center;line-height:1.6;margin-bottom:4px'>"
         f"<div style='font-size:15px;font-weight:700'>"
-        f"{frappe.utils.escape_html(emp.employee_name or employee)}</div>"
+        f"{frappe.utils.escape_html(emp.employee or employee)}</div>"
         f"<div style='font-size:12px;color:#777'>{period}{code}{shift}</div>"
         "</div>"
     )

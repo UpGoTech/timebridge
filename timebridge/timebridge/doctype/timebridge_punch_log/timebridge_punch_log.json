@@ -1,8 +1,7 @@
 {
  "actions": [],
- "allow_rename": 0,
  "autoname": "format:PL-{#####}",
- "creation": "2026-07-30 00:00:00.000000",
+ "creation": "2026-07-30 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -85,7 +84,7 @@
    "options": "TimeBridge Employee"
   },
   {
-   "fetch_from": "employee.employee_name",
+   "fetch_from": "employee.employee",
    "fieldname": "employee_name",
    "fieldtype": "Data",
    "label": "Employee Name",
@@ -155,13 +154,12 @@
    "unique": 1
   }
  ],
- "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-07-30 00:00:00.000000",
+ "modified": "2026-08-29 16:51:12.306042",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Punch Log",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -177,11 +175,13 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "device_user_id,timestamp",
  "show_title_field_in_link": 1,
  "sort_field": "timestamp",
  "sort_order": "DESC",
  "states": [],
- "title_field": "employee_name",
- "track_changes": 0
+ "title_field": "machine_user",
+ "track_changes": 1,
+ "track_views": 1
 }

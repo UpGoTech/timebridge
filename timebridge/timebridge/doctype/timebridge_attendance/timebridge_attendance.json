@@ -40,7 +40,7 @@
    "reqd": 1
   },
   {
-   "fetch_from": "employee.employee_name",
+   "fetch_from": "employee.employee",
    "fieldname": "employee_name",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -156,7 +156,7 @@
   }
  ],
  "links": [],
- "modified": "2026-08-18 16:24:37.810683",
+ "modified": "2026-08-27 15:55:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Attendance",

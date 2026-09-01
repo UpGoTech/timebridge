@@ -225,7 +225,7 @@ scheduler_events = {
 
 # Request Events
 # ----------------
-# before_request = ["timebridge.utils.before_request"]
+before_request = ["timebridge.timebridge.query_compat.remap_old_employee_name"]
 # after_request = ["timebridge.utils.after_request"]
 
 # Job Events

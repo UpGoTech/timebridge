@@ -227,7 +227,7 @@ def build_day(employee, day, punches, window):
     last = kept[-1] if len(kept) > 1 else None
 
     employee_name = first.employee_name or frappe.db.get_value(
-        "TimeBridge Employee", employee, "employee_name"
+        "TimeBridge Employee", employee, "employee"
     )
 
     key = build_attendance_key(employee, day)
@@ -408,7 +408,7 @@ def mark_absentees(from_date, to_date, employee=None):
     employees = frappe.get_all(
         "TimeBridge Employee",
         filters=filters,
-        fields=["name", "employee_name", "shift", "date_of_joining"],
+        fields=["name", "employee", "shift", "date_of_joining"],
     )
 
     if not employees:
@@ -512,7 +512,7 @@ def mark_absentees(from_date, to_date, employee=None):
             doc = frappe.get_doc({
                 "doctype": "TimeBridge Attendance",
                 "employee": emp.name,
-                "employee_name": emp.employee_name,
+                "employee_name": emp.employee,
                 "attendance_date": day,
                 "shift": emp.shift,
                 "status": status,

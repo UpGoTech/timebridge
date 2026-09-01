@@ -100,7 +100,7 @@ def save_punches(machine, records, sync_batch=None, save_raw=None, source=SOURCE
             "machine_user": machine_user,
             "employee": employee,
             "employee_name": (
-                frappe.db.get_value("TimeBridge Employee", employee, "employee_name")
+                frappe.db.get_value("TimeBridge Employee", employee, "employee")
                 if employee else None
             ),
             "timestamp": timestamp,
@@ -231,7 +231,7 @@ def link_unmatched_punches(machine):
         if mapping.employee:
             updates["employee"] = mapping.employee
             updates["employee_name"] = frappe.db.get_value(
-                "TimeBridge Employee", mapping.employee, "employee_name"
+                "TimeBridge Employee", mapping.employee, "employee"
             )
 
         if updates:

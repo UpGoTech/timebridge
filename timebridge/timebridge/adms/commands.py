@@ -113,13 +113,200 @@ def resend_all_attendance():
 def request_users():
     """
     Ask for the enrolled user list.
-
-    Worth doing alongside any attendance request: punches carry only a numeric
-    id, so without this every row reads "user 11" instead of a name.
-    link_unmatched_punches() then joins up punches that arrived first.
+    
+    Kept as the first bulk dialect. Fetch All now queues every dialect in
+    user_query_round() — this firmware collects a bare DATA QUERY USERINFO
+    and sends nothing, the same way it ignores CHECK.
     """
 
     return "DATA QUERY USERINFO"
+
+USER_FETCH_TTL = 1800
+USER_FETCH_ROUNDS = 2
+USER_FETCH_PIN_CAP = 150
+
+
+def user_fetch_key(machine):
+
+    return f"timebridge_user_fetch::{machine}"
+
+
+def user_query_round(machine, round_no, start=None, end=None):
+    """
+    User-list queries, in the dialects this firmware family uses.
+
+    Bare DATA QUERY USERINFO is collected and answered with nothing, like
+    CHECK. ATTLOG started working once it used tabs plus a date range, so
+    OPERLOG / USERINFO get the same shape first. Later rounds copy the photo
+    fetch: comma form, then one PIN= query per id already seen on a punch —
+    a new site has punches before it has TimeBridge Machine Users.
+    """
+
+    if round_no == 1:
+
+        commands = []
+
+        if start and end:
+            commands.extend([
+                f"DATA QUERY OPERLOG StartTime={start}\tEndTime={end}",
+                f"DATA QUERY USERINFO StartTime={start}\tEndTime={end}",
+            ])
+
+        commands.extend([
+            "DATA QUERY tablename=userinfo\tfielddesc=*\tfilter=*",
+            "DATA QUERY tablename=user\tfielddesc=*\tfilter=*",
+            "DATA QUERY USERINFO PIN=*",
+        ])
+
+        return commands
+
+    if round_no == 2:
+
+        return [
+            "DATA QUERY tablename=userinfo,fielddesc=*,filter=*",
+            "DATA QUERY tablename=user,fielddesc=*,filter=*",
+            "DATA QUERY USERINFO",
+            "DATA QUERY OPERLOG",
+        ]
+
+    # Remaining ids are asked one per poll in advance_user_fetch, not here.
+    return []
+
+
+def punch_pins(machine):
+    """Device user ids that have actually punched — names may still be missing."""
+
+    return [
+        pin
+        for pin in frappe.get_all(
+            "TimeBridge Punch Log",
+            filters={"machine": machine, "device_user_id": ["!=", ""]},
+            pluck="device_user_id",
+            distinct=True,
+            order_by="device_user_id",
+        )
+        if pin
+    ]
+
+
+def missing_user_pins(machine):
+    """Punch ids with no TimeBridge Machine User yet. Empty list means the list is complete."""
+
+    pins = punch_pins(machine)
+    have = set(
+        frappe.get_all(
+            "TimeBridge Machine User",
+            filters={"machine": machine},
+            pluck="user_id",
+        )
+    )
+    return [pin for pin in pins if pin not in have]
+
+
+def start_user_fetch(machine, start, end, baseline=0):
+    """
+    Remember that Fetch All still wants names after the attendance dump.
+
+    Round 0 means the ATTLOG command is in the queue; user dialects wait
+    until the device has collected that, so they are not ignored the way a
+    USERINFO+ATTLOG pair was on this hardware.
+    """
+
+    frappe.cache().set_value(
+        user_fetch_key(machine),
+        {
+            "round": 0,
+            "baseline": cint(baseline),
+            "start": start,
+            "end": end,
+        },
+        expires_in_sec=USER_FETCH_TTL,
+    )
+
+
+def advance_user_fetch(machine, users_now=None, drip=True):
+    """
+    Queue the next user-list work until every punch id has a name.
+
+    Bulk dialects (rounds 1–2) are queued in full but handed to the device
+    one command per poll. After that, missing ids are asked as
+    DATA QUERY USERINFO PIN=<id> — one per poll — because a bundle is
+    ignored after the first answer.
+
+    drip=False skips the PIN loop so the form's 2s poll cannot flood the
+    queue between device check-ins.
+    """
+
+    if pending_count(machine):
+        return None
+
+    state = frappe.cache().get_value(user_fetch_key(machine)) or {}
+
+    if not state:
+        return None
+
+    pins = punch_pins(machine)
+    missing = missing_user_pins(machine)
+
+    if pins and not missing:
+        frappe.cache().delete_value(user_fetch_key(machine))
+        return None
+
+    current = cint(state.get("round") or 0)
+
+    if current < USER_FETCH_ROUNDS:
+        nxt = current + 1
+        queued = user_query_round(
+            machine,
+            nxt,
+            start=state.get("start"),
+            end=state.get("end"),
+        )
+
+        if not queued:
+            state["round"] = nxt
+            frappe.cache().set_value(
+                user_fetch_key(machine), state, expires_in_sec=USER_FETCH_TTL
+            )
+            return nxt
+
+        for command in queued:
+            queue_command(machine, command)
+
+        state["round"] = nxt
+        frappe.cache().set_value(
+            user_fetch_key(machine), state, expires_in_sec=USER_FETCH_TTL
+        )
+        return nxt
+
+    if not drip or not missing:
+        return None
+
+    queue_command(machine, f"DATA QUERY USERINFO PIN={missing[0]}")
+    return current
+
+    
+
+def update_user(pin, name, privilege="User", card=None):
+    """
+    Create or update one person on a push device.
+
+    Wire format proven on modern ADMS firmware (DATA UPDATE USERINFO with
+    tab-separated fields). Legacy "USER ADD" is rejected with -1002 on many
+    units, so it is not used here.
+
+    Privilege on the wire is 0 for a normal user and 14 for an administrator —
+    the same numbers pyzk uses, and the same two values TimeBridge Machine User
+    stores as labels.
+    """
+
+    pri = 14 if (privilege or "") == "Admin" else 0
+    card = (card or "").strip() or "0"
+    name = (name or "").strip() or f"User {pin}"
+
+    return (
+        f"DATA UPDATE USERINFO PIN={pin}\tName={name}\tPrivilege={pri}\tCard={card}"
+    )
 
 
 def resend_attendance_between(start, end):
@@ -290,3 +477,51 @@ def last_contact(machine):
         return {}
 
     return {"at": str(stored)[:19], "kind": "recorded"}
+
+
+def save_device_registered_users(machine, count):
+    """
+    Store the enrollment total the device itself reported.
+
+    Separate from TimeBridge Machine User rows: those are names we have
+    received, this is how many people the terminal says are enrolled.
+    """
+
+    from frappe.utils import cint
+
+    if count is None:
+        return
+
+    frappe.db.set_value(
+        "TimeBridge Machine",
+        machine,
+        "device_registered_users",
+        cint(count),
+        update_modified=False,
+    )
+    frappe.db.commit()
+
+
+def pop_one_command(machine):
+    """
+    Hand over a single command and leave the rest queued.
+
+    This firmware executes one C: line per /iclock/getrequest and ignores
+    the rest of a bundle — proven on USERINFO: a batch of PIN= queries
+    returned three names and dropped the other thirteen. Punches were
+    fine because ATTLOG is already one command.
+    """
+
+    pending = frappe.cache().get_value(command_key(machine)) or []
+
+    if not pending:
+        return []
+
+    first, rest = pending[0], pending[1:]
+
+    if rest:
+        frappe.cache().set_value(command_key(machine), rest, expires_in_sec=COMMAND_TTL)
+    else:
+        frappe.cache().delete_value(command_key(machine))
+
+    return [first]

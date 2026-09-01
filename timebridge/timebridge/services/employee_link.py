@@ -73,9 +73,9 @@ def is_non_person(user_name, user_id):
 def employees_by_name():
     """Existing TimeBridge Employees keyed on their comparable name."""
 
-    rows = frappe.get_all("TimeBridge Employee", fields=["name", "employee_name"])
+    rows = frappe.get_all("TimeBridge Employee", fields=["name", "employee"])
 
-    return {normalise(row.employee_name): row.name for row in rows}
+    return {normalise(row.employee): row.name for row in rows}
 
 
 def taken_codes():
@@ -145,12 +145,77 @@ def suggested_defaults():
     }
 
 
-def plan(machine_id, skip_non_person=True, merge_same_name=True):
+def list_candidates(machine=None):
+    """
+    Unlinked Machine Users an operator can turn into TimeBridge Employees.
+
+    Optional machine filter keeps the picker readable when many devices share a
+    site. Counts include linked rows so the dialog can show progress at a glance.
+    """
+
+    filters = {}
+    if machine:
+        filters["machine"] = machine
+
+    rows = frappe.get_all(
+        "TimeBridge Machine User",
+        filters=filters,
+        fields=["name", "user_id", "user_name", "machine", "employee", "is_active"],
+        order_by="machine, user_id",
+    )
+
+    machine_ids = list({row.machine for row in rows if row.machine})
+    machine_names = {}
+    if machine_ids:
+        machine_names = {
+            m.name: m.machine_name or m.name
+            for m in frappe.get_all(
+                "TimeBridge Machine",
+                filters={"name": ("in", machine_ids)},
+                fields=["name", "machine_name"],
+            )
+        }
+
+    candidates = []
+    linked_candidates = []
+    linked = 0
+
+    for row in rows:
+        item = {
+            "name": row.name,
+            "user_id": row.user_id,
+            "user_name": row.user_name,
+            "machine": row.machine,
+            "machine_name": machine_names.get(row.machine, row.machine),
+            "is_active": row.is_active,
+            "employee": row.employee,
+        }
+        if row.employee:
+            linked += 1
+            linked_candidates.append(item)
+            continue
+
+        candidates.append(item)
+
+    return {
+        "total": len(rows),
+        "linked": linked,
+        "unlinked": len(candidates),
+        "candidates": candidates,
+        "linked_candidates": linked_candidates,
+        "defaults": suggested_defaults(),
+    }
+
+
+def plan(machine_id, skip_non_person=True, merge_same_name=True, machine_user_names=None):
     """
     Work out what attaching this machine's users would do, without doing it.
 
     Returns the rows in the order they would be acted on, plus counts and the
     defaults a caller needs to fill the mandatory TimeBridge Employee fields.
+
+    machine_user_names limits the plan to those TimeBridge Machine User names —
+    used when the operator picks people from the Machine User list.
     """
 
     machine_code = (
@@ -164,6 +229,10 @@ def plan(machine_id, skip_non_person=True, merge_same_name=True):
         fields=["name", "user_id", "user_name", "employee"],
         order_by="user_id",
     )
+
+    if machine_user_names is not None:
+        allowed = set(machine_user_names)
+        users = [user for user in users if user.name in allowed]
 
     existing = employees_by_name()
     taken = taken_codes()
@@ -251,6 +320,7 @@ def apply_plan(
     shift=None,
     skip_non_person=True,
     merge_same_name=True,
+    machine_user_names=None,
 ):
     """
     Create the missing TimeBridge Employees, attach every TimeBridge Machine User, and backfill punches.
@@ -261,6 +331,8 @@ def apply_plan(
 
     One failure does not stop the rest: a name that will not save is reported by
     name and the remaining people are still attached.
+
+    machine_user_names, when set, only acts on those Machine Users (see plan).
     """
 
     if not date_of_joining:
@@ -269,7 +341,12 @@ def apply_plan(
     if not organization or not branch:
         frappe.throw("TimeBridge Organization and TimeBridge Branch are required on TimeBridge Employee.")
 
-    result = plan(machine_id, skip_non_person, merge_same_name)
+    result = plan(
+        machine_id,
+        skip_non_person,
+        merge_same_name,
+        machine_user_names=machine_user_names,
+    )
 
     created = 0
     linked = 0
@@ -323,6 +400,77 @@ def apply_plan(
         "skipped": result["skipped"],
         "failures": failures,
         "counts": result["counts"],
+    }
+
+
+def apply_selected(
+    machine_user_names,
+    date_of_joining,
+    organization,
+    branch,
+    shift=None,
+    skip_non_person=True,
+    merge_same_name=True,
+):
+    """
+    Create & link for an explicit set of Machine Users, possibly across machines.
+
+    Groups by machine and reuses apply_plan so linking, punch backfill, and
+    photo copy stay identical to the Machine form path.
+    """
+
+    names = machine_user_names
+    if isinstance(names, str):
+        names = frappe.parse_json(names)
+
+    names = list(names or [])
+    if not names:
+        frappe.throw("Select at least one Machine User.")
+
+    rows = frappe.get_all(
+        "TimeBridge Machine User",
+        filters={"name": ("in", names)},
+        fields=["name", "machine"],
+    )
+
+    if not rows:
+        frappe.throw("None of the selected Machine Users were found.")
+
+    by_machine = {}
+    for row in rows:
+        by_machine.setdefault(row.machine, []).append(row.name)
+
+    created = 0
+    linked = 0
+    punches_linked = 0
+    failures = []
+    skipped = []
+
+    for machine_id, mu_names in by_machine.items():
+        result = apply_plan(
+            machine_id,
+            date_of_joining=date_of_joining,
+            organization=organization,
+            branch=branch,
+            shift=shift,
+            skip_non_person=skip_non_person,
+            merge_same_name=merge_same_name,
+            machine_user_names=mu_names,
+        )
+        created += result.get("created") or 0
+        linked += result.get("linked") or 0
+        punches_linked += result.get("punches_linked") or 0
+        failures.extend(result.get("failures") or [])
+        skipped.extend(result.get("skipped") or [])
+
+    return {
+        "status": "success" if not failures else "partial",
+        "created": created,
+        "linked": linked,
+        "punches_linked": punches_linked,
+        "skipped": skipped,
+        "failures": failures,
+        "machines": len(by_machine),
     }
 
 
@@ -406,9 +554,17 @@ def assignment_summary(machine_id):
     }
 
 
-def apply_assignment(machine_id, organization=None, branch=None, shift=None):
+def apply_assignment(
+    machine_id,
+    organization=None,
+    branch=None,
+    shift=None,
+    date_of_joining=None,
+    employee_names=None,
+):
     """
-    Set TimeBridge Organization, TimeBridge Branch and TimeBridge Shift on this machine's TimeBridge Employees.
+    Set TimeBridge Organization, TimeBridge Branch, TimeBridge Shift and/or
+    Date of Joining on this machine's TimeBridge Employees.
 
     An update and nothing else: no record is created, deleted or unlinked, so
     punches, attendance and the TimeBridge Machine User links are all untouched. That is
@@ -417,7 +573,71 @@ def apply_assignment(machine_id, organization=None, branch=None, shift=None):
 
     A blank argument leaves that field alone, and a TimeBridge Employee already holding
     the requested value is not counted as changed.
+
+    employee_names, when set, limits the update to those TimeBridge Employees
+    (used when the operator picks people from Machine User list).
     """
+
+    if employee_names is not None:
+        employees = list(dict.fromkeys(employee_names))
+    else:
+        employees = machine_employees(machine_id)
+
+    return apply_on_employees(
+        employees,
+        organization=organization,
+        branch=branch,
+        shift=shift,
+        date_of_joining=date_of_joining,
+    )
+
+
+def apply_assignment_selected(
+    machine_user_names,
+    organization=None,
+    branch=None,
+    shift=None,
+    date_of_joining=None,
+):
+    """
+    Update defaults on TimeBridge Employees linked to the chosen Machine Users.
+    """
+
+    names = machine_user_names
+    if isinstance(names, str):
+        names = frappe.parse_json(names)
+
+    names = list(names or [])
+    if not names:
+        frappe.throw("Select at least one Machine User.")
+
+    employees = frappe.get_all(
+        "TimeBridge Machine User",
+        filters={"name": ("in", names), "employee": ("is", "set")},
+        pluck="employee",
+    )
+    employees = list(dict.fromkeys(employees))
+
+    if not employees:
+        frappe.throw("Selected Machine Users have no linked TimeBridge Employee.")
+
+    return apply_on_employees(
+        employees,
+        organization=organization,
+        branch=branch,
+        shift=shift,
+        date_of_joining=date_of_joining,
+    )
+
+
+def apply_on_employees(
+    employees,
+    organization=None,
+    branch=None,
+    shift=None,
+    date_of_joining=None,
+):
+    """Write the chosen fields onto an explicit list of TimeBridge Employees."""
 
     updates = {
         field: value
@@ -429,10 +649,17 @@ def apply_assignment(machine_id, organization=None, branch=None, shift=None):
         if value
     }
 
-    if not updates:
-        frappe.throw("Choose at least one of TimeBridge Organization, TimeBridge Branch or TimeBridge Shift to change.")
+    if date_of_joining:
+        updates["date_of_joining"] = getdate(date_of_joining)
 
-    employees = machine_employees(machine_id)
+    if not updates:
+        frappe.throw(
+            "Choose at least one of Date of Joining, TimeBridge Organization, "
+            "TimeBridge Branch or TimeBridge Shift to change."
+        )
+
+    if not employees:
+        frappe.throw("No TimeBridge Employees to update.")
 
     changed = 0
 
@@ -440,11 +667,16 @@ def apply_assignment(machine_id, organization=None, branch=None, shift=None):
 
         current = frappe.db.get_value("TimeBridge Employee", name, list(updates), as_dict=True) or {}
 
-        delta = {
-            field: value
-            for field, value in updates.items()
-            if current.get(field) != value
-        }
+        delta = {}
+        for field, value in updates.items():
+            cur = current.get(field)
+            if field == "date_of_joining":
+                cur = getdate(cur) if cur else None
+                if cur == value:
+                    continue
+            elif cur == value:
+                continue
+            delta[field] = value
 
         if not delta:
             continue
@@ -479,7 +711,7 @@ def create_employee(row, machine_id, date_of_joining, organization, branch, shif
     doc = frappe.get_doc({
         "doctype": "TimeBridge Employee",
         "employee_code": row["employee_code"],
-        "employee_name": row["user_name"],
+        "first_name": row["user_name"],
         "date_of_joining": getdate(date_of_joining),
         "organization": organization,
         "branch": branch,

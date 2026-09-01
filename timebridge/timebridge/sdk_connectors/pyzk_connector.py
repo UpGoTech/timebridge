@@ -207,6 +207,62 @@ class PyZKConnector:
 
         return users
 
+    def set_users(self, conn, users):
+        """
+        Write name and id onto the device for each row.
+
+        Existing enrolments are updated by matching user_id to the device's
+        uid; unknown ids get a new slot. Face and fingerprint templates are
+        not written — pyzk 0.9 has no photo-upload command that creates a
+        usable face template from a JPEG.
+        """
+
+        by_id = {}
+
+        for existing in conn.get_users():
+            key = str(existing.user_id or "").strip()
+            if key:
+                by_id[key] = existing
+
+        written = 0
+        failed = []
+
+        for row in users:
+
+            user_id = str(row.get("user_id") or "").strip()
+
+            if not user_id:
+                continue
+
+            name = (row.get("user_name") or "").strip() or f"User {user_id}"
+            privilege = 14 if (row.get("privilege") or "") == "Admin" else 0
+            card = cint(row.get("card_number") or 0)
+            match = by_id.get(user_id)
+
+            try:
+                if match:
+                    conn.set_user(
+                        uid=match.uid,
+                        name=name,
+                        privilege=privilege,
+                        user_id=user_id,
+                        card=card,
+                    )
+                else:
+                    conn.set_user(
+                        name=name,
+                        privilege=privilege,
+                        user_id=user_id,
+                        card=card,
+                    )
+
+                written += 1
+
+            except Exception as e:
+                failed.append({"user_id": user_id, "error": str(e)})
+
+        return {"written": written, "failed": failed}
+
     def get_attendance(self, conn):
         """
         Every punch the device is still holding, shaped for logger.save_punches.

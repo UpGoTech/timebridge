@@ -8,7 +8,10 @@
  "field_order": [
   "basic_information",
   "employee_code",
-  "employee_name",
+  "first_name",
+  "middle_name",
+  "last_name",
+  "employee",
   "photo",
   "gender",
   "date_of_birth",
@@ -43,11 +46,27 @@
    "unique": 1
   },
   {
-   "fieldname": "employee_name",
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "middle_name",
+   "fieldtype": "Data",
+   "label": "Middle Name"
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name"
+  },
+  {
+   "fieldname": "employee",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Employee Name",
-   "reqd": 1
+   "label": "Full Name",
+   "read_only": 1
   },
   {
    "description": "Employee photo. Falls back to the one held on the biometric device if that is available.",
@@ -158,7 +177,7 @@
  "image_field": "photo",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-18 15:55:05.669348",
+ "modified": "2026-08-27 15:55:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge Employee",
@@ -178,11 +197,11 @@
    "write": 1
   }
  ],
- "search_fields": "employee_code",
+ "search_fields": "employee,employee_code",
  "show_title_field_in_link": 1,
- "sort_field": "employee_name",
+ "sort_field": "employee",
  "sort_order": "ASC",
  "states": [],
- "title_field": "employee_name",
+ "title_field": "employee",
  "track_changes": 1
 }

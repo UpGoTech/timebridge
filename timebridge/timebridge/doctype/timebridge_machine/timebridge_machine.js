@@ -35,6 +35,7 @@ const FETCH_POLL_SECONDS = 2;
 const PHOTO_POLL_SECONDS = 3;
 const PHOTO_GIVE_UP_SECONDS = 300;
 const FETCH_GIVE_UP_SECONDS = 120;
+const USER_FETCH_GIVE_UP_SECONDS = 900;
 
 function endpoint_label(frm) {
     const host = `${frm.doc.ip_address || ""}:${frm.doc.port || ""}`;
@@ -85,6 +86,10 @@ frappe.ui.form.on("TimeBridge Machine", {
         // actually brings data in: it asks the device to upload again, and
         // waits for it to arrive.
         frm.add_custom_button(__("Fetch All Data"), needs_saved(start_fetch_all), DEVICE);
+
+        // Opposite of Fetch: Desk holds name and id, the terminal is updated.
+        // ADMS queues for the next poll; PyZK writes immediately.
+        frm.add_custom_button(__("Send Users to Device"), needs_saved(start_send_users), DEVICE);
 
         // A fetch only ever produces TimeBridge Machine Users, and attendance is built per
         // TimeBridge Employee — so without this step the punches are stored and invisible.
@@ -226,9 +231,9 @@ function employee_link_dialog(frm) {
                             `<div>${__("Existing punches attached")}: <b>${res.punches_linked || 0}</b></div>` +
                             (failures.length
                                 ? `<div class="alert alert-warning" style="margin-top:8px;padding:8px;">` +
-                                  __("{0} could not be saved:", [failures.length]) + " " +
-                                  frappe.utils.escape_html(failures.map(f => f.user_name).join(", ")) +
-                                  `</div>`
+                                __("{0} could not be saved:", [failures.length]) + " " +
+                                frappe.utils.escape_html(failures.map(f => f.user_name).join(", ")) +
+                                `</div>`
                                 : "") +
                             `<div style="margin-top:8px;">` +
                             __("Run <b>Rebuild Attendance</b> now to turn those punches into attendance.") +
@@ -355,12 +360,12 @@ function employee_assignment_dialog(frm) {
                             `<div>${__("Changed")}: <b>${res.changed || 0}</b></div>` +
                             (res.changed === 0
                                 ? `<div style="margin-top:6px;color:var(--text-muted);">` +
-                                  __("They already held those values.") + `</div>`
+                                __("They already held those values.") + `</div>`
                                 : "") +
                             (res.needs_rebuild
                                 ? `<div class="alert alert-warning" style="margin-top:8px;padding:8px;">` +
-                                  __("TimeBridge Shift changed. Run <b>Rebuild Attendance</b> — late and half-day were worked out from the old shift.") +
-                                  `</div>`
+                                __("TimeBridge Shift changed. Run <b>Rebuild Attendance</b> — late and half-day were worked out from the old shift.") +
+                                `</div>`
                                 : "")
                     });
                 },
@@ -424,8 +429,8 @@ function employee_assignment_dialog(frm) {
                 </table>
                 ${res.shared
                     ? `<div class="alert alert-warning" style="margin-top:8px;padding:8px;font-size:12px;">` +
-                      __("{0} of them also punch on another machine and will be changed too.", [res.shared]) +
-                      `</div>`
+                    __("{0} of them also punch on another machine and will be changed too.", [res.shared]) +
+                    `</div>`
                     : ""}
             `);
         }
@@ -516,9 +521,9 @@ function load_employee_link_plan(frm, dialog) {
 
             const skipped = (res.skipped || []).length
                 ? `<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">` +
-                  __("Skipped") + ": " +
-                  frappe.utils.escape_html(res.skipped.map(s => `${s.user_name} (${s.user_id})`).join(", ")) +
-                  `</div>`
+                __("Skipped") + ": " +
+                frappe.utils.escape_html(res.skipped.map(s => `${s.user_name} (${s.user_id})`).join(", ")) +
+                `</div>`
                 : "";
 
             $plan.html(`
@@ -623,15 +628,10 @@ function rebuild_attendance_dialog(frm) {
 
 function start_fetch_all(frm) {
 
-    // The two transports make this button mean different things. A dialable
-    // device is read here and now, so how far back to read is a real question
-    // with a real cost — a full history can be tens of thousands of rows. A
-    // push device is only asked to re-send and answers on its own timer, so
-    // there is nothing to choose and asking would be noise.
-    if ((frm.doc.sdk_type || "") === "ADMS") {
-        start_push_fetch(frm);
-        return;
-    }
+    // Both transports need a window: pull reads that many days now; push asks
+    // the device to re-send that range on its next polls. Already-stored
+    // punches are skipped either way.
+    const is_push = (frm.doc.sdk_type || "") === "ADMS";
 
     const dialog = new frappe.ui.Dialog({
 
@@ -642,7 +642,9 @@ function start_fetch_all(frm) {
                 fieldname: "info",
                 fieldtype: "HTML",
                 options: `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">` +
-                    __("The device is read directly. It goes offline for a few seconds while its records are copied, so avoid doing this at a shift change.") +
+                    (is_push
+                        ? __("The device will be asked to re-send punches for this period. It answers on its own check-in (~30s). Already stored punches are not duplicated.")
+                        : __("The device is read directly. It goes offline for a few seconds while its records are copied, so avoid doing this at a shift change.")) +
                     `</div>`
             },
             {
@@ -654,9 +656,10 @@ function start_fetch_all(frm) {
                     { value: "7", label: __("Last 7 days") },
                     { value: "30", label: __("Last 30 days") },
                     { value: "90", label: __("Last 90 days") },
+                    { value: "365", label: __("Last 365 days") },
                     { value: "0", label: __("Everything on the device") }
                 ],
-                description: __("Punches already stored are skipped, so a wider window costs time but never duplicates.")
+                description: __("Punches already stored are skipped, so a wider window costs time but never duplicates. The device can only send what it still holds.")
             }
         ],
 
@@ -664,12 +667,84 @@ function start_fetch_all(frm) {
 
         primary_action(values) {
             dialog.hide();
-            start_pull_fetch(frm, cint(values.window));
+            const days = cint(values.window);
+            if (is_push) {
+                start_push_fetch(frm, days);
+            } else {
+                start_pull_fetch(frm, days);
+            }
         }
 
     });
 
     dialog.show();
+}
+
+
+function start_send_users(frm) {
+    /*
+     * Push Machine User name and id onto the terminal.
+     *
+     * ADMS only queues — the device collects on its next poll. PyZK writes
+     * now and the dialog shows the count immediately. Either way the form
+     * must already hold Machine User rows; creating them here is out of scope.
+     */
+
+    const dialog = new frappe.ui.Dialog({
+        title: __("Send Users to Device"),
+        primary_action_label: __("Close"),
+        primary_action: () => dialog.hide(),
+    });
+
+    dialog.$body.html(`
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+            ${frappe.utils.escape_html(frm.doc.machine_name || frm.doc.name)}
+            &middot; ${__("SDK")} ${frappe.utils.escape_html(frm.doc.sdk_type || "-")}
+        </div>
+        <div class="su-note" style="font-size:13px;margin-bottom:10px;">
+            ${__("Sending…")}
+        </div>
+        <div class="su-hint alert alert-info"
+             style="margin-top:10px;font-size:12px;padding:8px;">
+            ${__("Sends user id and name only. Photos and face templates are not written to the device.")}
+        </div>
+    `);
+
+    dialog.show();
+
+    const $note = dialog.$body.find(".su-note");
+
+    frappe.call({
+
+        method: "timebridge.timebridge.api.send_users_to_device",
+        args: { machine_id: frm.doc.name },
+
+        callback: function (r) {
+
+            const res = r.message || {};
+            const colour = res.status === "failed"
+                ? "var(--red-500)"
+                : (res.status === "partial" ? "var(--orange-500)" : "var(--green-600)");
+
+            $note.html(
+                `<b style="color:${colour}">${frappe.utils.escape_html(res.message || __("Done."))}</b>`
+            );
+
+            if (res.mode === "push" && res.status === "queued") {
+                dialog.$body.find(".su-hint").html(
+                    __("The device checks in roughly every 30 seconds. Wait for the next poll, then confirm the name on the terminal.")
+                );
+            }
+
+        },
+
+        error: function () {
+            $note.html(
+                `<b style="color:var(--red-500)">${__("Could not reach the server.")}</b>`
+            );
+        }
+
+    });
 }
 
 
@@ -723,7 +798,7 @@ function start_pull_fetch(frm, days) {
             // would otherwise be polled on the wrong channel and appear stuck.
             if (res.mode === "push") {
                 dialog.hide();
-                start_push_fetch(frm);
+                start_push_fetch(frm, days);
                 return;
             }
 
@@ -776,13 +851,13 @@ function start_pull_fetch(frm, days) {
                                 (users.updated ? ` (${users.updated} ${__("updated")})` : "") + `</div>` +
                                 (punches.outside_window
                                     ? `<div style="color:var(--text-muted);margin-top:6px;">` +
-                                      __("{0} punches on the device are older than the window you chose.", [punches.outside_window]) +
-                                      `</div>`
+                                    __("{0} punches on the device are older than the window you chose.", [punches.outside_window]) +
+                                    `</div>`
                                     : "") +
                                 (punches.unmatched
                                     ? `<div class="alert alert-warning" style="margin-top:8px;padding:8px;">` +
-                                      __("{0} punches belong to device users with no TimeBridge Employee linked yet. Link them on the TimeBridge Machine User record and they will attach themselves.", [punches.unmatched]) +
-                                      `</div>`
+                                    __("{0} punches belong to device users with no TimeBridge Employee linked yet. Link them on the TimeBridge Machine User record and they will attach themselves.", [punches.unmatched]) +
+                                    `</div>`
                                     : "") +
                                 `<div style="margin-top:8px;">` +
                                 __("Run <b>Rebuild Attendance</b> next to turn these punches into attendance.") +
@@ -821,7 +896,9 @@ function start_pull_fetch(frm, days) {
 }
 
 
-function start_push_fetch(frm) {
+function start_push_fetch(frm, days) {
+
+    days = (days === undefined || days === null) ? 30 : cint(days);
 
     const dialog = new frappe.ui.Dialog({
         title: __("Fetching From Device"),
@@ -852,7 +929,7 @@ function start_push_fetch(frm) {
     frappe.call({
 
         method: "timebridge.timebridge.api.request_all_data",
-        args: { machine_id: frm.doc.name },
+        args: { machine_id: frm.doc.name, days: days },
 
         callback: function (r) {
 
@@ -907,6 +984,7 @@ function start_push_fetch(frm) {
                             `<div>${__("Punches stored")}: <b>${st.punches || 0}</b>` +
                             (gained > 0 ? ` <span style="color:var(--green-500)">(+${gained} ${__("new")})</span>` : "") + `</div>` +
                             `<div>${__("Users")}: <b>${st.users || 0}</b></div>` +
+                            `<div>${__("Total registered on device")}: <b>${st.device_registered_users == null || st.device_registered_users === "" ? "—" : st.device_registered_users}</b></div>` +
                             (answered
                                 ? `<div style="margin-top:6px;">${__("Device sent")}: <b>${received}</b> ${__("records in this fetch")}</div>`
                                 : "") +
@@ -919,29 +997,56 @@ function start_push_fetch(frm) {
                             $note.html(__("Device collected the request. Waiting for its data…"));
                         }
 
-                        if (answered) {
+                        // if (answered) {
 
-                            if (gained > 0) {
+                        const waitingUsers = st.user_fetch_active && (st.missing_users > 0 || !st.users);
+                        const giveUp = waitingUsers
+                            ? Math.max(USER_FETCH_GIVE_UP_SECONDS, ((st.missing_users || 0) + 2) * 40)
+                            : FETCH_GIVE_UP_SECONDS;
+
+                        if (answered && waitingUsers) {
+                            $note.html(__("Punches arrived. Asking for names — {0} of {1} people still missing (try {2} of {3})…", [
+                                st.missing_users || 0,
+                                st.punch_people || 0,
+                                st.user_fetch_round || 1,
+                                3
+                            ]));
+                            $hint.removeClass("hidden").html(
+                                __("Keep this open. This device answers one name per check-in (~30s). {0} names left.", [st.missing_users || 0])
+                            );
+                        } else if (answered) {
+
+                            // if (gained > 0) {
+                                if (st.users > 0) {
+                                    $note.html(`<b style="color:var(--green-500)">${__("Data arrived — {0} punches, {1} users.", [st.punches || 0, st.users])}</b>`);
+                                } else if (gained > 0) {                                    
                                 $note.html(`<b style="color:var(--green-500)">${__("Data arrived — {0} new punches.", [gained])}</b>`);
-                                frm.reload_doc();
+                                // frm.reload_doc();
                             } else {
                                 $note.html(`<b style="color:var(--green-500)">${__("Device answered. Everything it sent was already stored — nothing new to add.")}</b>`);
                             }
 
                             $hint.addClass("hidden");
+                            frm.reload_doc();
                         }
 
-                        if (waited >= FETCH_GIVE_UP_SECONDS) {
-
+                        // if (waited >= FETCH_GIVE_UP_SECONDS) {
+                        if (waited >= giveUp) {
                             clearInterval(timer);
                             timer = null;
 
                             if (!answered) {
-                                $note.html(`<b style="color:var(--orange-500)">${__("The device sent nothing in {0} seconds.", [FETCH_GIVE_UP_SECONDS])}</b>`);
+                                // $note.html(`<b style="color:var(--orange-500)">${__("The device sent nothing in {0} seconds.", [FETCH_GIVE_UP_SECONDS])}</b>`);
+                                $note.html(`<b style="color:var(--orange-500)">${__("The device sent nothing in {0} seconds.", [giveUp])}</b>`);
                                 $hint.removeClass("hidden").html(
                                     contact.at
                                         ? __("The device is talking to us, so the connection is fine — it simply had nothing to send for that period.")
                                         : __("The device never contacted us. Check that its Cloud Server address points at this PC, and that the network fixer has been run since the last restart.")
+                                );
+                            }else if (waitingUsers) {
+                                $note.html(`<b style="color:var(--orange-500)">${__("Punches stored, but names are still missing ({0} of {1}).", [st.missing_users || 0, st.punch_people || 0])}</b>`);
+                                $hint.removeClass("hidden").html(
+                                    __("Turn Cloud Server OFF then ON on the device, then Fetch All Data again.")
                                 );
                             }
                         }
@@ -1344,7 +1449,7 @@ function open_progress_dialog(frm) {
                 $body.find(".tb-result").removeClass("hidden").html(
                     rows.map(
                         row => `<div class="tb-kv"><span>${frappe.utils.escape_html(String(row[0]))}</span>` +
-                               `<b>${frappe.utils.escape_html(String(row[1]))}</b></div>`
+                            `<b>${frappe.utils.escape_html(String(row[1]))}</b></div>`
                     ).join("")
                 );
             }
@@ -1506,6 +1611,18 @@ function show_connection_health(frm) {
 
 function build_health_html(h) {
 
+    const is_push = h.is_push || (h.sdk_type || "") === "ADMS";
+
+    if (!is_push) {
+        return build_pull_health_html(h);
+    }
+
+    return build_push_health_html(h);
+}
+
+
+function build_push_health_html(h) {
+
     const mins = h.minutes_since_contact;
 
     // The device polls us every 30 seconds, so silence beyond a couple of
@@ -1516,7 +1633,9 @@ function build_health_html(h) {
         state = "down";
         colour = "red";
         headline = __("The app itself is not listening");
-        advice = __("Frappe is not serving on port 8000. Run <code>bench start</code> in the WSL terminal.");
+        advice = __("Frappe is not serving on port {0}. Run <code>bench start</code> in the WSL terminal.", [
+            h.web_port || 8000
+        ]);
 
     } else if (mins === null || mins === undefined) {
         state = "silent";
@@ -1537,11 +1656,67 @@ function build_health_html(h) {
         advice = __("Nothing to do. New punches arrive by themselves; no button needs pressing.");
     }
 
-    const icon = { ok: "&#10003;", stale: "!", silent: "?", down: "&#10007;" }[state];
+    return render_health_panel(state, colour, headline, advice, push_health_rows(h));
+}
+
+
+function build_pull_health_html(h) {
+
+    // Pull devices are dialled by us. "Last spoke" / Cloud Server advice is for
+    // ADMS only and must not appear here.
+    let state, colour, headline, advice;
+    const endpoint = h.ip_address
+        ? `${frappe.utils.escape_html(h.ip_address)}:${h.port || 4370}`
+        : null;
+
+    if (!h.receiver_ok) {
+        state = "down";
+        colour = "red";
+        headline = __("The app itself is not listening");
+        advice = __("Frappe is not serving on port {0}. Run <code>bench start</code> in the WSL terminal.", [
+            h.web_port || 8000
+        ]);
+
+    } else if (!h.ip_address) {
+        state = "silent";
+        colour = "orange";
+        headline = __("No IP address on this machine");
+        advice = __("Fill in IP Address (and Port) on the Connection tab, then use <b>Test Connection</b>.");
+
+    } else if (h.device_reachable === true || h.machine_status === "Connected") {
+        state = "ok";
+        colour = "green";
+        headline = __("Connected — we can reach this device");
+        advice = __("This is a dialled device. Use <b>Fetch All Data</b> when you need punches; it does not send on its own like an ADMS terminal.");
+
+    } else {
+        state = "stale";
+        colour = "orange";
+        headline = __("Cannot reach the device right now");
+        advice = __("Nothing answered at <b>{0}</b>. Check the device is on the network, then run <b>Test Connection</b>.", [
+            endpoint || __("IP:port")
+        ]);
+    }
+
+    const rows = [
+        [__("Status"), frappe.utils.escape_html(h.machine_status || "—")],
+        [__("We dial"), endpoint || `<span style="color:var(--red-500)">${__("not set")}</span>`],
+        [__("Reachable now"), h.device_reachable === true ? __("Yes") : (h.device_reachable === false ? __("No") : "—")],
+        [__("Serial number"), h.serial_number || "—"],
+        [__("Punches today"), h.punches_today],
+        [__("Punches total"), h.punches_total],
+        [__("TimeBridge Employees on device"), h.users],
+    ];
+
+    return render_health_panel(state, colour, headline, advice, rows);
+}
+
+
+function push_health_rows(h) {
 
     const rows = [
         [__("Device last spoke"),
-         h.last_contact ? `${h.last_contact} (${h.last_contact_kind || ""})` : __("never")],
+        h.last_contact ? `${h.last_contact} (${h.last_contact_kind || ""})` : __("never")],
         [__("Serial number"), h.serial_number || `<span style="color:var(--red-500)">${__("not set — pushes cannot be matched")}</span>`],
         [__("Punches today"), h.punches_today],
         [__("Punches total"), h.punches_total],
@@ -1551,6 +1726,14 @@ function build_health_html(h) {
     if (h.pending_commands) {
         rows.push([__("Waiting to be collected"), __("{0} request(s)", [h.pending_commands])]);
     }
+
+    return rows;
+}
+
+
+function render_health_panel(state, colour, headline, advice, rows) {
+
+    const icon = { ok: "&#10003;", stale: "!", silent: "?", down: "&#10007;" }[state];
 
     const table = rows.map(
         ([k, v]) => `<div style="display:flex;gap:8px;font-size:12px;padding:1px 0;">
@@ -1808,7 +1991,7 @@ function match_uploaded_photos(frm, file_urls) {
 
             html += `<div style="margin-bottom:8px;">` +
                 __("Matched {0} of {1}. {2} of {3} people now have a photo.",
-                   [matched.length, res.total || 0, res.with_photo || 0, res.users || 0]) +
+                    [matched.length, res.total || 0, res.with_photo || 0, res.users || 0]) +
                 `</div>`;
 
             if (matched.length) {
@@ -2075,7 +2258,7 @@ function start_photo_collection(frm) {
             callback: (r) => r.message && render(r.message),
             // A single failed poll is not worth interrupting a session that
             // may be left open for an hour; the next one will report.
-            error: () => {}
+            error: () => { }
         });
     }
 
@@ -2091,7 +2274,7 @@ function start_photo_collection(frm) {
                 // a retake gives it something to wait for again.
                 if (!timer) {
                     timer = setInterval(() => poll("photo_collection_status"),
-                                        COLLECT_POLL_SECONDS * 1000);
+                        COLLECT_POLL_SECONDS * 1000);
                 }
                 poll("photo_collection_status");
             }
@@ -2103,5 +2286,5 @@ function start_photo_collection(frm) {
     poll("start_photo_collection");
 
     timer = setInterval(() => poll("photo_collection_status"),
-                        COLLECT_POLL_SECONDS * 1000);
+        COLLECT_POLL_SECONDS * 1000);
 }

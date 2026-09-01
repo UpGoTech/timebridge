@@ -79,6 +79,9 @@ def handle_cdata(serial, args, body, method, raw=None):
 
     if machine:
         commands.record_contact(machine, "handshake" if method in ("GET", "HEAD") else "upload")
+        count = parser.parse_device_user_count(args, body)
+        if count is not None:
+            commands.save_device_registered_users(machine, count)
 
     if method in ("GET", "HEAD"):
         return HANDSHAKE_TEMPLATE.format(
@@ -95,6 +98,8 @@ def handle_cdata(serial, args, body, method, raw=None):
         return "OK"
 
     table = parser.parse_table_name(args.get("table"))
+    if table in ("INFO", "OPTIONS", "OPTION"):
+        return "OK"
 
     if table == "ATTLOG":
         return _receive_attlog(machine, body)
@@ -224,8 +229,16 @@ def handle_getrequest(serial, args, body, method, raw=None):
         return "OK"
 
     commands.record_contact(machine, "poll")
+    count = parser.parse_device_user_count(args, body)
+    if count is not None:
+        commands.save_device_registered_users(machine, count)
+    
+    pending = commands.pop_one_command(machine)
 
-    pending = commands.pop_commands(machine)
+    if not pending:
+        commands.advance_user_fetch(machine, drip=True)
+        pending = commands.pop_one_command(machine)
+    # pending = commands.pop_commands(machine)
 
     if pending:
         frappe.logger().info(
@@ -247,6 +260,9 @@ def handle_devicecmd(serial, args, body, method, raw=None):
 
     if machine:
         commands.record_contact(machine, "command result")
+        count = parser.parse_device_user_count(args, body)
+        if count is not None:
+            commands.save_device_registered_users(machine, count)
         frappe.logger().info(f"[TimeBridge ADMS] {machine}: command result {body[:200]!r}")
 
     return "OK"

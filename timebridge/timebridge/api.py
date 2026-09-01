@@ -33,9 +33,10 @@ def request_all_data(machine_id, days=30):
     on its own afterwards.
 
     A dated range rather than CHECK, deliberately: CHECK returns nothing on
-    this hardware once the device believes its records were delivered, whereas
-    an explicit range ignores that pointer. Users are requested first so the
-    punches that follow already have names to attach to.
+    this hardware once the device believes its records were delivered, whereas    
+    an explicit range ignores that pointer. The same is true of a bare
+    DATA QUERY USERINFO — it is collected and answered with nothing — so user
+    dialects follow the ATTLOG dump (tabs, date range, then PIN= from punches).
 
     Safe to press twice either way: punches carry their original timestamps and
     the unique punch_key rejects anything already stored.
@@ -60,19 +61,39 @@ def request_all_data(machine_id, days=30):
                        "matched when it answers. Fill in Serial Number first."
         }
 
-    days = cint(days) or 30
+    days = cint(days)
+    if days < 0:
+        days = 30
 
     end = now_datetime()
-    start = add_days(end, -days)
+    # days == 0 means "everything the device still holds" — a wide floor date;
+    # firmware may still return only what remains in its log.
+    if days == 0:
+        start_s = "2000-01-01 00:00:00"
+        range_label = "all retained punches"
+    else:
+        start = add_days(end, -days)
+        start_s = start.strftime("%Y-%m-%d 00:00:00")
+        range_label = f"the last {days} days of punches"
 
-    commands.queue_command(machine_id, commands.request_users())
+    end_s = end.strftime("%Y-%m-%d 23:59:59")
+
+    commands.start_user_fetch(
+        machine_id,
+        start_s,
+        end_s,
+        baseline=frappe.db.count("TimeBridge Machine User", {"machine": machine_id}),
+    )
+    # commands.queue_command(machine_id, commands.request_users())
+    commands.queue_command(machine_id, "INFO")
 
     command_id = commands.queue_command(
         machine_id,
-        commands.resend_attendance_between(
-            start.strftime("%Y-%m-%d 00:00:00"),
-            end.strftime("%Y-%m-%d 23:59:59")
-        )
+        # commands.resend_attendance_between(
+        #     start.strftime("%Y-%m-%d 00:00:00"),
+        #     end.strftime("%Y-%m-%d 23:59:59")
+        # )
+        commands.resend_attendance_between(start_s, end_s),
     )
 
     return {
@@ -84,8 +105,22 @@ def request_all_data(machine_id, days=30):
         "baseline": frappe.db.count("TimeBridge Punch Log", {"machine": machine_id}),
         "baseline_syncs": frappe.db.count("TimeBridge Sync Log", {"machine": machine_id}),
         "last_contact": commands.last_contact(machine_id),
-        "message": f"Asked the device for its users and the last {days} days of punches."
+        "message": f"Asked the device for its users and {range_label}."
     }
+
+
+@frappe.whitelist()
+def send_users_to_device(machine_id):
+    """
+    Push TimeBridge Machine User name and id onto the terminal.
+
+    ADMS queues commands for the next poll; PyZK writes immediately. Photos
+    and biometric templates are not sent — see services/push_users.py.
+    """
+
+    from timebridge.timebridge.services.push_users import send_users_to_device as send
+
+    return send(machine_id)
 
 
 @frappe.whitelist()
@@ -243,7 +278,7 @@ def match_photos(machine_id, file_urls):
 
     by_code = {}
 
-    for emp in frappe.get_all("TimeBridge Employee", fields=["name", "employee_code", "employee_name"]):
+    for emp in frappe.get_all("TimeBridge Employee", fields=["name", "employee_code", "employee"]):
         for user in users:
             if user.employee == emp.name:
                 by_code[normalise(emp.employee_code)] = user
@@ -451,11 +486,13 @@ def connection_health(machine_id):
     except Exception:
         pass
 
-    # Does our own receiver answer? If this fails nothing else matters.
+    # Does our own receiver answer? Port comes from the bench config so a
+    # site on 8003 (or any other webserver_port) is not reported as down.
+    web_port = cint(frappe.conf.get("webserver_port")) or 8000
     receiver_ok = False
 
     try:
-        with socket.create_connection(("127.0.0.1", 8000), timeout=3):
+        with socket.create_connection(("127.0.0.1", web_port), timeout=3):
             receiver_ok = True
     except OSError:
         pass
@@ -467,11 +504,32 @@ def connection_health(machine_id):
             frappe.utils.time_diff_in_seconds(frappe.utils.now_datetime(), contact["at"]) / 60
         )
 
+    from timebridge.timebridge.services.connection import is_push_device
+
+    is_push = is_push_device(machine)
+    device_reachable = None
+    port = cint(machine.port) or 4370
+
+    # Pull devices are dialled by us — probe their IP:port. Push devices dial
+    # us, so this probe would be meaningless and is skipped.
+    if not is_push and machine.ip_address:
+        try:
+            with socket.create_connection((machine.ip_address, port), timeout=3):
+                device_reachable = True
+        except OSError:
+            device_reachable = False
+
     return {
         "machine_name": machine.machine_name,
         "serial_number": machine.serial_number,
         "ip_address": machine.ip_address,
+        "port": port,
+        "sdk_type": machine.sdk_type or "PyZK",
+        "is_push": is_push,
+        "machine_status": machine.status,
+        "device_reachable": device_reachable,
         "receiver_ok": receiver_ok,
+        "web_port": web_port,
         "wsl_ip": wsl_ip,
         "last_contact": contact.get("at"),
         "last_contact_kind": contact.get("kind"),
@@ -517,6 +575,13 @@ def fetch_status(machine_id):
     """
 
     from timebridge.timebridge.adms import commands
+    users_now = frappe.db.count("TimeBridge Machine User", {"machine": machine_id})
+    commands.advance_user_fetch(machine_id, users_now, drip=False)
+
+    fetch_state = frappe.cache().get_value(commands.user_fetch_key(machine_id)) or {}
+    user_round = cint(fetch_state.get("round"))
+    missing = commands.missing_user_pins(machine_id)
+    punch_people = len(commands.punch_pins(machine_id))
 
     # Sync Logs are the honest measure of whether the device answered.
     # Counting only *new* punches would call a correct re-fetch a failure —
@@ -533,30 +598,44 @@ def fetch_status(machine_id):
 
     return {
         "punches": frappe.db.count("TimeBridge Punch Log", {"machine": machine_id}),
-        "users": frappe.db.count("TimeBridge Machine User", {"machine": machine_id}),
+        # "users": frappe.db.count("TimeBridge Machine User", {"machine": machine_id}),
+        "users": users_now,
+        "device_registered_users": frappe.db.get_value(
+            "TimeBridge Machine", machine_id, "device_registered_users"
+        ),
         "sync_logs": frappe.db.count("TimeBridge Sync Log", {"machine": machine_id}),
         "recent_syncs": recent,
         "pending_commands": commands.pending_count(machine_id),
-        "last_contact": commands.last_contact(machine_id)
+        # "last_contact": commands.last_contact(machine_id)
+        "last_contact": commands.last_contact(machine_id),
+        "user_fetch_round": user_round,
+        "user_fetch_active": bool(fetch_state) and (not punch_people or bool(missing)),
+        "missing_users": len(missing),
+        "punch_people": punch_people,
     }
 
 
 @frappe.whitelist()
-def preview_employee_link(machine_id, skip_non_person=1, merge_same_name=1):
+def preview_employee_link(machine_id, skip_non_person=1, merge_same_name=1, machine_users=None):
     """
     What would attaching this machine's users to TimeBridge Employees do?
 
     Read-only on purpose. Names are the only evidence a device gives, so the
     operator sees the whole plan — who is matched, who would be created under
     which code, and who is left out — before anything is written.
+
+    machine_users (optional JSON list of Machine User names) narrows the plan.
     """
 
     from timebridge.timebridge.services.employee_link import plan
+
+    names = frappe.parse_json(machine_users) if machine_users else None
 
     return plan(
         machine_id,
         skip_non_person=cint(skip_non_person),
         merge_same_name=cint(merge_same_name),
+        machine_user_names=names,
     )
 
 
@@ -569,18 +648,67 @@ def create_and_link_employees(
     shift=None,
     skip_non_person=1,
     merge_same_name=1,
+    machine_users=None,
 ):
     """
     Create the TimeBridge Employees this machine's users need, attach them, and backfill.
 
     Synchronous: a few hundred inserts finish well inside a request, and the
     operator is waiting on the answer to decide whether to rebuild attendance.
+
+    machine_users (optional) limits create/link to those Machine User names.
     """
 
     from timebridge.timebridge.services.employee_link import apply_plan
 
+    names = frappe.parse_json(machine_users) if machine_users else None
+
     return apply_plan(
         machine_id,
+        date_of_joining=date_of_joining,
+        organization=organization,
+        branch=branch,
+        shift=shift or None,
+        skip_non_person=cint(skip_non_person),
+        merge_same_name=cint(merge_same_name),
+        machine_user_names=names,
+    )
+
+
+@frappe.whitelist()
+def list_machine_users_for_employee_create(machine=None):
+    """
+    Candidates for Create TimeBridge Employee from the Machine User list.
+
+    Returns counts plus every unlinked user (optionally for one machine).
+    """
+
+    from timebridge.timebridge.services.employee_link import list_candidates
+
+    return list_candidates(machine=machine or None)
+
+
+@frappe.whitelist()
+def create_and_link_selected_employees(
+    machine_users,
+    date_of_joining,
+    organization,
+    branch,
+    shift=None,
+    skip_non_person=1,
+    merge_same_name=1,
+):
+    """
+    Create & link TimeBridge Employees for the Machine Users the operator checked.
+
+    Accepts users from more than one machine; grouping and punch backfill stay
+    per-machine inside employee_link.apply_selected.
+    """
+
+    from timebridge.timebridge.services.employee_link import apply_selected
+
+    return apply_selected(
+        machine_users,
         date_of_joining=date_of_joining,
         organization=organization,
         branch=branch,
@@ -600,9 +728,16 @@ def employee_assignment_summary(machine_id):
 
 
 @frappe.whitelist()
-def update_employee_assignment(machine_id, organization=None, branch=None, shift=None):
+def update_employee_assignment(
+    machine_id,
+    organization=None,
+    branch=None,
+    shift=None,
+    date_of_joining=None,
+):
     """
-    Change TimeBridge Organization / TimeBridge Branch / TimeBridge Shift on this machine's existing TimeBridge Employees.
+    Change TimeBridge Organization / TimeBridge Branch / TimeBridge Shift / DOJ
+    on this machine's existing TimeBridge Employees.
 
     Separate from create_and_link_employees on purpose: that one only ever fills
     in people who have none, so it cannot be used to correct the people it
@@ -616,6 +751,32 @@ def update_employee_assignment(machine_id, organization=None, branch=None, shift
         organization=organization or None,
         branch=branch or None,
         shift=shift or None,
+        date_of_joining=date_of_joining or None,
+    )
+
+
+@frappe.whitelist()
+def update_selected_employee_defaults(
+    machine_users,
+    organization=None,
+    branch=None,
+    shift=None,
+    date_of_joining=None,
+):
+    """
+    Correct defaults on TimeBridge Employees linked to the checked Machine Users.
+
+    Used from the Machine User list — no Device button required.
+    """
+
+    from timebridge.timebridge.services.employee_link import apply_assignment_selected
+
+    return apply_assignment_selected(
+        machine_users,
+        organization=organization or None,
+        branch=branch or None,
+        shift=shift or None,
+        date_of_joining=date_of_joining or None,
     )
 
 
@@ -832,7 +993,7 @@ def photo_collection_status(machine_id):
     rows = frappe.db.sql(
         """
         SELECT mu.name, mu.user_id, mu.user_name, mu.photo, mu.retake_photo,
-               emp.employee_name
+               emp.employee
         FROM `tabTimeBridge Machine User` mu
         LEFT JOIN `tabTimeBridge Employee` emp ON emp.name = mu.employee
         WHERE mu.machine = %(machine)s
@@ -850,7 +1011,7 @@ def photo_collection_status(machine_id):
         entry = {
             "machine_user": row.name,
             "user_id": row.user_id,
-            "name": row.employee_name or row.user_name or row.user_id,
+            "name": row.employee or row.user_name or row.user_id,
             "photo": row.photo,
         }
 
