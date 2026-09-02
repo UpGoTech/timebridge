@@ -519,3 +519,55 @@ class TestIclockParser(FrappeTestCase):
 			"C:3:DATA QUERY tablename=user,fielddesc=*,filter=*",
 		)
 		self.assertEqual(commands.format_commands([]), "OK")
+
+
+class TestAdmsCommandLab(FrappeTestCase):
+	def test_normalize_raw_command_strips_prefix(self):
+		from timebridge.timebridge.iclock.debug_feed import normalize_raw_command
+
+		self.assertEqual(
+			normalize_raw_command("C:9:DATA QUERY USERINFO"),
+			"DATA QUERY USERINFO",
+		)
+		self.assertEqual(normalize_raw_command("  INFO  "), "INFO")
+
+	def test_queue_raw_command_requires_registered(self):
+		from timebridge.timebridge.iclock.api import queue_raw_command
+
+		serial = f"LAB-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		with self.assertRaises(frappe.ValidationError):
+			queue_raw_command(name, "INFO")
+
+	def test_queue_and_poll_debug_feed(self):
+		from timebridge.timebridge.iclock.api import poll_debug_feed, queue_raw_command
+		from timebridge.timebridge.iclock.audit import write_log
+
+		serial = f"LAB-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+
+		queued = queue_raw_command(name, "C:5:INFO")
+		self.assertEqual(queued["command"], "INFO")
+		self.assertTrue(queued["command_id"])
+
+		write_log(
+			serial,
+			"devicecmd",
+			"POST",
+			{"SN": serial},
+			body=f"ID={queued['command_id']}&Return=0&CMD=DATA",
+			response="OK",
+			machine=name,
+		)
+
+		feed = poll_debug_feed(
+			name,
+			since=queued["queued_at"],
+			command_id=queued["command_id"],
+		)
+		self.assertEqual(feed["command"]["status"], "Queued")
+		self.assertTrue(feed["logs"])
+		self.assertEqual(feed["parsed_devicecmd"][0]["return_code"], "0")
+		self.assertEqual(feed["parsed_devicecmd"][0]["return_label"], "0 (OK)")

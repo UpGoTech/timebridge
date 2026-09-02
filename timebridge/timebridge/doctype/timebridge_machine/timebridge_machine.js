@@ -77,6 +77,9 @@ frappe.ui.form.on("TimeBridge Machine", {
             frm.add_custom_button(__("Add User"), needs_saved(add_user_dialog), DEVICE);
         } else if ((frm.doc.adms_status || "") === "Registered") {
             frm.add_custom_button(__("Add User"), needs_saved(add_user_dialog), DEVICE);
+            frm.add_custom_button(__("Command Lab"), function () {
+                frappe.set_route("adms-debug", { machine: frm.doc.name });
+            }, DEVICE);
         }
     }
 

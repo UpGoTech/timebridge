@@ -18,3 +18,4 @@ timebridge.patches.v1_0.reorder_timebridge_workspace_cards
 timebridge.patches.v1_0.set_active_users_chart_timespan_last_week
 timebridge.patches.v1_0.sync_adms_request_log
 timebridge.patches.v1_0.drop_adms_onboarding
+timebridge.patches.v1_0.sync_adms_command_lab_page

@@ -90,7 +90,7 @@
   {
    "hidden": 0,
    "label": "Logs",
-   "link_count": 3,
+   "link_count": 4,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -115,6 +115,14 @@
    "label": "TimeBridge ADMS Log",
    "link_to": "TimeBridge ADMS Log",
    "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "ADMS Command Lab",
+   "link_to": "adms-debug",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   }
