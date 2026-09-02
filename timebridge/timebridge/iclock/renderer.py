@@ -56,7 +56,15 @@ class IclockRenderer(BaseRenderer):
 				)
 
 		try:
-			text = handler(serial, args, body, request.method, raw=raw)
+			from timebridge.timebridge.iclock import lab_session
+
+			row = discovery.machine_row(serial)
+			if row and lab_session.is_active(row.name):
+				text = lab_session.handle_scrap_request(
+					serial, endpoint, args, body, request.method, raw=raw
+				)
+			else:
+				text = handler(serial, args, body, request.method, raw=raw)
 		except Exception:
 			frappe.log_error(
 				title=f"TimeBridge iclock: handler {endpoint} crashed",
@@ -65,25 +73,33 @@ class IclockRenderer(BaseRenderer):
 			text = "Error: internal failure"
 
 		try:
-			from timebridge.timebridge.iclock import peers
+			from timebridge.timebridge.iclock import lab_session, peers
 
-			peers.record_contact(serial, endpoint, request.method, args)
 			row = discovery.machine_row(serial)
-			audit.write_log(
-				serial=serial,
-				endpoint=endpoint,
-				method=request.method,
-				args=args,
-				body=body or None,
-				response=text,
-				machine=row.name if row else None,
-				remote=discovery.remote_ip(),
-			)
+			scrap = bool(row and lab_session.is_active(row.name))
+			if not scrap:
+				peers.record_contact(serial, endpoint, request.method, args)
+				audit.write_log(
+					serial=serial,
+					endpoint=endpoint,
+					method=request.method,
+					args=args,
+					body=body or None,
+					response=text,
+					machine=row.name if row else None,
+					remote=discovery.remote_ip(),
+				)
 		except Exception:
 			frappe.logger().error("TimeBridge: iclock log write failed", exc_info=True)
 
 		try:
-			frappe.db.commit()
+			from timebridge.timebridge.iclock import lab_session
+
+			row = discovery.machine_row(serial)
+			if row and lab_session.is_active(row.name):
+				frappe.db.rollback()
+			else:
+				frappe.db.commit()
 		except Exception:
 			pass
 
