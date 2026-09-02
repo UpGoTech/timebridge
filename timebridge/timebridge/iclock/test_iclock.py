@@ -130,7 +130,7 @@ class TestIclockServer(FrappeTestCase):
 			pluck="command",
 		)
 		self.assertFalse(any("QUERY ATTLOG" in (c or "") for c in queued))
-		self.assertFalse(any("QUERY USERINFO" in (c or "") for c in queued))
+		self.assertFalse(any("tablename=user" in (c or "") for c in queued))
 
 	def test_attlog_not_stored_until_receive_ticked(self):
 		enable_server(1)
@@ -168,7 +168,7 @@ class TestIclockServer(FrappeTestCase):
 		queued = download_data(name, days=7)
 		self.assertEqual(queued["status"], "queued")
 		self.assertIn("ATTLOG", queued["queued"])
-		self.assertNotIn("USERINFO", queued["queued"])
+		self.assertNotIn("tablename=user", queued["queued"])
 
 	def test_userinfo_stored_on_explicit_download_without_receive_toggled(self):
 		enable_server(1)
@@ -220,6 +220,34 @@ class TestIclockServer(FrappeTestCase):
 		progress = commands.download_progress(name, session["session_id"])
 		self.assertIn(progress["phase"], ("receiving", "waiting", "done"))
 		self.assertEqual(progress["stats"]["Machine users created"], 3)
+
+	def test_querydata_users_stored_on_explicit_download(self):
+		enable_server(1)
+		serial = f"QD-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		command_id = commands.queue_command(name, commands.request_users(), kind="Fetch")
+		commands.start_download_session(name, "users", [command_id])
+		handlers.handle_getrequest(serial, {"SN": serial}, "", "GET")
+
+		body = (
+			"user uid=1 cardno= pin=1 password= group=1 name=One privilege=0\n"
+			"user uid=2 cardno= pin=2 password= group=1 name=Two privilege=0\n"
+		)
+		args = {
+			"SN": serial,
+			"type": "tabledata",
+			"tablename": "user",
+			"cmdid": str(command_id),
+			"count": "2",
+			"packcnt": "1",
+			"packidx": "1",
+		}
+		with patch.object(frappe.db, "commit"):
+			reply = handlers.handle_querydata(serial, args, body, "POST")
+		self.assertEqual(reply, "user=2")
+		self.assertEqual(frappe.db.count("TimeBridge Machine User", {"machine": name}), 2)
 
 	def test_biophoto_during_users_download_session(self):
 		import base64
@@ -459,6 +487,18 @@ class TestIclockParser(FrappeTestCase):
 		self.assertEqual(records, [])
 		self.assertEqual(len(skipped), 1)
 
+	def test_querydata_users(self):
+		from timebridge.timebridge.iclock.parser import parse_querydata_users
+
+		body = (
+			"user uid=1 cardno= pin=1000 password= group=1 starttime=0 endtime=0 "
+			"name=Asha privilege=0 disable=0 verify=0\n"
+		)
+		records, skipped = parse_querydata_users(body)
+		self.assertEqual(skipped, [])
+		self.assertEqual(records[0]["user_id"], "1000")
+		self.assertEqual(records[0]["user_name"], "Asha")
+
 	def test_userinfo(self):
 		from timebridge.timebridge.iclock.parser import parse_userinfo
 
@@ -469,7 +509,13 @@ class TestIclockParser(FrappeTestCase):
 
 	def test_command_wire_format(self):
 		self.assertEqual(
-			commands.format_commands([{"id": 3, "command": "DATA QUERY USERINFO"}]),
-			"C:3:DATA QUERY USERINFO",
+			commands.request_users(),
+			"DATA QUERY tablename=user,fielddesc=*,filter=*",
+		)
+		self.assertEqual(
+			commands.format_commands(
+				[{"id": 3, "command": commands.request_users()}]
+			),
+			"C:3:DATA QUERY tablename=user,fielddesc=*,filter=*",
 		)
 		self.assertEqual(commands.format_commands([]), "OK")

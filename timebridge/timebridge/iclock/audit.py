@@ -24,6 +24,10 @@ def classify(endpoint, method, table=None):
 		return "Ping"
 	if endpoint == "devicecmd":
 		return "Commands"
+	if endpoint == "querydata" and (table or "").lower() == "user":
+		return "Users"
+	if endpoint == "querydata":
+		return "Upload"
 	if endpoint == "fdata" or table in ("ATTPHOTO", "USERPIC", "USERPHOTO", "FACE", "BIOPHOTO"):
 		return "Photos"
 	if table == "ATTLOG":
@@ -54,7 +58,7 @@ def write_log(
 	table = None
 	query = ""
 	if args:
-		table = args.get("table") or args.get("Table")
+		table = args.get("table") or args.get("Table") or args.get("tablename") or args.get("TableName")
 		try:
 			import json
 
