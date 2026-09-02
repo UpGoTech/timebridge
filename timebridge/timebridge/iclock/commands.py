@@ -118,7 +118,9 @@ def format_commands(commands):
 
 
 def request_users():
-	return "DATA QUERY USERINFO"
+	# Security PUSH §9.1.4 — bulk user table query via /iclock/querydata.
+	# Attendance §12.1.3 USERINFO PIN= is per-user only.
+	return "DATA QUERY tablename=user,fielddesc=*,filter=*"
 
 
 def resend_attendance_between(start, end):
@@ -364,7 +366,9 @@ def format_info_display(machine):
 	return lines
 
 
-def _mark_command_done(machine, command_id):
+def mark_command_done(machine, command_id):
+	"""Mark a Sent command Done after the device reports success on devicecmd."""
+
 	name = frappe.db.get_value(
 		COMMAND,
 		{"machine": machine, "command_id": command_id},
@@ -379,13 +383,17 @@ def _mark_command_done(machine, command_id):
 		)
 
 
+def _mark_command_done(machine, command_id):
+	mark_command_done(machine, command_id)
+
+
 DOWNLOAD_SESSION_TTL = 600
 DOWNLOAD_TIMEOUT_SECONDS = 180
 DOWNLOAD_IDLE_SECONDS = 25
 
 DOWNLOAD_KIND_CONFIG = {
 	"users": {
-		"needles": ("USERINFO",),
+		"needles": ("USERINFO", "tablename=user"),
 		"kinds": ("Fetch",),
 		"title": "Users",
 	},

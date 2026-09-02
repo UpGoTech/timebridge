@@ -44,6 +44,61 @@ def parse_attlog(body):
 	return records, skipped
 
 
+def parse_querydata_users(body):
+	"""Security PUSH §9.1.4 — user rows from POST /iclock/querydata?tablename=user."""
+
+	records = []
+	skipped = []
+
+	for line in (body or "").splitlines():
+		line = line.strip()
+		if not line:
+			continue
+		if line.lower().startswith("user"):
+			line = line[4:].strip()
+		fields = {}
+		for chunk in re.split(r"[\s\t]+", line):
+			if "=" not in chunk:
+				continue
+			key, _, value = chunk.partition("=")
+			fields[key.strip().lower()] = value.strip()
+		user_id = fields.get("pin")
+		if not user_id:
+			skipped.append(line)
+			continue
+		privilege = fields.get("privilege") or "0"
+		card = fields.get("cardno") or fields.get("card") or None
+		name = fields.get("name") or f"User {user_id}"
+		records.append(
+			{
+				"user_id": user_id,
+				"user_name": name,
+				"card_number": card or None,
+				"privilege": "User" if privilege in ("0", "") else "Admin",
+				"raw": line,
+			}
+		)
+
+	return records, skipped
+
+
+def parse_devicecmd_results(body):
+	results = []
+	for line in (body or "").replace("\r", "").splitlines():
+		line = line.strip()
+		if not line:
+			continue
+		fields = {}
+		for chunk in line.split("&"):
+			if "=" not in chunk:
+				continue
+			key, _, value = chunk.partition("=")
+			fields[key.strip().upper()] = value.strip()
+		if fields.get("ID") is not None:
+			results.append(fields)
+	return results
+
+
 def parse_userinfo(body):
 	records = []
 	skipped = []

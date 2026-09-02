@@ -51,6 +51,65 @@ def _record_user_download_photos(row, users_session, saved, flushed=0):
 		commands.record_download_activity(row.name, "users", photos_saved=total)
 
 
+def _persist_user_records(row, records, skipped):
+	if not records:
+		return True
+
+	explicit_users = commands.explicit_download_allowed(row.name, "users")
+	users_session = commands.download_ingest_allowed(row.name, "users")
+	store_users = (
+		receives(row, "receive_enrolluser")
+		or receives(row, "receive_chguser")
+		or explicit_users
+	)
+	if not store_users:
+		return True
+
+	sync_batch = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+	log_name = open_sync_log(row.name, "Users", sync_batch)
+	try:
+		result = save_users(row.name, records)
+		link_unmatched_punches(row.name)
+		close_sync_log(
+			log_name,
+			"Success",
+			fetched=len(records) + len(skipped),
+			created=result["created"],
+			skipped=len(skipped),
+		)
+		frappe.db.set_value(
+			"TimeBridge Machine",
+			row.name,
+			"last_user_sync",
+			now_datetime(),
+		)
+		if users_session:
+			commands.record_download_activity(
+				row.name,
+				"users",
+				fetched=len(records) + len(skipped),
+				created=result["created"],
+				updated=result["updated"],
+				skipped=len(skipped),
+			)
+		elif explicit_users:
+			commands.finish_fetch_commands(
+				row.name,
+				DOWNLOAD_USER_FETCH_NEEDLES,
+			)
+		frappe.db.commit()
+		return True
+	except Exception:
+		frappe.db.rollback()
+		tb = frappe.get_traceback()
+		close_sync_log(log_name, "Failed", fetched=len(records), error=tb[:1000])
+		frappe.db.commit()
+		return False
+
+
+DOWNLOAD_USER_FETCH_NEEDLES = ("USERINFO", "tablename=user")
+
+
 def handle_cdata(serial, args, body, method, raw=None):
 	if not adms_server_enabled():
 		return None
@@ -110,7 +169,48 @@ def handle_devicecmd(serial, args, body, method, raw=None):
 	if row and row.adms_status == "Registered":
 		commands.record_contact(row.name, "command result")
 		stats.apply_info_command_body(row.name, body)
+		for result in parser.parse_devicecmd_results(body):
+			cmd = (result.get("CMD") or "").upper()
+			if "DATA" not in cmd:
+				continue
+			try:
+				command_id = cint(result.get("ID"))
+			except (TypeError, ValueError):
+				continue
+			if command_id:
+				commands.mark_command_done(row.name, command_id)
 	return "OK"
+
+
+def handle_querydata(serial, args, body, method, raw=None):
+	if not adms_server_enabled():
+		return None
+	row = discovery.machine_row(serial)
+	if not row or row.adms_status != "Registered":
+		return "OK"
+
+	commands.record_contact(row.name, "upload")
+	table = (args.get("tablename") or args.get("TableName") or "").lower()
+	query_type = (args.get("type") or "").lower()
+
+	if query_type == "tabledata" and table == "user":
+		return _receive_querydata_users(row, args, body)
+
+	count = parser.body_line_count(body)
+	return handshake.ack(count or 1)
+
+
+def _receive_querydata_users(row, args, body):
+	records, skipped = parser.parse_querydata_users(body)
+	if records:
+		if not _persist_user_records(row, records, skipped):
+			return "Error: querydata user ingest failed"
+
+	stamps.record_operlog_stamp(row.name, args)
+	frappe.db.commit()
+	reported = cint(args.get("count"))
+	count = reported if reported else len(records)
+	return f"user={count or 0}"
 
 
 def handle_fdata(serial, args, body, method, raw=None):
@@ -143,10 +243,6 @@ def handle_fdata(serial, args, body, method, raw=None):
 				kinds=("Photo", "Fetch"),
 			)
 	return handshake.ack(1)
-
-
-def handle_querydata(serial, args, body, method, raw=None):
-	return "OK"
 
 
 def _handshake(serial, args, row):
@@ -237,47 +333,13 @@ def _receive_userinfo(row, args, body):
 	stash_photos = bool(users_session)
 
 	if records and store_users:
-		sync_batch = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-		log_name = open_sync_log(row.name, "Users", sync_batch)
-		try:
-			result = save_users(row.name, records)
-			link_unmatched_punches(row.name)
-			close_sync_log(
-				log_name,
-				"Success",
-				fetched=len(records) + len(skipped),
-				created=result["created"],
-				skipped=len(skipped),
-			)
-			frappe.db.set_value(
-				"TimeBridge Machine",
-				row.name,
-				"last_user_sync",
-				now_datetime(),
-			)
-			if users_session:
-				commands.record_download_activity(
-					row.name,
-					"users",
-					fetched=len(records) + len(skipped),
-					created=result["created"],
-					updated=result["updated"],
-					skipped=len(skipped),
-				)
-				flushed = photos.flush_pending_photos(row.name, "BIOPHOTO")
-				if flushed:
-					commands.record_download_activity(
-						row.name, "users", photos_saved=flushed
-					)
-			elif explicit_users:
-				commands.finish_fetch_commands(row.name, ("USERINFO",))
-			frappe.db.commit()
-		except Exception:
-			frappe.db.rollback()
-			tb = frappe.get_traceback()
-			close_sync_log(log_name, "Failed", fetched=len(records), error=tb[:1000])
-			frappe.db.commit()
+		if not _persist_user_records(row, records, skipped):
 			return "Error: USERINFO ingest failed"
+		if users_session:
+			flushed = photos.flush_pending_photos(row.name, "BIOPHOTO")
+			if flushed:
+				commands.record_download_activity(row.name, "users", photos_saved=flushed)
+				frappe.db.commit()
 
 	if photo_rows and _photo_ingest_allowed(row, users_session, faces_session):
 		try:
