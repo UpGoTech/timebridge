@@ -86,7 +86,7 @@ class TestWorkspaceSync(FrappeTestCase):
 
 		self.assertEqual(card_breaks.get("Devices"), 2)
 		self.assertEqual(card_breaks.get("Data"), 1)
-		self.assertEqual(card_breaks.get("Logs"), 3)
+		self.assertEqual(card_breaks.get("Logs"), 4)
 		self.assertEqual(card_breaks.get("Reports"), 3)
 		self.assertNotIn("Setup", card_breaks)
 
@@ -97,6 +97,7 @@ class TestWorkspaceSync(FrappeTestCase):
 			"TimeBridge Sync Log",
 			"TimeBridge Machine Log",
 			"TimeBridge ADMS Log",
+			"adms-debug",
 			"Device Roll",
 			"daily-punch-summary",
 			"employee-monthly-punch-summary",
@@ -106,6 +107,7 @@ class TestWorkspaceSync(FrappeTestCase):
 		self.assertEqual(links["Device Roll"].is_query_report, 1)
 		self.assertEqual(links["daily-punch-summary"].link_type, "Page")
 		self.assertEqual(links["employee-monthly-punch-summary"].link_type, "Page")
+		self.assertEqual(links["adms-debug"].link_type, "Page")
 
 		card_order = [
 			row.label for row in ws.links if row.type == "Card Break"

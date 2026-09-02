@@ -206,6 +206,26 @@ def download_faces(machine_id):
 
 
 @frappe.whitelist()
+def queue_raw_command(machine_id, command, kind="Fetch"):
+	"""Queue an arbitrary ADMS command payload for the ADMS Command Lab."""
+
+	_require_registered_adms(machine_id)
+	from timebridge.timebridge.iclock.debug_feed import queue_raw_command as _queue
+
+	return _queue(machine_id, command, kind=kind)
+
+
+@frappe.whitelist()
+def poll_debug_feed(machine_id, since=None, command_id=None, limit=50):
+	"""Poll ADMS Log + Device Command rows for the ADMS Command Lab."""
+
+	_require_registered_adms(machine_id)
+	from timebridge.timebridge.iclock.debug_feed import poll_debug_feed as _poll
+
+	return _poll(machine_id, since=since, command_id=command_id, limit=limit)
+
+
+@frappe.whitelist()
 def set_receive_flags(machine_id, receive_flags=None):
 	_require_registered_adms(machine_id)
 	flags = receive_flags or frappe.form_dict.get("receive_flags")
