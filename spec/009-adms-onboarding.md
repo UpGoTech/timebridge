@@ -54,7 +54,7 @@ This spec treats `/iclock` as a **server** the device dials, rebuilds the receiv
 
 **Stats:** getrequest `INFO=` (§9) plus command `INFO` (§12.4.3). Photo count via INFO keys / `DATA COUNT`.
 
-**Download:** `DATA QUERY ATTLOG StartTime=… EndTime=…`, `DATA QUERY tablename=user,fielddesc=*,filter=*` (Security §9.1.4 via `/iclock/querydata`; Attendance §12.1.3 `USERINFO PIN=` is per-user on OPERLOG), photo queries. TransFlag changes apply on the next init.
+**Download:** `DATA QUERY ATTLOG StartTime=… EndTime=…`, `DATA QUERY USERINFO` (Attendance bulk user download on OPERLOG/USERINFO; Security §9.1.4 `tablename=user` via `/iclock/querydata` when firmware supports it), photo queries. TransFlag changes apply on the next init.
 
 ## 4. Progress tracker
 

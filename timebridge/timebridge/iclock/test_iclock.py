@@ -282,6 +282,38 @@ class TestIclockServer(FrappeTestCase):
 		)
 		self.assertTrue(photo)
 
+	def test_operlog_biophoto_prefix_saved_on_user_download(self):
+		import base64
+
+		enable_server(1)
+		serial = f"OP-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		command_id = commands.queue_command(name, commands.request_users(), kind="Fetch")
+		commands.start_download_session(name, "users", [command_id])
+
+		content = base64.b64encode(_test_jpeg_bytes()).decode("ascii")
+		with patch.object(frappe.db, "commit"):
+			handlers.handle_cdata(
+				serial,
+				{"SN": serial, "table": "USERINFO", "OpStamp": "1"},
+				"PIN=37\tName=Thirty Seven\tPri=0\n",
+				"POST",
+			)
+			handlers.handle_cdata(
+				serial,
+				{"SN": serial, "table": "OPERLOG", "OpStamp": "2"},
+				f"BIOPHOTO PIN=37\tFileName=37.jpg\tType=9\tSize=999\tContent={content}\n",
+				"POST",
+			)
+		photo = frappe.db.get_value(
+			"TimeBridge Machine User",
+			{"machine": name, "user_id": "37"},
+			"photo",
+		)
+		self.assertTrue(photo)
+
 	def test_attlog_stored_on_explicit_download_without_receive_toggled(self):
 		enable_server(1)
 		serial = f"AQ-{frappe.generate_hash(length=6)}"
@@ -507,16 +539,26 @@ class TestIclockParser(FrappeTestCase):
 		self.assertEqual(records[0]["user_id"], "5")
 		self.assertEqual(records[0]["user_name"], "Asha")
 
+	def test_photo_fields_operlog_biophoto_prefix(self):
+		from timebridge.timebridge.iclock.parser import parse_photo_fields
+
+		content = "A" * 100
+		body = f"BIOPHOTO PIN=37\tFileName=37.jpg\tType=9\tContent={content}"
+		records = parse_photo_fields(body)
+		self.assertEqual(len(records), 1)
+		self.assertEqual(records[0]["user_id"], "37")
+		self.assertEqual(records[0]["content"], content)
+
 	def test_command_wire_format(self):
 		self.assertEqual(
 			commands.request_users(),
-			"DATA QUERY tablename=user,fielddesc=*,filter=*",
+			"DATA QUERY USERINFO",
 		)
 		self.assertEqual(
 			commands.format_commands(
 				[{"id": 3, "command": commands.request_users()}]
 			),
-			"C:3:DATA QUERY tablename=user,fielddesc=*,filter=*",
+			"C:3:DATA QUERY USERINFO",
 		)
 		self.assertEqual(commands.format_commands([]), "OK")
 
