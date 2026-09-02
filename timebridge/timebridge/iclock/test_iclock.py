@@ -582,8 +582,8 @@ class TestAdmsCommandLab(FrappeTestCase):
 			queue_raw_command(name, "INFO")
 
 	def test_queue_and_poll_debug_feed(self):
+		from timebridge.timebridge.iclock import lab_session
 		from timebridge.timebridge.iclock.api import poll_debug_feed, queue_raw_command
-		from timebridge.timebridge.iclock.audit import write_log
 
 		serial = f"LAB-{frappe.generate_hash(length=6)}"
 		name = create_pending(serial)
@@ -593,15 +593,20 @@ class TestAdmsCommandLab(FrappeTestCase):
 		queued = queue_raw_command(name, "C:5:INFO")
 		self.assertEqual(queued["command"], "INFO")
 		self.assertTrue(queued["command_id"])
+		self.assertTrue(queued["scrap_mode"])
+		self.assertFalse(
+			frappe.db.exists(
+				"TimeBridge Device Command",
+				{"machine": name, "command_id": queued["command_id"]},
+			)
+		)
 
-		write_log(
+		lab_session.handle_scrap_request(
 			serial,
 			"devicecmd",
-			"POST",
 			{"SN": serial},
-			body=f"ID={queued['command_id']}&Return=0&CMD=DATA",
-			response="OK",
-			machine=name,
+			f"ID={queued['command_id']}&Return=0&CMD=DATA",
+			"POST",
 		)
 
 		feed = poll_debug_feed(
@@ -609,7 +614,42 @@ class TestAdmsCommandLab(FrappeTestCase):
 			since=queued["queued_at"],
 			command_id=queued["command_id"],
 		)
-		self.assertEqual(feed["command"]["status"], "Queued")
+		self.assertTrue(feed["scrap_mode"])
+		self.assertEqual(feed["command"]["status"], "Done")
 		self.assertTrue(feed["logs"])
 		self.assertEqual(feed["parsed_devicecmd"][0]["return_code"], "0")
 		self.assertEqual(feed["parsed_devicecmd"][0]["return_label"], "0 (OK)")
+
+	def test_lab_scrap_skips_user_ingest_and_adms_log(self):
+		from timebridge.timebridge.iclock.api import poll_debug_feed, queue_raw_command
+		from timebridge.timebridge.iclock import lab_session
+
+		enable_server(1)
+		serial = f"LS-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		queue_raw_command(name, "DATA QUERY USERINFO")
+
+		before_users = frappe.db.count("TimeBridge Machine User", {"machine": name})
+		before_logs = frappe.db.count("TimeBridge ADMS Log", {"machine": name})
+
+		reply = lab_session.handle_scrap_request(
+			serial,
+			"cdata",
+			{"SN": serial, "table": "USERINFO", "OpStamp": "1"},
+			"PIN=1\tName=One\tPri=0\n",
+			"POST",
+		)
+		self.assertEqual(reply, "OK: 1")
+		self.assertEqual(
+			frappe.db.count("TimeBridge Machine User", {"machine": name}), before_users
+		)
+		self.assertEqual(
+			frappe.db.count("TimeBridge ADMS Log", {"machine": name}), before_logs
+		)
+
+		feed = poll_debug_feed(name)
+		self.assertTrue(feed["scrap_mode"])
+		self.assertEqual(len(feed["logs"]), 1)
+		self.assertIn("PIN=1", feed["logs"][0]["body_preview"])

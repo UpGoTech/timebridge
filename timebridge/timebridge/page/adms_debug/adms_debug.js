@@ -144,7 +144,7 @@ function render_shell($main) {
 	$main.html(`
 		<div class="tb-ad-card">
 			<p class="tb-ad-intro">${__(
-				"Queue a raw ADMS command against a registered push device. The device picks it up on the next /iclock/getrequest poll. Responses appear in the live feed below."
+				"Queue a raw ADMS command against a registered push device. While a lab session is active, every response from that device is acknowledged but not saved — no ADMS Log rows, users, punches, or photos."
 			)}</p>
 			<div class="tb-ad-row">
 				<div class="tb-ad-fg">
@@ -327,9 +327,20 @@ function poll_feed($main) {
 function render_status($main, data, session) {
 	const cmd = data.command || {};
 	const elapsed = Math.floor((Date.now() - session.started_at) / 1000);
-	const parts = [
+	const parts = [];
+
+	if (data.scrap_mode) {
+		parts.push(
+			`<span class="tb-ad-badge tb-ad-badge-Done">${__("Scrap mode")}</span>`
+		);
+		parts.push(
+			`<span>${__("Device traffic is not saved while this session is active.")}</span>`
+		);
+	}
+
+	parts.push(
 		`<strong>${__("Command")} #${session.command_id || cmd.command_id || "—"}</strong>`,
-	];
+	);
 
 	if (cmd.status) {
 		parts.push(

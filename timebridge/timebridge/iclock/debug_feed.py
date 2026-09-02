@@ -8,7 +8,7 @@ import re
 import frappe
 from frappe.utils import cint, now_datetime
 
-from timebridge.timebridge.iclock import commands, parser
+from timebridge.timebridge.iclock import lab_session, parser
 
 COMMAND_PREFIX = re.compile(r"^C:\d+:", re.I)
 MAX_COMMAND_LEN = 500
@@ -49,28 +49,7 @@ def queue_raw_command(machine_id, command, kind="Fetch"):
 	if kind not in ALLOWED_KINDS:
 		frappe.throw(f"Unsupported kind: {kind}")
 
-	queued_at = now_datetime()
-	command_id = commands.queue_command(machine_id, command, kind=kind)
-	return {
-		"status": "queued",
-		"command_id": command_id,
-		"command": command,
-		"kind": kind,
-		"queued_at": queued_at,
-		"pending_commands": commands.pending_count(machine_id),
-	}
-
-
-def _command_row(machine_id, command_id):
-	if not command_id:
-		return None
-	rows = frappe.get_all(
-		"TimeBridge Device Command",
-		filters={"machine": machine_id, "command_id": cint(command_id)},
-		fields=["name", "command_id", "command", "kind", "status", "queued_at", "sent_at"],
-		limit=1,
-	)
-	return rows[0] if rows else None
+	return lab_session.queue_lab_command(machine_id, command)
 
 
 def _parse_devicecmd_from_logs(logs):
@@ -104,35 +83,56 @@ def _parse_devicecmd_from_logs(logs):
 
 def poll_debug_feed(machine_id, since=None, command_id=None, limit=50):
 	limit = min(cint(limit) or 50, 200)
-	filters = {"machine": machine_id}
-	if since:
-		filters["logged_at"] = [">=", since]
+	scrap_mode = lab_session.is_active(machine_id)
 
-	logs = frappe.get_all(
-		"TimeBridge ADMS Log",
-		filters=filters,
-		fields=[
-			"name",
-			"logged_at",
-			"endpoint",
-			"category",
-			"method",
-			"query_string",
-			"body_preview",
-			"response_preview",
-		],
-		order_by="logged_at asc",
-		limit=limit,
-	)
+	if scrap_mode:
+		logs = lab_session.get_captures(machine_id, since=since, limit=limit)
+		command = lab_session.session_command_row(machine_id)
+		pending_commands = lab_session.pending_lab_command_count(machine_id)
+	else:
+		filters = {"machine": machine_id}
+		if since:
+			filters["logged_at"] = [">=", since]
+		logs = frappe.get_all(
+			"TimeBridge ADMS Log",
+			filters=filters,
+			fields=[
+				"name",
+				"logged_at",
+				"endpoint",
+				"category",
+				"method",
+				"query_string",
+				"body_preview",
+				"response_preview",
+			],
+			order_by="logged_at asc",
+			limit=limit,
+		)
+		command = _command_row(machine_id, command_id)
+		pending_commands = 0
 
 	machine_users_count = frappe.db.count(
 		"TimeBridge Machine User", {"machine": machine_id}
 	)
 
 	return {
-		"command": _command_row(machine_id, command_id),
+		"scrap_mode": scrap_mode,
+		"command": command,
 		"logs": logs,
 		"parsed_devicecmd": _parse_devicecmd_from_logs(logs),
 		"machine_users_count": machine_users_count,
-		"pending_commands": commands.pending_count(machine_id),
+		"pending_commands": pending_commands,
 	}
+
+
+def _command_row(machine_id, command_id):
+	if not command_id:
+		return None
+	rows = frappe.get_all(
+		"TimeBridge Device Command",
+		filters={"machine": machine_id, "command_id": cint(command_id)},
+		fields=["name", "command_id", "command", "kind", "status", "queued_at", "sent_at"],
+		limit=1,
+	)
+	return rows[0] if rows else None

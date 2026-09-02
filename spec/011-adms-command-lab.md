@@ -35,6 +35,7 @@ Operators need one **Desk page** to pick a registered machine, type or pick a co
 | D5 | System Manager only — page role + API check. |
 | D6 | Presets are static chips, not persisted per site. |
 | D7 | Follow desk-page-ui — no full-bleed, breadcrumbs, 32px controls, Link wrap. |
+| D8 | **Scrap mode** — Command Lab queues cache-only commands; while session active, device traffic is acked but not written to ADMS Log or any ingest DocType; feed reads from session cache only. |
 
 ## 4. Progress tracker
 
