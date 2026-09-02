@@ -157,9 +157,16 @@ def parse_oplog(body):
 def parse_photo_fields(body):
 	records = []
 	for line in (body or "").splitlines():
-		line = line.rstrip("\r")
-		if not line.strip() or "=" not in line:
+		line = line.rstrip("\r").strip()
+		if not line or "=" not in line:
 			continue
+		# Attendance firmware often wraps enrolment JPEGs in OPERLOG as
+		# "BIOPHOTO PIN=37\tContent=…" — strip the row-type prefix first.
+		upper = line.upper()
+		for prefix in ("BIOPHOTO ", "USERPIC ", "BIOPIC ", "USERPHOTO "):
+			if upper.startswith(prefix):
+				line = line[len(prefix) :]
+				break
 		fields = {}
 		for chunk in line.split("\t"):
 			if "=" not in chunk:

@@ -118,9 +118,11 @@ def format_commands(commands):
 
 
 def request_users():
-	# Security PUSH §9.1.4 — bulk user table query via /iclock/querydata.
-	# Attendance §12.1.3 USERINFO PIN= is per-user only.
-	return "DATA QUERY tablename=user,fielddesc=*,filter=*"
+	# Attendance PUSH — bulk user download on OPERLOG/USERINFO (verified on
+	# ZAM180 Attendance firmware). Security §9.1.4 tablename=user via querydata
+	# is rejected (-1004) on the same devices; keep querydata ingest for when
+	# a firmware does reply on /iclock/querydata.
+	return "DATA QUERY USERINFO"
 
 
 def resend_attendance_between(start, end):
