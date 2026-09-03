@@ -216,6 +216,34 @@ def queue_raw_command(machine_id, command, kind="Fetch"):
 
 
 @frappe.whitelist()
+def start_lab_session(machine_id):
+	"""Enter Command Lab scrap mode for a registered ADMS machine."""
+
+	_require_registered_adms(machine_id)
+	from timebridge.timebridge.iclock.debug_feed import start_lab_session as _start
+
+	return _start(machine_id)
+
+
+@frappe.whitelist()
+def stop_lab_session(machine_id, reboot=1):
+	"""Leave scrap mode, clear lab commands, optionally reboot the device."""
+
+	_require_registered_adms(machine_id)
+	from timebridge.timebridge.iclock.debug_feed import stop_lab_session as _stop
+
+	return _stop(machine_id, reboot=reboot)
+
+
+@frappe.whitelist()
+def lab_session_status(machine_id):
+	_require_registered_adms(machine_id)
+	from timebridge.timebridge.iclock.debug_feed import lab_session_status as _status
+
+	return _status(machine_id)
+
+
+@frappe.whitelist()
 def poll_debug_feed(machine_id, since=None, command_id=None, limit=50):
 	"""Poll ADMS Log + Device Command rows for the ADMS Command Lab."""
 
