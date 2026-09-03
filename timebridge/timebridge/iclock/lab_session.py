@@ -19,16 +19,14 @@ def _session_key(machine):
 	return f"timebridge_adms_lab_session::{machine}"
 
 
-def _commands_key(machine):
-	return f"timebridge_adms_lab_commands::{machine}"
-
-
 def _command_id_key(machine):
 	return f"timebridge_adms_lab_command_id::{machine}"
 
 
 def _next_lab_command_id(machine):
-	current = cint(frappe.cache().get_value(_command_id_key(machine)))
+	current = cint(
+		frappe.cache().get_value(_command_id_key(machine), expires=True)
+	)
 	next_id = current + 1 if current else 1
 	frappe.cache().set_value(
 		_command_id_key(machine), next_id, expires_in_sec=LAB_SESSION_TTL
@@ -36,8 +34,16 @@ def _next_lab_command_id(machine):
 	return next_id
 
 
+def _save_session(machine, session):
+	frappe.cache().set_value(
+		_session_key(machine), session, expires_in_sec=LAB_SESSION_TTL
+	)
+
+
 def get_session(machine):
-	return frappe.cache().get_value(_session_key(machine))
+	# expires=True — TTL keys must not poison frappe.local.cache with a sticky None
+	# after the first miss (set_value with expires_in_sec skips the local cache).
+	return frappe.cache().get_value(_session_key(machine), expires=True)
 
 
 def is_active(machine):
@@ -49,33 +55,27 @@ def is_active_serial(serial):
 	return bool(row and is_active(row.name))
 
 
-def start_session(machine, command_id, command, queued_at=None):
-	queued_at = queued_at or now_datetime()
-	session = {
-		"command_id": cint(command_id),
-		"command": command,
-		"status": "Queued",
-		"queued_at": str(queued_at)[:19],
-		"sent_at": None,
-		"done_at": None,
-	}
-	frappe.cache().set_value(
-		_session_key(machine), session, expires_in_sec=LAB_SESSION_TTL
-	)
-	frappe.cache().set_value(
-		_commands_key(machine), [], expires_in_sec=LAB_SESSION_TTL
-	)
-
-
 def queue_lab_command(machine, command):
+	"""Queue a lab command in the scrap session (Redis only — never Device Command)."""
+
 	command_id = _next_lab_command_id(machine)
 	queued_at = now_datetime()
-	pending = frappe.cache().get_value(_commands_key(machine)) or []
+	session = get_session(machine) or {}
+	pending = list(session.get("pending") or [])
 	pending.append({"id": command_id, "command": command})
-	frappe.cache().set_value(
-		_commands_key(machine), pending, expires_in_sec=LAB_SESSION_TTL
+	session.update(
+		{
+			"command_id": cint(command_id),
+			"command": command,
+			"status": "Queued",
+			"queued_at": str(queued_at)[:19],
+			"sent_at": None,
+			"done_at": None,
+			"pending": pending,
+			"captures": list(session.get("captures") or []),
+		}
 	)
-	start_session(machine, command_id, command, queued_at=queued_at)
+	_save_session(machine, session)
 	return {
 		"status": "queued",
 		"command_id": command_id,
@@ -87,17 +87,20 @@ def queue_lab_command(machine, command):
 
 
 def pop_lab_commands(machine):
-	pending = frappe.cache().get_value(_commands_key(machine)) or []
+	session = get_session(machine) or {}
+	pending = list(session.get("pending") or [])
 	if not pending:
 		return []
-	frappe.cache().set_value(_commands_key(machine), [], expires_in_sec=LAB_SESSION_TTL)
-	session = get_session(machine) or {}
+	session["pending"] = []
 	session["status"] = "Sent"
 	session["sent_at"] = str(now_datetime())[:19]
-	frappe.cache().set_value(
-		_session_key(machine), session, expires_in_sec=LAB_SESSION_TTL
-	)
+	_save_session(machine, session)
 	return pending
+
+
+def pending_lab_command_count(machine):
+	session = get_session(machine) or {}
+	return len(session.get("pending") or [])
 
 
 def mark_lab_command_done(machine, command_id):
@@ -106,9 +109,7 @@ def mark_lab_command_done(machine, command_id):
 		return
 	session["status"] = "Done"
 	session["done_at"] = str(now_datetime())[:19]
-	frappe.cache().set_value(
-		_session_key(machine), session, expires_in_sec=LAB_SESSION_TTL
-	)
+	_save_session(machine, session)
 
 
 def _query_string(args):
@@ -148,9 +149,7 @@ def capture(machine, *, endpoint, method, args=None, body=None, response=None):
 	if len(captures) > LAB_CAPTURE_MAX:
 		captures = captures[-LAB_CAPTURE_MAX:]
 	session["captures"] = captures
-	frappe.cache().set_value(
-		_session_key(machine), session, expires_in_sec=LAB_SESSION_TTL
-	)
+	_save_session(machine, session)
 
 
 def get_captures(machine, since=None, limit=50):
@@ -161,10 +160,6 @@ def get_captures(machine, since=None, limit=50):
 		captures = [row for row in captures if (row.get("logged_at") or "") >= since_text]
 	limit = min(cint(limit) or 50, LAB_CAPTURE_MAX)
 	return captures[-limit:]
-
-
-def pending_lab_command_count(machine):
-	return len(frappe.cache().get_value(_commands_key(machine)) or [])
 
 
 def session_command_row(machine):
