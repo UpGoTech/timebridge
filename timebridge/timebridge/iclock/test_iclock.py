@@ -653,3 +653,30 @@ class TestAdmsCommandLab(FrappeTestCase):
 		self.assertTrue(feed["scrap_mode"])
 		self.assertEqual(len(feed["logs"]), 1)
 		self.assertIn("PIN=1", feed["logs"][0]["body_preview"])
+
+	def test_lab_queue_survives_and_is_delivered_on_getrequest(self):
+		from timebridge.timebridge.iclock.api import queue_raw_command
+		from timebridge.timebridge.iclock import lab_session
+
+		enable_server(1)
+		serial = f"LQ-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+
+		first = queue_raw_command(name, "INFO")
+		second = queue_raw_command(name, "DATA QUERY USERINFO")
+		self.assertEqual(second["pending_commands"], 2)
+
+		reply = lab_session.handle_scrap_request(
+			serial, "getrequest", {"SN": serial}, "", "GET"
+		)
+		self.assertIn(f"C:{first['command_id']}:INFO", reply)
+		self.assertIn(f"C:{second['command_id']}:DATA QUERY USERINFO", reply)
+		self.assertEqual(lab_session.pending_lab_command_count(name), 0)
+
+		# A second poll must not re-send — queue was emptied on first getrequest.
+		again = lab_session.handle_scrap_request(
+			serial, "getrequest", {"SN": serial}, "", "GET"
+		)
+		self.assertEqual(again, "OK")
