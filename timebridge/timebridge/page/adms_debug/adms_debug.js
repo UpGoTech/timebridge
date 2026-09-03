@@ -85,6 +85,7 @@ function inject_styles() {
 		.tb-ad-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 		.tb-ad-fg { display: flex; flex-direction: column; min-width: 180px; flex: 1; }
 		.tb-ad-fg-narrow { flex: 0 0 140px; min-width: 120px; }
+		.tb-ad-fg-actions { flex: 0 0 auto; min-width: 220px; }
 		.tb-ad-fg-label {
 			font-size: 11px; font-weight: 600; letter-spacing: .04em;
 			text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;
@@ -96,6 +97,7 @@ function inject_styles() {
 		.tb-ad-fg textarea { min-height: 72px; resize: vertical; width: 100%; }
 		.tb-ad-fg select { height: 32px; padding: 0 8px; }
 		.tb-ad-fg .btn { height: 32px; }
+		.tb-ad-session-btns { display: flex; gap: 8px; }
 		.tb-ad-link-wrap { overflow: visible; position: relative; }
 		.tb-ad-link-wrap .awesomplete { z-index: 30; width: 100%; }
 		.tb-ad-link-wrap .awesomplete > ul { z-index: 40; }
@@ -115,6 +117,8 @@ function inject_styles() {
 		.tb-ad-badge-Sent { background: #cce5ff; color: #004085; }
 		.tb-ad-badge-Done { background: #d4edda; color: #155724; }
 		.tb-ad-badge-Failed { background: #f8d7da; color: #721c24; }
+		.tb-ad-badge-Idle { background: #e9ecef; color: #495057; }
+		.tb-ad-badge-Active { background: #f8d7da; color: #721c24; }
 		.tb-ad-feed { width: 100%; border-collapse: collapse; font-size: 12px; }
 		.tb-ad-feed th, .tb-ad-feed td {
 			padding: 8px 10px; border-bottom: 1px solid var(--border-color); text-align: left;
@@ -128,6 +132,7 @@ function inject_styles() {
 			overflow: auto; margin: 4px 0 0; color: var(--text-muted);
 		}
 		.tb-ad-empty { text-align: center; padding: 24px; color: var(--text-muted); }
+		.tb-ad-disabled { opacity: .55; pointer-events: none; }
 		@media (max-width: 720px) {
 			.tb-ad-row { flex-direction: column; }
 			.tb-ad-fg { min-width: 100%; }
@@ -144,39 +149,50 @@ function render_shell($main) {
 	$main.html(`
 		<div class="tb-ad-card">
 			<p class="tb-ad-intro">${__(
-				"Queue a raw ADMS command against a registered push device. While a lab session is active, every response from that device is acknowledged but not saved — no ADMS Log rows, users, punches, or photos."
+				"Start a lab session to put this device into scrap mode: every /iclock request is shown here and nothing is saved. Stop the session to clear lab commands, leave scrap mode, and reboot the device back to normal operation."
 			)}</p>
 			<div class="tb-ad-row">
 				<div class="tb-ad-fg">
 					<span class="tb-ad-fg-label">${__("Machine")}</span>
 					<div class="tb-ad-link-wrap tb-ad-machine"></div>
 				</div>
-				<div class="tb-ad-fg tb-ad-fg-narrow">
-					<span class="tb-ad-fg-label">${__("Kind")}</span>
-					<select class="tb-ad-kind">
-						<option value="Fetch">${__("Fetch")}</option>
-						<option value="Photo">${__("Photo")}</option>
-						<option value="Other">${__("Other")}</option>
-					</select>
+				<div class="tb-ad-fg tb-ad-fg-actions">
+					<span class="tb-ad-fg-label">${__("Session")}</span>
+					<div class="tb-ad-session-btns">
+						<button type="button" class="btn btn-primary btn-sm tb-ad-start">${__("Start session")}</button>
+						<button type="button" class="btn btn-danger btn-sm tb-ad-stop" disabled>${__("Stop session")}</button>
+					</div>
 				</div>
 			</div>
-			<div class="tb-ad-row" style="margin-top:12px;">
-				<div class="tb-ad-fg">
-					<span class="tb-ad-fg-label">${__("Command")}</span>
-					<textarea class="tb-ad-command" placeholder="DATA QUERY USERINFO PIN=1"></textarea>
+			<div class="tb-ad-command-panel tb-ad-disabled">
+				<div class="tb-ad-row" style="margin-top:12px;">
+					<div class="tb-ad-fg tb-ad-fg-narrow">
+						<span class="tb-ad-fg-label">${__("Kind")}</span>
+						<select class="tb-ad-kind">
+							<option value="Fetch">${__("Fetch")}</option>
+							<option value="Photo">${__("Photo")}</option>
+							<option value="Other">${__("Other")}</option>
+						</select>
+					</div>
 				</div>
-			</div>
-			<div class="tb-ad-presets"></div>
-			<div class="tb-ad-row" style="margin-top:12px;">
-				<div class="tb-ad-fg tb-ad-fg-narrow">
-					<span class="tb-ad-fg-label">&nbsp;</span>
-					<button type="button" class="btn btn-primary btn-sm tb-ad-send">${__("Send")}</button>
+				<div class="tb-ad-row" style="margin-top:12px;">
+					<div class="tb-ad-fg">
+						<span class="tb-ad-fg-label">${__("Command")}</span>
+						<textarea class="tb-ad-command" placeholder="DATA QUERY USERINFO PIN=1"></textarea>
+					</div>
+				</div>
+				<div class="tb-ad-presets"></div>
+				<div class="tb-ad-row" style="margin-top:12px;">
+					<div class="tb-ad-fg tb-ad-fg-narrow">
+						<span class="tb-ad-fg-label">&nbsp;</span>
+						<button type="button" class="btn btn-primary btn-sm tb-ad-send">${__("Send")}</button>
+					</div>
 				</div>
 			</div>
 		</div>
 		<div class="tb-ad-card">
 			<div class="tb-ad-status tb-ad-status-idle">${__(
-				"Pick a machine and send a command to start the feed."
+				"Select a machine and Start session to begin."
 			)}</div>
 			<div class="tb-ad-feed-wrap" style="overflow-x:auto;">
 				<table class="tb-ad-feed">
@@ -205,6 +221,12 @@ function render_shell($main) {
 	});
 }
 
+function set_session_ui($main, active) {
+	$main.find(".tb-ad-start").prop("disabled", active);
+	$main.find(".tb-ad-stop").prop("disabled", !active);
+	$main.find(".tb-ad-command-panel").toggleClass("tb-ad-disabled", !active);
+}
+
 function mount_machine_control($main) {
 	const $mount = $main.find(".tb-ad-machine");
 	$mount.empty();
@@ -222,12 +244,15 @@ function mount_machine_control($main) {
 			change() {
 				frappe.pages["adms-debug"].session = null;
 				stop_poll();
+				set_session_ui($main, false);
 				$main.find(".tb-ad-status")
 					.addClass("tb-ad-status-idle")
-					.text(__("Pick a command preset or type one, then Send."));
+					.text(__("Select a machine and Start session to begin."));
 				$main.find(".tb-ad-feed-body").html(
 					`<tr><td colspan="6" class="tb-ad-empty">${__("No traffic yet.")}</td></tr>`
 				);
+				const machine = get_machine($main);
+				if (machine) refresh_session_status($main, machine);
 			},
 		},
 		parent: $mount,
@@ -246,11 +271,34 @@ function prefill_machine($main) {
 	const control = frappe.pages["adms-debug"].machine_control;
 	if (machine && control) {
 		control.set_value(machine);
+		refresh_session_status($main, machine);
 	}
 	if (frappe.route_options) {
 		delete frappe.route_options.machine;
 		delete frappe.route_options.machine_id;
 	}
+}
+
+function refresh_session_status($main, machine) {
+	frappe.call({
+		method: "timebridge.timebridge.iclock.api.lab_session_status",
+		args: { machine_id: machine },
+		callback(r) {
+			const msg = r.message || {};
+			if (msg.scrap_mode) {
+				frappe.pages["adms-debug"].session = {
+					machine,
+					command_id: (msg.command || {}).command_id,
+					since: msg.started_at,
+					started_at: Date.now(),
+				};
+				set_session_ui($main, true);
+				start_poll($main);
+			} else {
+				set_session_ui($main, false);
+			}
+		},
+	});
 }
 
 function bind_events($main) {
@@ -259,11 +307,97 @@ function bind_events($main) {
 		$main.find(".tb-ad-command").val(command);
 	});
 
+	$main.on("click.admsdbg", ".tb-ad-start", function () {
+		if ($main.data("busy")) return;
+		const machine = get_machine($main);
+		if (!machine) {
+			frappe.msgprint(__("Select a registered ADMS machine."));
+			return;
+		}
+		$main.data("busy", true);
+		frappe.call({
+			method: "timebridge.timebridge.iclock.api.start_lab_session",
+			args: { machine_id: machine },
+			callback(r) {
+				$main.data("busy", false);
+				const msg = r.message || {};
+				frappe.pages["adms-debug"].session = {
+					machine,
+					command_id: null,
+					since: msg.started_at,
+					started_at: Date.now(),
+				};
+				set_session_ui($main, true);
+				frappe.show_alert({
+					message: __("Lab session started — device traffic goes to scrap mode only."),
+					indicator: "orange",
+				});
+				start_poll($main);
+			},
+			error() {
+				$main.data("busy", false);
+			},
+		});
+	});
+
+	$main.on("click.admsdbg", ".tb-ad-stop", function () {
+		if ($main.data("busy")) return;
+		const machine = get_machine($main);
+		if (!machine) {
+			frappe.msgprint(__("Select a registered ADMS machine."));
+			return;
+		}
+		frappe.confirm(
+			__(
+				"Stop the lab session? Pending lab commands are cleared, scrap mode ends, and REBOOT is queued so the device returns to normal operation."
+			),
+			() => {
+				$main.data("busy", true);
+				frappe.call({
+					method: "timebridge.timebridge.iclock.api.stop_lab_session",
+					args: { machine_id: machine, reboot: 1 },
+					callback(r) {
+						$main.data("busy", false);
+						const msg = r.message || {};
+						frappe.pages["adms-debug"].session = null;
+						stop_poll();
+						set_session_ui($main, false);
+						$main.find(".tb-ad-status")
+							.addClass("tb-ad-status-idle")
+							.text(
+								__(
+									"Session stopped. Cleared {0} pending lab command(s). REBOOT queued: {1}.",
+									[
+										msg.pending_cleared || 0,
+										msg.reboot_queued ? __("yes") : __("no"),
+									]
+								)
+							);
+						$main.find(".tb-ad-feed-body").html(
+							`<tr><td colspan="6" class="tb-ad-empty">${__("Session stopped.")}</td></tr>`
+						);
+						frappe.show_alert({
+							message: __("Lab session stopped — device returning to normal."),
+							indicator: "green",
+						});
+					},
+					error() {
+						$main.data("busy", false);
+					},
+				});
+			}
+		);
+	});
+
 	$main.on("click.admsdbg", ".tb-ad-send", function () {
 		if ($main.data("busy")) return;
 		const machine = get_machine($main);
 		if (!machine) {
 			frappe.msgprint(__("Select a registered ADMS machine."));
+			return;
+		}
+		if (!frappe.pages["adms-debug"].session) {
+			frappe.msgprint(__("Start a lab session before sending commands."));
 			return;
 		}
 		const command = ($main.find(".tb-ad-command").val() || "").trim();
@@ -282,12 +416,10 @@ function bind_events($main) {
 			callback(r) {
 				$main.data("busy", false);
 				const msg = r.message || {};
-				frappe.pages["adms-debug"].session = {
-					machine,
-					command_id: msg.command_id,
-					since: msg.queued_at,
-					started_at: Date.now(),
-				};
+				const session = frappe.pages["adms-debug"].session || { machine };
+				session.command_id = msg.command_id;
+				session.since = session.since || msg.queued_at;
+				frappe.pages["adms-debug"].session = session;
 				frappe.show_alert({
 					message: __("Command #{0} queued", [msg.command_id]),
 					indicator: "green",
@@ -318,8 +450,18 @@ function poll_feed($main) {
 			command_id: session.command_id,
 		},
 		callback(r) {
-			render_status($main, r.message || {}, session);
-			render_feed($main, r.message || {});
+			const data = r.message || {};
+			if (!data.scrap_mode) {
+				frappe.pages["adms-debug"].session = null;
+				stop_poll();
+				set_session_ui($main, false);
+				$main.find(".tb-ad-status")
+					.addClass("tb-ad-status-idle")
+					.text(__("Lab session is no longer active."));
+				return;
+			}
+			render_status($main, data, session);
+			render_feed($main, data);
 		},
 	});
 }
@@ -329,28 +471,25 @@ function render_status($main, data, session) {
 	const elapsed = Math.floor((Date.now() - session.started_at) / 1000);
 	const parts = [];
 
-	if (data.scrap_mode) {
-		parts.push(
-			`<span class="tb-ad-badge tb-ad-badge-Done">${__("Scrap mode")}</span>`
-		);
-		parts.push(
-			`<span>${__("Device traffic is not saved while this session is active.")}</span>`
-		);
-	}
-
 	parts.push(
-		`<strong>${__("Command")} #${session.command_id || cmd.command_id || "—"}</strong>`,
+		`<span class="tb-ad-badge tb-ad-badge-Active">${__("Session active")}</span>`
+	);
+	parts.push(
+		`<span>${__("Scrap mode — nothing is saved outside this page.")}</span>`
 	);
 
+	if (cmd.command_id) {
+		parts.push(
+			`<strong>${__("Command")} #${cmd.command_id}</strong>`
+		);
+	}
 	if (cmd.status) {
 		parts.push(
 			`<span class="tb-ad-badge tb-ad-badge-${frappe.utils.escape_html(cmd.status)}">${frappe.utils.escape_html(cmd.status)}</span>`
 		);
 	}
 	if (cmd.command) {
-		parts.push(
-			`<code>${frappe.utils.escape_html(cmd.command)}</code>`
-		);
+		parts.push(`<code>${frappe.utils.escape_html(cmd.command)}</code>`);
 	}
 	parts.push(`<span>${__("Elapsed")}: ${elapsed}s</span>`);
 	parts.push(

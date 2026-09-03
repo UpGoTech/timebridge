@@ -581,14 +581,31 @@ class TestAdmsCommandLab(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			queue_raw_command(name, "INFO")
 
-	def test_queue_and_poll_debug_feed(self):
-		from timebridge.timebridge.iclock import lab_session
-		from timebridge.timebridge.iclock.api import poll_debug_feed, queue_raw_command
+	def test_queue_requires_started_session(self):
+		from timebridge.timebridge.iclock.api import queue_raw_command
 
 		serial = f"LAB-{frappe.generate_hash(length=6)}"
 		name = create_pending(serial)
 		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
 		discovery.register_machine(name)
+		with self.assertRaises(frappe.ValidationError):
+			queue_raw_command(name, "INFO")
+
+	def test_queue_and_poll_debug_feed(self):
+		from timebridge.timebridge.iclock import lab_session
+		from timebridge.timebridge.iclock.api import (
+			poll_debug_feed,
+			queue_raw_command,
+			start_lab_session,
+		)
+
+		serial = f"LAB-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+
+		started = start_lab_session(name)
+		self.assertTrue(started["scrap_mode"])
 
 		queued = queue_raw_command(name, "C:5:INFO")
 		self.assertEqual(queued["command"], "INFO")
@@ -621,7 +638,11 @@ class TestAdmsCommandLab(FrappeTestCase):
 		self.assertEqual(feed["parsed_devicecmd"][0]["return_label"], "0 (OK)")
 
 	def test_lab_scrap_skips_user_ingest_and_adms_log(self):
-		from timebridge.timebridge.iclock.api import poll_debug_feed, queue_raw_command
+		from timebridge.timebridge.iclock.api import (
+			poll_debug_feed,
+			queue_raw_command,
+			start_lab_session,
+		)
 		from timebridge.timebridge.iclock import lab_session
 
 		enable_server(1)
@@ -629,6 +650,7 @@ class TestAdmsCommandLab(FrappeTestCase):
 		name = create_pending(serial)
 		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
 		discovery.register_machine(name)
+		start_lab_session(name)
 		queue_raw_command(name, "DATA QUERY USERINFO")
 
 		before_users = frappe.db.count("TimeBridge Machine User", {"machine": name})
@@ -655,7 +677,7 @@ class TestAdmsCommandLab(FrappeTestCase):
 		self.assertIn("PIN=1", feed["logs"][0]["body_preview"])
 
 	def test_lab_queue_survives_and_is_delivered_on_getrequest(self):
-		from timebridge.timebridge.iclock.api import queue_raw_command
+		from timebridge.timebridge.iclock.api import queue_raw_command, start_lab_session
 		from timebridge.timebridge.iclock import lab_session
 
 		enable_server(1)
@@ -663,6 +685,7 @@ class TestAdmsCommandLab(FrappeTestCase):
 		name = create_pending(serial)
 		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
 		discovery.register_machine(name)
+		start_lab_session(name)
 
 		first = queue_raw_command(name, "INFO")
 		second = queue_raw_command(name, "DATA QUERY USERINFO")
@@ -680,3 +703,40 @@ class TestAdmsCommandLab(FrappeTestCase):
 			serial, "getrequest", {"SN": serial}, "", "GET"
 		)
 		self.assertEqual(again, "OK")
+
+	def test_stop_lab_session_clears_scrap_and_queues_reboot(self):
+		from timebridge.timebridge.iclock.api import (
+			queue_raw_command,
+			start_lab_session,
+			stop_lab_session,
+		)
+
+		enable_server(1)
+		serial = f"ST-{frappe.generate_hash(length=6)}"
+		name = create_pending(serial)
+		handlers.handle_cdata(serial, {"SN": serial, "options": "all"}, "", "GET")
+		discovery.register_machine(name)
+		start_lab_session(name)
+		queue_raw_command(name, "CHECK")
+
+		stopped = stop_lab_session(name, reboot=1)
+		self.assertFalse(stopped["scrap_mode"])
+		self.assertEqual(stopped["pending_cleared"], 1)
+		self.assertTrue(stopped["reboot_queued"])
+
+		from timebridge.timebridge.iclock import lab_session
+
+		self.assertFalse(lab_session.is_active(name))
+
+		reboot = frappe.db.get_value(
+			"TimeBridge Device Command",
+			{"machine": name, "command_id": stopped["reboot_command_id"]},
+			["command", "status"],
+			as_dict=True,
+		)
+		self.assertEqual(reboot.command, "REBOOT")
+		self.assertEqual(reboot.status, "Queued")
+
+		# Normal getrequest now delivers the reboot (scrap mode off).
+		reply = handlers.handle_getrequest(serial, {"SN": serial}, "", "GET")
+		self.assertIn("REBOOT", reply)

@@ -52,6 +52,18 @@ def queue_raw_command(machine_id, command, kind="Fetch"):
 	return lab_session.queue_lab_command(machine_id, command)
 
 
+def start_lab_session(machine_id):
+	return lab_session.start_lab_session(machine_id)
+
+
+def stop_lab_session(machine_id, reboot=1):
+	return lab_session.stop_lab_session(machine_id, reboot=reboot)
+
+
+def lab_session_status(machine_id):
+	return lab_session.session_status(machine_id)
+
+
 def _parse_devicecmd_from_logs(logs):
 	parsed = []
 	seen = set()
@@ -118,6 +130,9 @@ def poll_debug_feed(machine_id, since=None, command_id=None, limit=50):
 
 	return {
 		"scrap_mode": scrap_mode,
+		"started_at": (lab_session.get_session(machine_id) or {}).get("started_at")
+		if scrap_mode
+		else None,
 		"command": command,
 		"logs": logs,
 		"parsed_devicecmd": _parse_devicecmd_from_logs(logs),

@@ -1,7 +1,13 @@
 # Copyright (c) 2026, UPGO and contributors
 # For license information, please see license.txt
 
-"""Command Lab scrap sessions — observe device traffic without persisting anything."""
+"""Command Lab scrap sessions — observe device traffic without persisting anything.
+
+Sessions are started and stopped explicitly from the Desk page. While active,
+/iclock traffic for that machine is acked into an ephemeral capture buffer and
+never written to ADMS Log or ingest DocTypes. Stopping clears the lab queue and
+optionally queues REBOOT so the device drops leftover query buffers.
+"""
 
 import json
 
@@ -10,7 +16,9 @@ from frappe.utils import cint, now_datetime
 
 from timebridge.timebridge.iclock import audit, commands, discovery, handshake, parser, photos
 
-LAB_SESSION_TTL = 900
+# Safety net only — Start/Stop owns the lifecycle. Long TTL so a forgotten
+# session does not expire mid-debug in a few minutes.
+LAB_SESSION_TTL = 86400
 LAB_CAPTURE_MAX = 200
 PREVIEW_LIMIT = 4000
 
@@ -55,12 +63,90 @@ def is_active_serial(serial):
 	return bool(row and is_active(row.name))
 
 
+def start_lab_session(machine):
+	"""Enter scrap mode for this machine. Clears any prior lab queue / captures."""
+
+	started_at = now_datetime()
+	session = {
+		"active": True,
+		"started_at": str(started_at)[:19],
+		"command_id": None,
+		"command": None,
+		"status": "Idle",
+		"queued_at": None,
+		"sent_at": None,
+		"done_at": None,
+		"pending": [],
+		"captures": [],
+	}
+	_save_session(machine, session)
+	frappe.cache().set_value(
+		_command_id_key(machine), 0, expires_in_sec=LAB_SESSION_TTL
+	)
+	return {
+		"status": "started",
+		"scrap_mode": True,
+		"started_at": started_at,
+		"pending_commands": 0,
+	}
+
+
+def stop_lab_session(machine, reboot=1):
+	"""Leave scrap mode, drop lab commands, optionally REBOOT the device."""
+
+	session = get_session(machine) or {}
+	pending_cleared = len(session.get("pending") or [])
+	captures = len(session.get("captures") or [])
+
+	frappe.cache().delete_value(_session_key(machine))
+	frappe.cache().delete_value(_command_id_key(machine))
+
+	reboot_command_id = None
+	if cint(reboot):
+		reboot_command_id = commands.queue_command(
+			machine, commands.reboot(), kind="Other"
+		)
+
+	return {
+		"status": "stopped",
+		"scrap_mode": False,
+		"pending_cleared": pending_cleared,
+		"captures_discarded": captures,
+		"reboot_queued": bool(reboot_command_id),
+		"reboot_command_id": reboot_command_id,
+	}
+
+
+def session_status(machine):
+	session = get_session(machine)
+	if not session:
+		return {
+			"scrap_mode": False,
+			"started_at": None,
+			"pending_commands": 0,
+			"capture_count": 0,
+			"command": None,
+		}
+	return {
+		"scrap_mode": True,
+		"started_at": session.get("started_at"),
+		"pending_commands": len(session.get("pending") or []),
+		"capture_count": len(session.get("captures") or []),
+		"command": session_command_row(machine),
+	}
+
+
 def queue_lab_command(machine, command):
 	"""Queue a lab command in the scrap session (Redis only — never Device Command)."""
 
+	session = get_session(machine)
+	if not session:
+		frappe.throw(
+			"Start an ADMS Command Lab session before sending commands."
+		)
+
 	command_id = _next_lab_command_id(machine)
 	queued_at = now_datetime()
-	session = get_session(machine) or {}
 	pending = list(session.get("pending") or [])
 	pending.append({"id": command_id, "command": command})
 	session.update(
@@ -83,6 +169,7 @@ def queue_lab_command(machine, command):
 		"queued_at": queued_at,
 		"pending_commands": len(pending),
 		"scrap_mode": True,
+		"started_at": session.get("started_at"),
 	}
 
 
@@ -166,6 +253,14 @@ def session_command_row(machine):
 	session = get_session(machine)
 	if not session:
 		return None
+	if not session.get("command_id"):
+		return {
+			"command_id": None,
+			"command": None,
+			"status": session.get("status") or "Idle",
+			"queued_at": session.get("queued_at"),
+			"sent_at": session.get("sent_at"),
+		}
 	return {
 		"command_id": session.get("command_id"),
 		"command": session.get("command"),
