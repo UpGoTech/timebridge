@@ -5,10 +5,12 @@
 
 import calendar
 from collections import defaultdict
+from html import escape
 
 import frappe
 from frappe.utils import (
 	add_days,
+	flt,
 	format_time,
 	get_datetime,
 	get_first_day,
@@ -23,6 +25,39 @@ from frappe.utils.dateutils import (
 	get_period,
 	get_period_beginning,
 )
+
+DEFAULT_EXPECTED_WORKING_HOURS = 9.0
+
+
+def ensure_default_expected_working_hours():
+	"""Persist Settings.default_expected_working_hours when missing (Singles gotcha)."""
+	current = frappe.db.get_single_value(
+		"TimeBridge Settings", "default_expected_working_hours"
+	)
+	if current is None or current == "" or flt(current) <= 0:
+		frappe.db.set_single_value(
+			"TimeBridge Settings",
+			"default_expected_working_hours",
+			DEFAULT_EXPECTED_WORKING_HOURS,
+		)
+
+
+def resolve_expected_hours(machine_user=None):
+	"""Machine User hours if set, else Settings, else 9.0."""
+	if machine_user:
+		mu_hours = frappe.db.get_value(
+			"TimeBridge Machine User", machine_user, "expected_working_hours"
+		)
+		if mu_hours is not None and mu_hours != "" and flt(mu_hours) > 0:
+			return flt(mu_hours)
+
+	settings_hours = frappe.db.get_single_value(
+		"TimeBridge Settings", "default_expected_working_hours"
+	)
+	if settings_hours is not None and settings_hours != "" and flt(settings_hours) > 0:
+		return flt(settings_hours)
+	return DEFAULT_EXPECTED_WORKING_HOURS
+
 
 def _distinct_user_key_sql():
 	if frappe.db.db_type == "postgres":
@@ -148,7 +183,7 @@ def _machine_user_names(machine_user_ids):
 	rows = frappe.get_all(
 		"TimeBridge Machine User",
 		filters={"name": ["in", list(machine_user_ids)]},
-		fields=["name", "user_name", "user_id", "machine"],
+		fields=["name", "user_name", "user_id", "machine", "expected_working_hours"],
 	)
 	return {row.name: row for row in rows}
 
@@ -161,11 +196,11 @@ def _machine_user_names_by_device_ids(pairs):
 	rows = frappe.get_all(
 		"TimeBridge Machine User",
 		filters={"machine": ["in", list(machines)]},
-		fields=["machine", "user_id", "user_name"],
+		fields=["machine", "user_id", "user_name", "name", "expected_working_hours"],
 	)
 	name_map = {}
 	for row in rows:
-		name_map[(row.machine, row.user_id)] = row.user_name
+		name_map[(row.machine, row.user_id)] = row
 	return name_map
 
 
@@ -175,8 +210,23 @@ def _format_monthly_summary_date(day):
 	return f"{day.day:02d}-{day.strftime('%b')}-{day.year} ({calendar.day_abbr[day.weekday()]})"
 
 
-def _summarize_day_punches(punches):
-	"""In/out/hrs/count for one calendar day from punch rows."""
+def _row_status(punches_count, punched_in, punched_out, working_hours, expected_hours):
+	if punches_count <= 0:
+		return "absent"
+	if punched_in and not punched_out:
+		return "no_out"
+	if working_hours is not None and flt(working_hours) < flt(expected_hours):
+		return "short"
+	return "ok"
+
+
+def _summarize_day_punches(punches, expected_hours=None):
+	"""First/last punch of the day as In/Out; ignore punch_direction for times."""
+	expected = (
+		flt(expected_hours)
+		if expected_hours is not None
+		else DEFAULT_EXPECTED_WORKING_HOURS
+	)
 	if not punches:
 		return {
 			"punched_in": None,
@@ -186,30 +236,44 @@ def _summarize_day_punches(punches):
 			"working_hours": None,
 			"working_hours_display": "",
 			"punches": 0,
+			"punch_details": [],
+			"row_status": "absent",
+			"expected_working_hours": expected,
 		}
 
-	in_punches = [p for p in punches if p.punch_direction == "In"]
-	out_punches = [p for p in punches if p.punch_direction == "Out"]
-	first_punch = min(punches, key=lambda p: p.timestamp)
-	punched_in = (
-		min(in_punches, key=lambda p: p.timestamp).timestamp
-		if in_punches
-		else first_punch.timestamp
+	ordered = sorted(punches, key=lambda p: p.timestamp)
+	punch_details = [
+		{
+			"time_display": _format_punch_time(p.timestamp),
+			"direction": p.punch_direction or "",
+		}
+		for p in ordered
+	]
+
+	first_punch = ordered[0]
+	punched_in_dt = get_datetime(first_punch.timestamp)
+	punched_out_dt = None
+	if len(ordered) >= 2:
+		punched_out_dt = get_datetime(ordered[-1].timestamp)
+
+	working_hours, working_hours_display = _compute_working_hours(
+		punched_in_dt, punched_out_dt
 	)
-	punched_out = (
-		max(out_punches, key=lambda p: p.timestamp).timestamp if out_punches else None
-	)
-	punched_in_dt = get_datetime(punched_in)
-	punched_out_dt = get_datetime(punched_out) if punched_out else None
-	working_hours, working_hours_display = _compute_working_hours(punched_in_dt, punched_out_dt)
 	return {
 		"punched_in": punched_in_dt,
-		"punched_in_display": _format_punch_time(punched_in),
+		"punched_in_display": _format_punch_time(first_punch.timestamp),
 		"punched_out": punched_out_dt,
-		"punched_out_display": _format_punch_time(punched_out),
+		"punched_out_display": _format_punch_time(
+			ordered[-1].timestamp if punched_out_dt else None
+		),
 		"working_hours": working_hours,
 		"working_hours_display": working_hours_display,
-		"punches": len(punches),
+		"punches": len(ordered),
+		"punch_details": punch_details,
+		"row_status": _row_status(
+			len(ordered), punched_in_dt, punched_out_dt, working_hours, expected
+		),
+		"expected_working_hours": expected,
 	}
 
 
@@ -232,7 +296,7 @@ def _fetch_punches_for_user_month(user_id, from_date, to_date):
 	)
 
 
-def build_employee_monthly_punch_summary_rows(machine_user, month):
+def build_employee_monthly_punch_summary_rows(machine_user, month, expected_hours=None):
 	"""One row per calendar day for a user's global device_user_id."""
 	if not machine_user or not month:
 		return []
@@ -241,6 +305,11 @@ def build_employee_monthly_punch_summary_rows(machine_user, month):
 	if not user_id:
 		frappe.throw("TimeBridge Machine User not found")
 
+	expected = (
+		flt(expected_hours)
+		if expected_hours is not None
+		else resolve_expected_hours(machine_user)
+	)
 	month_date = getdate(month)
 	from_date = get_first_day(month_date)
 	to_date = get_last_day(month_date)
@@ -253,7 +322,7 @@ def build_employee_monthly_punch_summary_rows(machine_user, month):
 	rows = []
 	day = from_date
 	while day <= to_date:
-		summary = _summarize_day_punches(by_day.get(day, []))
+		summary = _summarize_day_punches(by_day.get(day, []), expected_hours=expected)
 		rows.append(
 			{
 				"date": day,
@@ -280,10 +349,14 @@ def get_employee_monthly_punch_summary_list(machine_user=None, month=None):
 		["user_id", "user_name"],
 		as_dict=True,
 	)
+	expected = resolve_expected_hours(machine_user)
 	return {
 		"user_id": mu.user_id if mu else "",
 		"user_name": mu.user_name if mu else "",
-		"rows": build_employee_monthly_punch_summary_rows(machine_user, month),
+		"expected_working_hours": expected,
+		"rows": build_employee_monthly_punch_summary_rows(
+			machine_user, month, expected_hours=expected
+		),
 	}
 
 
@@ -296,18 +369,22 @@ def build_daily_punch_summary_rows(punch_date, machine=None):
 	machine_user_ids = {p.machine_user for p in punches if p.machine_user}
 	linked_users = _machine_user_names(machine_user_ids)
 	name_by_device = _machine_user_names_by_device_ids(set(grouped.keys()))
+	default_expected = resolve_expected_hours(None)
 
 	rows = []
 	for (machine_id, device_user_id), user_punches in grouped.items():
-		summary = _summarize_day_punches(user_punches)
-
-		user_name = device_user_id
 		linked = next((p.machine_user for p in user_punches if p.machine_user), None)
+		expected = default_expected
+		user_name = device_user_id
 		if linked and linked in linked_users:
 			user_name = linked_users[linked].user_name
+			expected = resolve_expected_hours(linked)
 		elif (machine_id, device_user_id) in name_by_device:
-			user_name = name_by_device[(machine_id, device_user_id)]
+			mu_row = name_by_device[(machine_id, device_user_id)]
+			user_name = mu_row.user_name
+			expected = resolve_expected_hours(mu_row.name)
 
+		summary = _summarize_day_punches(user_punches, expected_hours=expected)
 		rows.append(
 			{
 				"user_name": user_name,
@@ -328,6 +405,182 @@ def get_daily_punch_summary_list(date=None, machine=None):
 	if not date:
 		frappe.throw("Date is required")
 	return build_daily_punch_summary_rows(date, machine or None)
+
+
+def _legend_html(grayscale=False):
+	if grayscale:
+		short_bg, no_out_bg = "#d0d0d0", "#e8e8e8"
+	else:
+		short_bg, no_out_bg = "#ffe8cc", "#e8f0fe"
+	return f"""
+	<div class="tb-ps-legend">
+		<span class="tb-ps-legend-item"><span class="tb-ps-swatch" style="background:{short_bg}"></span> Below expected hours</span>
+		&nbsp;&nbsp;
+		<span class="tb-ps-legend-item"><span class="tb-ps-swatch" style="background:{no_out_bg}"></span> No out punch</span>
+		&nbsp;&nbsp;
+		<span class="tb-ps-legend-item"><span class="tb-ps-swatch" style="background:#ffffff;border:1px solid #ccc"></span> Normal / absent</span>
+	</div>
+	"""
+
+
+def _table_styles(grayscale=False):
+	if grayscale:
+		short = "background:#d0d0d0;"
+		no_out = "background:#e8e8e8;"
+	else:
+		short = "background:#ffe8cc;"
+		no_out = "background:#e8f0fe;"
+	return f"""
+	<style>
+		@page {{ size: A4 portrait; margin: 12mm; }}
+		body {{ font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #222; }}
+		h1 {{ font-size: 16px; margin: 0 0 4px; }}
+		.tb-ps-meta {{ color: #555; margin-bottom: 12px; }}
+		.tb-ps-legend {{ margin: 0 0 12px; }}
+		.tb-ps-legend-item {{ display: inline-block; margin-right: 12px; }}
+		.tb-ps-swatch {{ width: 14px; height: 14px; display: inline-block; border: 1px solid #bbb; vertical-align: middle; }}
+		table {{ width: 100%; border-collapse: collapse; }}
+		th, td {{ border: 1px solid #ccc; padding: 6px 8px; text-align: left; }}
+		th {{ background: #f3f3f3; font-size: 10px; text-transform: uppercase; }}
+		td.r, th.r {{ text-align: right; }}
+		tr.short td {{ {short} }}
+		tr.no_out td {{ {no_out} }}
+	</style>
+	"""
+
+
+def _render_punch_summary_html(
+	title,
+	subtitle,
+	columns,
+	rows,
+	grayscale=False,
+):
+	"""Shared A4 HTML for Print and PDF."""
+	header = "".join(
+		f'<th class="{"r" if col.get("align") == "right" else ""}">{escape(col["label"])}</th>'
+		for col in columns
+	)
+	body_rows = []
+	for row in rows:
+		status = row.get("row_status") or "ok"
+		cls = status if status in ("short", "no_out") else ""
+		cells = []
+		for col in columns:
+			val = row.get(col["key"], "")
+			if val is None:
+				val = ""
+			align = "r" if col.get("align") == "right" else ""
+			cells.append(f'<td class="{align}">{escape(str(val))}</td>')
+		body_rows.append(f'<tr class="{cls}">{"".join(cells)}</tr>')
+
+	return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">{_table_styles(grayscale=grayscale)}</head>
+<body>
+<h1>{escape(title)}</h1>
+<div class="tb-ps-meta">{escape(subtitle)}</div>
+{_legend_html(grayscale=grayscale)}
+<table>
+<thead><tr>{header}</tr></thead>
+<tbody>{"".join(body_rows)}</tbody>
+</table>
+</body></html>"""
+
+
+def build_employee_monthly_punch_summary_html(machine_user, month, grayscale=False):
+	payload = get_employee_monthly_punch_summary_list(machine_user, month)
+	month_date = getdate(month)
+	period = f"{month_date.strftime('%B')} {month_date.year}"
+	user_label = " · ".join(
+		part for part in [payload.get("user_id"), payload.get("user_name")] if part
+	) or "—"
+	expected = payload.get("expected_working_hours")
+	subtitle = f"{user_label} · {period} · Expected {expected:g}h"
+	columns = [
+		{"key": "date_display", "label": "Date"},
+		{"key": "punched_in_display", "label": "Punched In"},
+		{"key": "punched_out_display", "label": "Punched Out"},
+		{"key": "working_hours_display", "label": "Working Hrs", "align": "right"},
+		{"key": "punches", "label": "Punches", "align": "right"},
+	]
+	return _render_punch_summary_html(
+		"Employee Monthly Punch Summary",
+		subtitle,
+		columns,
+		payload.get("rows") or [],
+		grayscale=grayscale,
+	)
+
+
+def build_daily_punch_summary_html(punch_date, machine=None, grayscale=False):
+	rows = build_daily_punch_summary_rows(punch_date, machine or None)
+	day = getdate(punch_date)
+	subtitle = day.strftime("%d-%b-%Y")
+	if machine:
+		subtitle = f"{subtitle} · {machine}"
+	columns = [
+		{"key": "user_name", "label": "User Name"},
+		{"key": "punched_in_display", "label": "Punched In"},
+		{"key": "punched_out_display", "label": "Punched Out"},
+		{"key": "working_hours_display", "label": "Working Hrs", "align": "right"},
+		{"key": "punches", "label": "Punches", "align": "right"},
+	]
+	return _render_punch_summary_html(
+		"Daily Punch Summary",
+		subtitle,
+		columns,
+		rows,
+		grayscale=grayscale,
+	)
+
+
+@frappe.whitelist()
+def get_employee_monthly_punch_summary_print_html(machine_user=None, month=None):
+	if not machine_user:
+		frappe.throw("User is required")
+	if not month:
+		frappe.throw("Month is required")
+	return build_employee_monthly_punch_summary_html(
+		machine_user, month, grayscale=False
+	)
+
+
+@frappe.whitelist()
+def get_daily_punch_summary_print_html(date=None, machine=None):
+	if not date:
+		frappe.throw("Date is required")
+	return build_daily_punch_summary_html(date, machine or None, grayscale=False)
+
+
+@frappe.whitelist()
+def download_employee_monthly_punch_summary_pdf(machine_user=None, month=None):
+	from frappe.utils.pdf import get_pdf
+
+	if not machine_user:
+		frappe.throw("User is required")
+	if not month:
+		frappe.throw("Month is required")
+	html = build_employee_monthly_punch_summary_html(
+		machine_user, month, grayscale=True
+	)
+	month_date = getdate(month)
+	filename = f"employee-monthly-punch-summary-{month_date.strftime('%Y-%m')}.pdf"
+	frappe.local.response.filename = filename
+	frappe.local.response.filecontent = get_pdf(html)
+	frappe.local.response.type = "pdf"
+
+
+@frappe.whitelist()
+def download_daily_punch_summary_pdf(date=None, machine=None):
+	from frappe.utils.pdf import get_pdf
+
+	if not date:
+		frappe.throw("Date is required")
+	html = build_daily_punch_summary_html(date, machine or None, grayscale=True)
+	filename = f"daily-punch-summary-{getdate(date)}.pdf"
+	frappe.local.response.filename = filename
+	frappe.local.response.filecontent = get_pdf(html)
+	frappe.local.response.type = "pdf"
 
 
 @frappe.whitelist()

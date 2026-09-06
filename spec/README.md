@@ -34,7 +34,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 010 ADMS Server Console        ████████████████████░   95%   Ready for review
 011 ADMS Command Lab           █████████████████████  100%   feat/adms-command-lab
 012 Machine Status workspace   ████████████████████░   95%   feat/machine-status-workspace
-013 Punch Summary enhancements ████░░░░░░░░░░░░░░░░   ~5%   feat/013-punch-summary-enhancements
+013 Punch Summary enhancements █████████████████████  100%   feat/013-punch-summary-enhancements
 ```
 
 | Spec | Title | Branch | Status | Progress | Next action |
@@ -51,7 +51,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**010**](010-adms-server-console.md) | ADMS Server Console | `feat/009-adms-onboarding` | **Ready for review** | Phases 1–6 | Manual review on saral.localhost |
 | [**011**](011-adms-command-lab.md) | ADMS Command Lab | `feat/adms-command-lab` | **In progress** | Phases 1–6 | Deploy + manual protocol experiments |
 | [**012**](012-machine-status-workspace.md) | Machine Status on workspace homepage | `feat/machine-status-workspace` | **In progress** | 6 / 6 · manual QA | Manual verify on saral.localhost then PR |
-| [**013**](013-punch-summary-enhancements.md) | Punch Summary enhancements | `feat/013-punch-summary-enhancements` | **In progress** | Phase 1 | First/last In-Out, highlight, popup, Print/PDF |
+| [**013**](013-punch-summary-enhancements.md) | Punch Summary enhancements | `feat/013-punch-summary-enhancements` | **Ready for review** | Phase 1–6 | Manual verify Print/PDF on Desk |
 
 ---
 
@@ -304,18 +304,18 @@ Do not implement remaining 008 work. Request Log ticks and register bootstrap ar
 |-------|-------|
 | **Doc** | [013-punch-summary-enhancements.md](013-punch-summary-enhancements.md) |
 | **One-liner** | First/last In-Out; expected hours highlight; punch popup; A4 Print/PDF on Daily + Monthly |
-| **Status** | **In progress** — branch `feat/013-punch-summary-enhancements` |
+| **Status** | **Ready for review** — branch `feat/013-punch-summary-enhancements` |
 
 ### Phase rollup
 
 | Phase | Name | Rollup |
 |-------|------|--------|
 | 1 | Spec + programme index | `[x]` |
-| 2 | Expected hours fields + seed 9 | `[ ]` |
-| 3 | First/last summarize + row_status | `[ ]` |
-| 4 | Desk Page highlight + popup | `[ ]` |
-| 5 | Print + PDF | `[ ]` |
-| 6 | Tests | `[ ]` |
+| 2 | Expected hours fields + seed 9 | `[x]` |
+| 3 | First/last summarize + row_status | `[x]` |
+| 4 | Desk Page highlight + popup | `[x]` |
+| 5 | Print + PDF | `[x]` |
+| 6 | Tests | `[x]` |
 
 ---
 

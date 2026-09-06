@@ -14,6 +14,7 @@
   "sync_interval",
   "default_fetch_days",
   "enable_scheduler",
+  "default_expected_working_hours",
   "event_settings",
   "save_raw_events",
   "log_retention_days",
@@ -95,6 +96,15 @@
    "fieldname": "enable_scheduler",
    "fieldtype": "Check",
    "label": "Enable Scheduler"
+  },
+  {
+   "default": "9",
+   "description": "Used when a TimeBridge Machine User has no Expected Working Hours set. Short-day highlighting compares against this value.",
+   "fieldname": "default_expected_working_hours",
+   "fieldtype": "Float",
+   "label": "Default Expected Working Hours",
+   "precision": "2",
+   "reqd": 1
   },
   {
    "fieldname": "event_settings",

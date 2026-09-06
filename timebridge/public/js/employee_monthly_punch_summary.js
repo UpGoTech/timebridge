@@ -5,6 +5,10 @@ frappe.provide("timebridge.employee_monthly_punch_summary");
 
 const EMPS_API =
 	"timebridge.timebridge.services.dashboard.get_employee_monthly_punch_summary_list";
+const EMPS_PRINT_API =
+	"timebridge.timebridge.services.dashboard.get_employee_monthly_punch_summary_print_html";
+const EMPS_PDF_API =
+	"timebridge.timebridge.services.dashboard.download_employee_monthly_punch_summary_pdf";
 
 const EMPS_COLUMNS = () => [
 	{ key: "date_display", label: __("Date"), sortable: true, sort_key: "date" },
@@ -45,6 +49,7 @@ timebridge.employee_monthly_punch_summary.render_inline = function ($parent, opt
 		month: month_from_parts(initial.year, initial.month_num),
 		user_id: "",
 		user_name: "",
+		expected_working_hours: null,
 		rows: [],
 		sort_field: "date",
 		sort_order: "asc",
@@ -191,7 +196,11 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		</div>
 		<div class="tb-emps-footer">
 			<span class="tb-emps-count"></span>
-			<button type="button" class="tb-emps-btn-export">&#11015; ${__("Export CSV")}</button>
+			<div class="tb-emps-footer-actions">
+				<button type="button" class="tb-emps-btn-print">${__("Print")}</button>
+				<button type="button" class="tb-emps-btn-pdf">${__("PDF")}</button>
+				<button type="button" class="tb-emps-btn-export">&#11015; ${__("Export CSV")}</button>
+			</div>
 		</div>
 	`);
 
@@ -202,6 +211,8 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		$body: $root.find(".tb-emps-body"),
 		$count: $root.find(".tb-emps-count"),
 		$export: $root.find(".tb-emps-btn-export"),
+		$print: $root.find(".tb-emps-btn-print"),
+		$pdf: $root.find(".tb-emps-btn-pdf"),
 		$headline_user: $root.find(".tb-emps-headline-user"),
 		$headline_period: $root.find(".tb-emps-headline-period"),
 	};
@@ -282,6 +293,8 @@ function normalize_frappe_control($wrap) {
 
 function wire_panel(ui, state) {
 	ui.$export.on("click", () => export_csv(state, ui));
+	ui.$print.on("click", () => print_report(state));
+	ui.$pdf.on("click", () => download_pdf(state));
 }
 
 function update_headline(ui, state) {
@@ -308,11 +321,14 @@ function load_rows(state, ui) {
 			const payload = data && data.rows ? data : { rows: data || [] };
 			state.user_id = payload.user_id || state.user_id || "";
 			state.user_name = payload.user_name || state.user_name || "";
+			state.expected_working_hours = payload.expected_working_hours ?? null;
 			state.rows = (payload.rows || []).map((row) => ({
 				...row,
 				date_display: row.date_display || "",
 				punched_in_display: row.punched_in_display || "",
 				punched_out_display: row.punched_out_display || "",
+				punch_details: row.punch_details || [],
+				row_status: row.row_status || "absent",
 			}));
 			update_headline(ui, state);
 			render_table(state, ui);
@@ -343,15 +359,22 @@ function render_table(state, ui) {
 		.join("");
 
 	const body = sorted
-		.map((row) => {
+		.map((row, idx) => {
+			const status = row.row_status || "absent";
+			const row_cls = status === "short" || status === "no_out" ? `tb-emps-row-${status}` : "";
 			const tds = columns
 				.map((col) => {
 					const val = row[col.key] ?? "";
 					const cls = col.align === "right" ? "r" : "";
+					if (col.key === "punches" && (row.punches || 0) > 2) {
+						return `<td class="${cls}"><a href="#" class="tb-emps-punch-link" data-idx="${idx}">${frappe.utils.escape_html(
+							String(val)
+						)}</a></td>`;
+					}
 					return `<td class="${cls}">${frappe.utils.escape_html(String(val))}</td>`;
 				})
 				.join("");
-			return `<tr>${tds}</tr>`;
+			return `<tr class="${row_cls}" data-idx="${idx}">${tds}</tr>`;
 		})
 		.join("");
 
@@ -374,8 +397,68 @@ function render_table(state, ui) {
 		render_table(state, ui);
 	});
 
+	ui.$body.find(".tb-emps-punch-link").on("click", (e) => {
+		e.preventDefault();
+		const idx = parseInt($(e.currentTarget).data("idx"), 10);
+		show_punch_details(sorted[idx]);
+	});
+
 	const with_punches = sorted.filter((row) => (row.punches || 0) > 0).length;
 	ui.$count.text(__("{0} days with punches · {1} days", [with_punches, sorted.length]));
+}
+
+function show_punch_details(row) {
+	const details = row?.punch_details || [];
+	const lines = details
+		.map((p) => {
+			const time = frappe.utils.escape_html(p.time_display || "");
+			const direction = frappe.utils.escape_html(p.direction || "");
+			return `<li>${time}${direction ? ` · ${direction}` : ""}</li>`;
+		})
+		.join("");
+	frappe.msgprint({
+		title: __("Punches · {0}", [row.date_display || ""]),
+		message: `<ul class="tb-emps-punch-list">${lines}</ul>`,
+		indicator: "blue",
+	});
+}
+
+function print_report(state) {
+	if (!state.machine_user) {
+		frappe.show_alert({ message: __("Select a user and month first"), indicator: "orange" });
+		return;
+	}
+	frappe
+		.xcall(EMPS_PRINT_API, { machine_user: state.machine_user, month: state.month })
+		.then((html) => open_print_window(html))
+		.catch(() => {
+			frappe.show_alert({ message: __("Could not prepare print"), indicator: "red" });
+		});
+}
+
+function download_pdf(state) {
+	if (!state.machine_user) {
+		frappe.show_alert({ message: __("Select a user and month first"), indicator: "orange" });
+		return;
+	}
+	const url =
+		`/api/method/${EMPS_PDF_API}` +
+		`?machine_user=${encodeURIComponent(state.machine_user)}` +
+		`&month=${encodeURIComponent(state.month)}`;
+	window.open(url, "_blank");
+}
+
+function open_print_window(html) {
+	const win = window.open("", "_blank");
+	if (!win) {
+		frappe.show_alert({ message: __("Allow pop-ups to print"), indicator: "orange" });
+		return;
+	}
+	win.document.open();
+	win.document.write(html);
+	win.document.close();
+	win.focus();
+	setTimeout(() => win.print(), 250);
 }
 
 function sort_rows(rows, state) {
@@ -428,9 +511,9 @@ function csv_cell(value) {
 }
 
 function inject_styles() {
-	if (document.getElementById("tb-emps-styles-v3")) return;
+	if (document.getElementById("tb-emps-styles-v4")) return;
 	const style = document.createElement("style");
-	style.id = "tb-emps-styles-v3";
+	style.id = "tb-emps-styles-v4";
 	style.textContent = `
 		.tb-emps-inline { max-width: 960px; margin: 0 auto; padding: 0 8px 24px; overflow: visible; }
 		.tb-emps-inline.tb-emps-with-sidebar { max-width: none; margin: 0; padding: 0 0 24px; }
@@ -508,12 +591,15 @@ function inject_styles() {
 			display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
 		}
 		.tb-emps-count { font-size: 12px; color: var(--text-muted); }
-		.tb-emps-btn-export {
+		.tb-emps-footer-actions { display: flex; gap: 8px; align-items: center; }
+		.tb-emps-btn-export, .tb-emps-btn-print, .tb-emps-btn-pdf {
 			height: 30px; padding: 0 16px; font-size: 12px; font-weight: 600;
 			border: 1px solid var(--border-color); border-radius: 6px;
 			background: var(--card-bg); color: var(--text-color); cursor: pointer;
 		}
-		.tb-emps-btn-export:hover { background: var(--subtle-fg); }
+		.tb-emps-btn-export:hover, .tb-emps-btn-print:hover, .tb-emps-btn-pdf:hover {
+			background: var(--subtle-fg);
+		}
 		.tb-emps-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 		.tb-emps-table thead th {
 			padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--text-muted);
@@ -530,8 +616,19 @@ function inject_styles() {
 		.tb-emps-table td.r { text-align: right; font-weight: 600; }
 		.tb-emps-table tbody tr:last-child td { border-bottom: none; }
 		.tb-emps-table tbody tr:hover td { background: var(--highlight-color); }
+		.tb-emps-table tbody tr.tb-emps-row-short td { background: #ffe8cc; }
+		.tb-emps-table tbody tr.tb-emps-row-no_out td { background: #e8f0fe; }
+		.tb-emps-table tbody tr.tb-emps-row-short:hover td { background: #ffd9a8; }
+		.tb-emps-table tbody tr.tb-emps-row-no_out:hover td { background: #d6e4fc; }
+		.tb-emps-punch-link { font-weight: 700; }
+		.tb-emps-punch-list { margin: 0; padding-left: 18px; }
 		.tb-emps-empty, .tb-emps-loading {
 			text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px;
+		}
+		@media print {
+			.tb-emps-sidebar, .tb-emps-toolbar, .tb-emps-footer, .list-sidebar { display: none !important; }
+			.tb-emps-table tbody tr.tb-emps-row-short td { background: #ffe8cc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+			.tb-emps-table tbody tr.tb-emps-row-no_out td { background: #e8f0fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 		}
 	`;
 	document.head.appendChild(style);

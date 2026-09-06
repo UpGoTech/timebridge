@@ -4,7 +4,7 @@
 |-------|-------|
 | **Spec ID** | `013` |
 | **Branch** | `feat/013-punch-summary-enhancements` |
-| **Status** | **In progress** |
+| **Status** | **Ready for review** |
 | **Authority** | This doc; extends [006](006-daily-punch-summary.md) and [007](007-employee-monthly-punch-summary.md) |
 | **Created** | 2026-09-06 |
 | **Programme tracker** | [spec/README.md](README.md) |
@@ -70,11 +70,11 @@ Resolve: Machine User if set → else Settings → else code fallback `9.0`.
 | # | Item | Status |
 |---|------|--------|
 | 1 | Spec + programme index | `[x]` |
-| 2 | Expected hours fields + seed 9 | `[ ]` |
-| 3 | First/last summarize + row_status + punch_details | `[ ]` |
-| 4 | Desk Page highlight + popup | `[ ]` |
-| 5 | Print + PDF (both reports) | `[ ]` |
-| 6 | Tests | `[ ]` |
+| 2 | Expected hours fields + seed 9 | `[x]` |
+| 3 | First/last summarize + row_status + punch_details | `[x]` |
+| 4 | Desk Page highlight + popup | `[x]` |
+| 5 | Print + PDF (both reports) | `[x]` |
+| 6 | Tests | `[x]` |
 
 ---
 

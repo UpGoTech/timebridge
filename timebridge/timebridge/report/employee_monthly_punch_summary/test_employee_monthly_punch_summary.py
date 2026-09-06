@@ -86,11 +86,12 @@ class TestEmployeeMonthlyPunchSummary(FrappeTestCase):
 
 	def test_execute_returns_month_rows(self):
 		machine = self._make_machine()
-		machine_user = self._make_machine_user(machine.name, "9", "Report Monthly User")
+		user_id = "EMPS-UNIQUE-9"
+		machine_user = self._make_machine_user(machine.name, user_id, "Report Monthly User")
 		punch_day = now_datetime().replace(day=12, hour=8, minute=0, second=0, microsecond=0)
 		month_start = punch_day.replace(day=1)
 
-		self._make_punch(machine.name, "9", punch_day)
+		self._make_punch(machine.name, user_id, punch_day)
 
 		columns, rows = execute(
 			{"machine_user": machine_user.name, "month": month_start.date()}
@@ -100,3 +101,4 @@ class TestEmployeeMonthlyPunchSummary(FrappeTestCase):
 		punch_rows = [row for row in rows if row["punches"]]
 		self.assertEqual(len(punch_rows), 1)
 		self.assertEqual(punch_rows[0]["punches"], 1)
+		self.assertEqual(punch_rows[0]["row_status"], "no_out")
