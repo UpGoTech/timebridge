@@ -172,6 +172,12 @@ class TestWorkspaceSync(FrappeTestCase):
 		content_types = [block["type"] for block in json.loads(ws.content)]
 		self.assertIn("custom_block", content_types)
 
+		custom = next(
+			b for b in json.loads(ws.content) if b["type"] == "custom_block"
+		)
+		# Desk matches content custom_block_name to the workspace child *label*
+		self.assertEqual(custom["data"]["custom_block_name"], "Machine Status")
+
 		# After punch cards, before Devices link card
 		custom_idx = content_types.index("custom_block")
 		last_number_idx = max(
