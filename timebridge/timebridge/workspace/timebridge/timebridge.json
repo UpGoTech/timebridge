@@ -1,0 +1,161 @@
+{
+ "charts": [
+  {
+   "chart_name": "TimeBridge Active Users Per Day",
+   "label": "Active Users Per Day"
+  }
+ ],
+ "content": "[{\"id\": \"tb_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>TimeBridge</b></span>\", \"col\": 12}}, {\"id\": \"ch_active_users\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Active Users Per Day\", \"col\": 12}}, {\"id\": \"nc_registered_active\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Registered Active Users\", \"col\": 4}}, {\"id\": \"nc_users_today\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Punch Summary\", \"col\": 4}}, {\"id\": \"nc_unmapped\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Unmapped Punches\", \"col\": 4}}, {\"id\": \"cb_machine_status\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Machine Status\", \"col\": 12}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_data\", \"type\": \"card\", \"data\": {\"card_name\": \"Data\", \"col\": 4}}, {\"id\": \"cd_reports\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"cd_logs\", \"type\": \"card\", \"data\": {\"card_name\": \"Logs\", \"col\": 4}}]",
+ "creation": "2026-08-25 15:57:59.764569",
+ "custom_blocks": [
+  {
+   "custom_block_name": "TimeBridge Machine Status",
+   "label": "Machine Status"
+  }
+ ],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "quantity-1",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "TimeBridge",
+ "links": [
+  {
+   "hidden": 0,
+   "label": "Devices",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "label": "TimeBridge Machine",
+   "link_to": "TimeBridge Machine",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "TimeBridge Settings",
+   "link_to": "TimeBridge Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "Data",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "label": "TimeBridge Machine User",
+   "link_to": "TimeBridge Machine User",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "Reports",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Device Roll",
+   "link_to": "Device Roll",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "Daily Punch Summary",
+   "link_to": "daily-punch-summary",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "Employee Monthly Punch Summary",
+   "link_to": "employee-monthly-punch-summary",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "Logs",
+   "link_count": 4,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "label": "TimeBridge Sync Log",
+   "link_to": "TimeBridge Sync Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "TimeBridge Machine Log",
+   "link_to": "TimeBridge Machine Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "TimeBridge ADMS Log",
+   "link_to": "TimeBridge ADMS Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "label": "ADMS Command Lab",
+   "link_to": "adms-debug",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-09-06 12:25:00.000000",
+ "modified_by": "Administrator",
+ "module": "TimeBridge",
+ "name": "TimeBridge",
+ "number_cards": [
+  {
+   "label": "Registered Active Users",
+   "number_card_name": "TimeBridge Active Users"
+  },
+  {
+   "label": "Today's Punch Summary",
+   "number_card_name": "TimeBridge Today's Punch Summary"
+  },
+  {
+   "label": "Unmapped Punches",
+   "number_card_name": "TimeBridge Unmapped Punches"
+  }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 3.0,
+ "shortcuts": [],
+ "title": "TimeBridge"
+}
