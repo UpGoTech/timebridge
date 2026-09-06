@@ -62,12 +62,12 @@ Spec 005 deliberately dropped Connected/Registered machine number cards in favou
 
 | # | Item | Status |
 |---|------|--------|
-| 1 | Spec + programme index | `[ ]` |
-| 2 | `last_contact_kind` + `record_contact` + ADMS/PyZK writers | `[ ]` |
-| 3 | `get_machine_status_board` + unit tests | `[ ]` |
-| 4 | Custom HTML Block + sync helper + install/uninstall | `[ ]` |
-| 5 | Workspace JSON + post_model_sync patch | `[ ]` |
-| 6 | Migrate + automated tests green | `[ ]` |
+| 1 | Spec + programme index | `[x]` |
+| 2 | `last_contact_kind` + `record_contact` + ADMS/PyZK writers | `[x]` |
+| 3 | `get_machine_status_board` + unit tests | `[x]` |
+| 4 | Custom HTML Block + sync helper + install/uninstall | `[x]` |
+| 5 | Workspace JSON + post_model_sync patch | `[x]` |
+| 6 | Migrate + automated tests green | `[x]` |
 
 ---
 

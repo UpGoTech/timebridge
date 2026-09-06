@@ -6,6 +6,10 @@ import json
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
+from timebridge.timebridge.services.machine_status_block import (
+	BLOCK_NAME,
+	sync_machine_status_block,
+)
 from timebridge.timebridge.services.workspace_sync import (
 	sync_app_workspaces,
 	workspace_link_exists,
@@ -151,3 +155,28 @@ class TestWorkspaceSync(FrappeTestCase):
 		chart_idx = block_types.index("chart")
 		first_card_idx = block_types.index("number_card")
 		self.assertLess(chart_idx, first_card_idx, "Chart must appear before number cards")
+
+	def test_machine_status_block_on_workspace(self):
+		sync_machine_status_block()
+		sync_app_workspaces(force=True)
+
+		self.assertTrue(
+			frappe.db.exists("Custom HTML Block", BLOCK_NAME),
+			"TimeBridge Machine Status Custom HTML Block must exist",
+		)
+
+		ws = frappe.get_doc("Workspace", "TimeBridge")
+		block_names = {row.custom_block_name for row in ws.custom_blocks}
+		self.assertIn(BLOCK_NAME, block_names)
+
+		content_types = [block["type"] for block in json.loads(ws.content)]
+		self.assertIn("custom_block", content_types)
+
+		# After punch cards, before Devices link card
+		custom_idx = content_types.index("custom_block")
+		last_number_idx = max(
+			i for i, t in enumerate(content_types) if t == "number_card"
+		)
+		first_link_card_idx = content_types.index("card")
+		self.assertGreater(custom_idx, last_number_idx)
+		self.assertLess(custom_idx, first_link_card_idx)
