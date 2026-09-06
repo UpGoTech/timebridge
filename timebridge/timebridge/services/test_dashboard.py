@@ -209,6 +209,41 @@ class TestDashboard(FrappeTestCase):
 		self.assertEqual(_format_chart_day_label(date(2026, 8, 30)), "30-Aug-26 (Sun)")
 		self.assertEqual(_format_chart_day_label(date(2026, 8, 5)), "5-Aug-26 (Wed)")
 
+	def test_format_chart_axis_label_does_not_swap_day_month(self):
+		from timebridge.timebridge.services.dashboard import _format_chart_axis_label
+
+		# Regression: get_period("Daily") is dd-mm-yy; re-parsing that as a date
+		# turned 6 Sep into 9 Jun and 1 Sep into 9 Jan.
+		self.assertEqual(
+			_format_chart_axis_label(date(2026, 9, 6), "Daily"),
+			"6-Sep-26 (Sun)",
+		)
+		self.assertEqual(
+			_format_chart_axis_label(date(2026, 9, 1), "Daily"),
+			"1-Sep-26 (Tue)",
+		)
+		self.assertEqual(
+			_format_chart_axis_label(date(2026, 5, 9), "Weekly"),
+			"9-May-26 (Sat)",
+		)
+		self.assertEqual(
+			_format_chart_axis_label(date(2026, 2, 28), "Monthly"),
+			"Feb 2026",
+		)
+
+	def test_active_users_chart_labels_match_real_dates(self):
+		from frappe.utils.dateutils import get_period
+
+		# Guard the old double-get_period path: period string must not be the input.
+		sep6 = date(2026, 9, 6)
+		period = get_period(sep6, "Daily")
+		self.assertEqual(period, "06-09-26")
+		from timebridge.timebridge.services.dashboard import _format_chart_axis_label
+
+		self.assertNotEqual(
+			_format_chart_axis_label(sep6, "Daily"),
+			_format_chart_axis_label(getdate(period), "Daily"),
+		)
 	def test_employee_monthly_punch_summary_rows(self):
 		machine_a = self._make_machine(self.MACHINE_A)
 		machine_b = self._make_machine(self.MACHINE_B)

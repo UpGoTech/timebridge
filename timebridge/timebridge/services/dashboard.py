@@ -9,7 +9,6 @@ from collections import defaultdict
 import frappe
 from frappe.utils import (
 	add_days,
-	format_date,
 	format_time,
 	get_datetime,
 	get_first_day,
@@ -77,10 +76,17 @@ def _format_chart_day_label(day):
 
 
 def _format_chart_axis_label(day, timegrain):
+	"""Format an axis tick from a real date — never from get_period() strings.
+
+	get_period(Daily/Weekly) returns dd-mm-yy (e.g. 06-09-26). Feeding that back
+	into getdate()/format_date() re-parses as month-first, so 6 Sep becomes 9 Jun.
+	"""
+	day = getdate(day)
 	if timegrain == "Daily":
 		return _format_chart_day_label(day)
 	if timegrain == "Weekly":
-		return format_date(get_period(day, timegrain), parse_day_first=True)
+		# Period ending (Saturday) as an unambiguous day label.
+		return _format_chart_day_label(day)
 	return get_period(day, timegrain)
 
 
@@ -90,10 +96,7 @@ def _build_active_users_chart(chart, from_date, to_date, timegrain):
 	result = [[getdate(d), counts_by_day.get(getdate(d), 0)] for d in dates]
 
 	return {
-		"labels": [
-			_format_chart_axis_label(get_period(r[0], timegrain), timegrain)
-			for r in result
-		],
+		"labels": [_format_chart_axis_label(r[0], timegrain) for r in result],
 		"datasets": [{"name": chart.name, "values": [r[1] for r in result]}],
 	}
 
