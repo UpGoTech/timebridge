@@ -34,6 +34,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 010 ADMS Server Console        ████████████████████░   95%   Ready for review
 011 ADMS Command Lab           █████████████████████  100%   feat/adms-command-lab
 012 Machine Status workspace   ████████████████████░   95%   feat/machine-status-workspace
+013 Punch Summary enhancements ████░░░░░░░░░░░░░░░░   ~5%   feat/013-punch-summary-enhancements
 ```
 
 | Spec | Title | Branch | Status | Progress | Next action |
@@ -50,6 +51,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**010**](010-adms-server-console.md) | ADMS Server Console | `feat/009-adms-onboarding` | **Ready for review** | Phases 1–6 | Manual review on saral.localhost |
 | [**011**](011-adms-command-lab.md) | ADMS Command Lab | `feat/adms-command-lab` | **In progress** | Phases 1–6 | Deploy + manual protocol experiments |
 | [**012**](012-machine-status-workspace.md) | Machine Status on workspace homepage | `feat/machine-status-workspace` | **In progress** | 6 / 6 · manual QA | Manual verify on saral.localhost then PR |
+| [**013**](013-punch-summary-enhancements.md) | Punch Summary enhancements | `feat/013-punch-summary-enhancements` | **In progress** | Phase 1 | First/last In-Out, highlight, popup, Print/PDF |
 
 ---
 
@@ -190,6 +192,7 @@ Do not implement remaining 002 phases. Code shipped on `feat/device-mirror` was 
 | 004 machine log | 003 device I/O | Sync Log stays ingest-only |
 | 006 daily summary | 005 dashboard | Today's Punch Summary card |
 | 007 monthly summary | 006 daily summary | Same in/out/hrs rules |
+| 013 punch summary | 006 + 007 | First/last In-Out, expected hours, Print/PDF |
 | 002 | — | Discontinued |
 
 ---
@@ -295,6 +298,27 @@ Do not implement remaining 008 work. Request Log ticks and register bootstrap ar
 
 ---
 
+## Spec 013 — Punch Summary enhancements
+
+| Field | Value |
+|-------|-------|
+| **Doc** | [013-punch-summary-enhancements.md](013-punch-summary-enhancements.md) |
+| **One-liner** | First/last In-Out; expected hours highlight; punch popup; A4 Print/PDF on Daily + Monthly |
+| **Status** | **In progress** — branch `feat/013-punch-summary-enhancements` |
+
+### Phase rollup
+
+| Phase | Name | Rollup |
+|-------|------|--------|
+| 1 | Spec + programme index | `[x]` |
+| 2 | Expected hours fields + seed 9 | `[ ]` |
+| 3 | First/last summarize + row_status | `[ ]` |
+| 4 | Desk Page highlight + popup | `[ ]` |
+| 5 | Print + PDF | `[ ]` |
+| 6 | Tests | `[ ]` |
+
+---
+
 ## Adding a new spec
 
 1. Create `spec/NNN-short-name.md` (next number in sequence).
@@ -320,3 +344,4 @@ Do not implement remaining 008 work. Request Log ticks and register bootstrap ar
 | 2026-09-01 | 009 ADMS iclock onboarding; 008 superseded |
 | 2026-09-01 | 010 ADMS Server Console implemented; 009/010 ready for review |
 | 2026-09-06 | 012 Machine Status on workspace homepage started |
+| 2026-09-06 | 013 Punch Summary enhancements started |
