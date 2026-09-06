@@ -122,18 +122,22 @@ def handle_cdata(serial, args, body, method, raw=None):
 	if not row or row.adms_status != "Registered":
 		return "OK"
 
-	commands.record_contact(row.name, "upload")
 	table = parser.parse_table_name(args.get("table"))
 
 	if table == "ATTLOG":
+		commands.record_contact(row.name, "attendance")
 		return _receive_attlog(row, args, body)
 	if table in ("OPERLOG", "USERINFO"):
+		commands.record_contact(row.name, "users")
 		return _receive_userinfo(row, args, body)
 	if table in photos.PHOTO_TABLES:
+		commands.record_contact(row.name, "photos")
 		return _receive_photos(row, args, body, raw, table)
 	if table == "OPTIONS":
+		commands.record_contact(row.name, "options")
 		stats.apply_options_body(row.name, body)
 		return "OK"
+	commands.record_contact(row.name, "upload")
 	return handshake.ack(parser.body_line_count(body) or 1)
 
 
@@ -189,12 +193,14 @@ def handle_querydata(serial, args, body, method, raw=None):
 	if not row or row.adms_status != "Registered":
 		return "OK"
 
-	commands.record_contact(row.name, "upload")
 	table = (args.get("tablename") or args.get("TableName") or "").lower()
 	query_type = (args.get("type") or "").lower()
 
 	if query_type == "tabledata" and table == "user":
+		commands.record_contact(row.name, "users")
 		return _receive_querydata_users(row, args, body)
+
+	commands.record_contact(row.name, "upload")
 
 	count = parser.body_line_count(body)
 	return handshake.ack(count or 1)
@@ -219,7 +225,7 @@ def handle_fdata(serial, args, body, method, raw=None):
 	row = discovery.machine_row(serial)
 	if not row or row.adms_status != "Registered":
 		return "OK"
-	commands.record_contact(row.name, "upload")
+	commands.record_contact(row.name, "photos")
 	users_session = commands.download_ingest_allowed(row.name, "users")
 	faces_session = commands.download_ingest_allowed(row.name, "faces")
 	if _photo_ingest_allowed(row, users_session, faces_session):

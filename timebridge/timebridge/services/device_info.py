@@ -428,6 +428,10 @@ def fetch_device_info(machine_id, on_stage=None):
 
     apply_device_info(device, info)
 
+    from timebridge.timebridge.iclock import commands
+
+    commands.record_contact(device.name, "device_info")
+
     return {
         "status": "success",
         "machine_status": "Connected",

@@ -23,6 +23,7 @@
   "status_information",
   "status",
   "last_contact_at",
+  "last_contact_kind",
   "sync_enabled",
   "last_sync",
   "last_user_sync",
@@ -180,6 +181,13 @@
    "fieldname": "last_contact_at",
    "fieldtype": "Datetime",
    "label": "Last Contact",
+   "read_only": 1
+  },
+  {
+   "description": "What the last contact was — Heartbeat, Handshake, Attendance, Users, etc. Durable copy of the Redis contact kind for the workspace board.",
+   "fieldname": "last_contact_kind",
+   "fieldtype": "Data",
+   "label": "Last Contact Kind",
    "read_only": 1
   },
   {

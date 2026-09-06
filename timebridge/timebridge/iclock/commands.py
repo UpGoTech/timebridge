@@ -11,6 +11,31 @@ CONTACT_TTL = 86400
 PHOTO_FETCH_TTL = 600
 DOCTYPE = "TimeBridge Device Command"
 
+# Internal contact kinds → labels shown on the workspace Machine Status board.
+CONTACT_KIND_LABELS = {
+	"poll": "Heartbeat",
+	"handshake": "Handshake",
+	"ping": "Ping",
+	"command result": "Commands",
+	"attendance": "Attendance",
+	"users": "Users",
+	"photos": "Photos",
+	"options": "Options",
+	"upload": "Upload",
+	"device_info": "Device Info",
+	"pull": "Pull Sync",
+}
+
+
+def contact_kind_label(kind):
+	"""Map an internal kind to the durable display label (or pass labels through)."""
+
+	if not kind:
+		return None
+	if kind in CONTACT_KIND_LABELS.values():
+		return kind
+	return CONTACT_KIND_LABELS.get(kind, kind)
+
 
 def contact_key(machine):
 	return f"timebridge_adms_last_contact::{machine}"
@@ -174,16 +199,19 @@ def advance_enroll_photo_fetch(machine, photos_now=0):
 
 def record_contact(machine, kind):
 	stamp = now_datetime()
+	label = contact_kind_label(kind)
 	frappe.cache().set_value(
 		contact_key(machine),
-		{"at": stamp.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind},
+		{"at": stamp.strftime("%Y-%m-%d %H:%M:%S"), "kind": label},
 		expires_in_sec=CONTACT_TTL,
 	)
 	frappe.db.set_value(
 		"TimeBridge Machine",
 		machine,
-		"last_contact_at",
-		stamp,
+		{
+			"last_contact_at": stamp,
+			"last_contact_kind": label,
+		},
 		update_modified=False,
 	)
 
@@ -192,10 +220,18 @@ def last_contact(machine):
 	cached = frappe.cache().get_value(contact_key(machine))
 	if cached:
 		return cached
-	stored = frappe.db.get_value("TimeBridge Machine", machine, "last_contact_at")
-	if not stored:
+	row = frappe.db.get_value(
+		"TimeBridge Machine",
+		machine,
+		["last_contact_at", "last_contact_kind"],
+		as_dict=True,
+	)
+	if not row or not row.last_contact_at:
 		return {}
-	return {"at": str(stored)[:19], "kind": "recorded"}
+	return {
+		"at": str(row.last_contact_at)[:19],
+		"kind": row.last_contact_kind or "recorded",
+	}
 
 
 INFO_WAIT_TTL = 300
