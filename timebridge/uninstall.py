@@ -18,6 +18,10 @@ APP_WORKSPACES = ("TimeBridge",)
 def before_uninstall():
 	frappe.flags.ignore_links = True
 
+	from timebridge.timebridge.services.machine_status_block import delete_machine_status_block
+
+	delete_machine_status_block()
+
 	for name in APP_WORKSPACES:
 		if frappe.db.exists("Workspace", name):
 			frappe.delete_doc("Workspace", name, force=True, ignore_permissions=True)

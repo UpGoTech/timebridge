@@ -357,6 +357,10 @@ def pull_users_only(machine_id, on_stage=None):
 
     set_machine_status(device, "Connected")
 
+    from timebridge.timebridge.iclock import commands
+
+    commands.record_contact(device.name, "pull")
+
     return {
         "status": "success",
         "machine_status": "Connected",
@@ -612,6 +616,10 @@ def pull_all_data(machine_id, days=30, on_stage=None):
     linked = logger.link_unmatched_punches(machine_id)
 
     set_machine_status(device, "Connected")
+
+    from timebridge.timebridge.iclock import commands
+
+    commands.record_contact(device.name, "pull")
 
     return {
         "status": "success",

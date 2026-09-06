@@ -5,9 +5,14 @@
    "label": "Active Users Per Day"
   }
  ],
- "content": "[{\"id\": \"tb_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>TimeBridge</b></span>\", \"col\": 12}}, {\"id\": \"ch_active_users\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Active Users Per Day\", \"col\": 12}}, {\"id\": \"nc_registered_active\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Registered Active Users\", \"col\": 4}}, {\"id\": \"nc_users_today\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Punch Summary\", \"col\": 4}}, {\"id\": \"nc_unmapped\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Unmapped Punches\", \"col\": 4}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_data\", \"type\": \"card\", \"data\": {\"card_name\": \"Data\", \"col\": 4}}, {\"id\": \"cd_reports\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"cd_logs\", \"type\": \"card\", \"data\": {\"card_name\": \"Logs\", \"col\": 4}}]",
+ "content": "[{\"id\": \"tb_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>TimeBridge</b></span>\", \"col\": 12}}, {\"id\": \"ch_active_users\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Active Users Per Day\", \"col\": 12}}, {\"id\": \"nc_registered_active\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Registered Active Users\", \"col\": 4}}, {\"id\": \"nc_users_today\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Punch Summary\", \"col\": 4}}, {\"id\": \"nc_unmapped\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Unmapped Punches\", \"col\": 4}}, {\"id\": \"cb_machine_status\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Machine Status\", \"col\": 12}}, {\"id\": \"cd_devices\", \"type\": \"card\", \"data\": {\"card_name\": \"Devices\", \"col\": 4}}, {\"id\": \"cd_data\", \"type\": \"card\", \"data\": {\"card_name\": \"Data\", \"col\": 4}}, {\"id\": \"cd_reports\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"cd_logs\", \"type\": \"card\", \"data\": {\"card_name\": \"Logs\", \"col\": 4}}]",
  "creation": "2026-08-25 15:57:59.764569",
- "custom_blocks": [],
+ "custom_blocks": [
+  {
+   "custom_block_name": "TimeBridge Machine Status",
+   "label": "Machine Status"
+  }
+ ],
  "docstatus": 0,
  "doctype": "Workspace",
  "for_user": "",
@@ -127,7 +132,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-09-01 10:30:00.000000",
+ "modified": "2026-09-06 12:25:00.000000",
  "modified_by": "Administrator",
  "module": "TimeBridge",
  "name": "TimeBridge",

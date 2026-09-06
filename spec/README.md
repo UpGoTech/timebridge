@@ -2,7 +2,7 @@
 
 Master tracker for all numbered specs under `spec/`. Each spec has its own detailed phase tracker; this file rolls up status so you can see the whole roadmap at a glance.
 
-**Last updated:** 2026-09-01
+**Last updated:** 2026-09-06
 
 ---
 
@@ -33,6 +33,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 009 ADMS iclock onboarding     ████████████████████░   95%   Ready for review
 010 ADMS Server Console        ████████████████████░   95%   Ready for review
 011 ADMS Command Lab           █████████████████████  100%   feat/adms-command-lab
+012 Machine Status workspace   ████████████████████░   95%   feat/machine-status-workspace
 ```
 
 | Spec | Title | Branch | Status | Progress | Next action |
@@ -48,6 +49,7 @@ Update this file whenever a spec’s status or phase completion changes (same PR
 | [**009**](009-adms-onboarding.md) | ADMS iclock server and onboarding | `feat/009-adms-onboarding` | **Ready for review** | Phases 1–7 | Manual review on saral.localhost |
 | [**010**](010-adms-server-console.md) | ADMS Server Console | `feat/009-adms-onboarding` | **Ready for review** | Phases 1–6 | Manual review on saral.localhost |
 | [**011**](011-adms-command-lab.md) | ADMS Command Lab | `feat/adms-command-lab` | **In progress** | Phases 1–6 | Deploy + manual protocol experiments |
+| [**012**](012-machine-status-workspace.md) | Machine Status on workspace homepage | `feat/machine-status-workspace` | **In progress** | 6 / 6 · manual QA | Manual verify on saral.localhost then PR |
 
 ---
 
@@ -272,6 +274,27 @@ Do not implement remaining 008 work. Request Log ticks and register bootstrap ar
 
 ---
 
+## Spec 012 — Machine Status on workspace homepage
+
+| Field | Value |
+|-------|-------|
+| **Doc** | [012-machine-status-workspace.md](012-machine-status-workspace.md) |
+| **One-liner** | Embed Connected/Disconnected + last contact kind table on the TimeBridge workspace |
+| **Status** | **In progress** — branch `feat/machine-status-workspace` |
+
+### Phase rollup
+
+| Phase | Name | Rollup |
+|-------|------|--------|
+| 1 | Spec + programme index | `[x]` |
+| 2 | Persist contact kind | `[x]` |
+| 3 | Board API + tests | `[x]` |
+| 4 | Custom HTML Block | `[x]` |
+| 5 | Workspace + patch | `[x]` |
+| 6 | Migrate + tests | `[x]` |
+
+---
+
 ## Adding a new spec
 
 1. Create `spec/NNN-short-name.md` (next number in sequence).
@@ -296,3 +319,4 @@ Do not implement remaining 008 work. Request Log ticks and register bootstrap ar
 | 2026-08-31 | 008 ADMS Attendance PUSH rewrite started |
 | 2026-09-01 | 009 ADMS iclock onboarding; 008 superseded |
 | 2026-09-01 | 010 ADMS Server Console implemented; 009/010 ready for review |
+| 2026-09-06 | 012 Machine Status on workspace homepage started |
