@@ -4,6 +4,9 @@
 frappe.provide("timebridge.daily_punch_summary");
 
 const DPS_API = "timebridge.timebridge.services.dashboard.get_daily_punch_summary_list";
+const DPS_PRINT_API =
+	"timebridge.timebridge.services.dashboard.get_daily_punch_summary_print_html";
+const DPS_PDF_API = "timebridge.timebridge.services.dashboard.download_daily_punch_summary_pdf";
 
 const DPS_COLUMNS = () => [
 	{ key: "user_name", label: __("User Name"), sortable: true },
@@ -126,7 +129,11 @@ function build_panel($root, state, { modal, $sidebar = null }) {
 		</div>
 		<div class="tb-dps-footer">
 			<span class="tb-dps-count"></span>
-			<button type="button" class="tb-dps-btn-export">&#11015; ${__("Export CSV")}</button>
+			<div class="tb-dps-footer-actions">
+				<button type="button" class="tb-dps-btn-print">${__("Print")}</button>
+				<button type="button" class="tb-dps-btn-pdf">${__("PDF")}</button>
+				<button type="button" class="tb-dps-btn-export">&#11015; ${__("Export CSV")}</button>
+			</div>
 		</div>
 	`);
 
@@ -177,6 +184,8 @@ function build_panel($root, state, { modal, $sidebar = null }) {
 		$count: $root.find(".tb-dps-count"),
 		$search: $root.find(".tb-dps-search-input"),
 		$export: $root.find(".tb-dps-btn-export"),
+		$print: $root.find(".tb-dps-btn-print"),
+		$pdf: $root.find(".tb-dps-btn-pdf"),
 		$close: $root.find(".tb-dps-close"),
 		date_control,
 		machine_control,
@@ -197,6 +206,8 @@ function wire_panel(ui, state) {
 		render_table(state, ui);
 	});
 	ui.$export.on("click", () => export_csv(state, ui));
+	ui.$print.on("click", () => print_report(state));
+	ui.$pdf.on("click", () => download_pdf(state));
 }
 
 function update_subtitle($root, state) {
@@ -220,6 +231,8 @@ function load_rows(state, ui) {
 				...row,
 				punched_in_display: row.punched_in_display || "",
 				punched_out_display: row.punched_out_display || "",
+				punch_details: row.punch_details || [],
+				row_status: row.row_status || "absent",
 			}));
 			render_table(state, ui);
 		})
@@ -250,15 +263,22 @@ function render_table(state, ui) {
 		.join("");
 
 	const body = sorted
-		.map((row) => {
+		.map((row, idx) => {
+			const status = row.row_status || "absent";
+			const row_cls = status === "short" || status === "no_out" ? `tb-dps-row-${status}` : "";
 			const tds = columns
 				.map((col) => {
 					const val = row[col.key] ?? "";
 					const cls = col.align === "right" ? "r" : "";
+					if (col.key === "punches" && (row.punches || 0) >= 1) {
+						return `<td class="${cls}"><a href="#" class="tb-dps-punch-link" data-idx="${idx}">${frappe.utils.escape_html(
+							String(val)
+						)}</a></td>`;
+					}
 					return `<td class="${cls}">${frappe.utils.escape_html(String(val))}</td>`;
 				})
 				.join("");
-			return `<tr>${tds}</tr>`;
+			return `<tr class="${row_cls}">${tds}</tr>`;
 		})
 		.join("");
 
@@ -280,8 +300,78 @@ function render_table(state, ui) {
 		render_table(state, ui);
 	});
 
+	ui.$body.find(".tb-dps-punch-link").on("click", (e) => {
+		e.preventDefault();
+		const idx = parseInt($(e.currentTarget).data("idx"), 10);
+		show_punch_details(sorted[idx]);
+	});
+
 	const label = sorted.length === 1 ? __("1 user") : __("{0} users", [sorted.length]);
 	ui.$count.text(label);
+}
+
+function show_punch_details(row) {
+	const details = row?.punch_details || [];
+	const lines = details
+		.map((p) => {
+			const date = frappe.utils.escape_html(p.date_display || "");
+			const time = frappe.utils.escape_html(p.time_display || "");
+			const direction = frappe.utils.escape_html(p.direction || "Unknown");
+			const label = `${date} · ${time} · ${direction}`;
+			if (p.name) {
+				const href = `/app/timebridge-punch-log/${encodeURIComponent(p.name)}`;
+				return `<li><a class="tb-dps-punch-doc-link" href="${href}">${label}</a></li>`;
+			}
+			return `<li>${label}</li>`;
+		})
+		.join("");
+	const dialog = new frappe.ui.Dialog({
+		title: __("Punches · {0}", [row.user_name || ""]),
+		size: "small",
+		fields: [{ fieldtype: "HTML", fieldname: "list" }],
+	});
+	dialog.fields_dict.list.$wrapper.html(
+		`<ul class="tb-dps-punch-list">${lines || `<li>${__("No punches")}</li>`}</ul>`
+	);
+	dialog.show();
+}
+
+function print_report(state) {
+	if (!state.date) {
+		frappe.show_alert({ message: __("Select a date first"), indicator: "orange" });
+		return;
+	}
+	frappe
+		.xcall(DPS_PRINT_API, { date: state.date, machine: state.machine || null })
+		.then((html) => open_print_window(html))
+		.catch(() => {
+			frappe.show_alert({ message: __("Could not prepare print"), indicator: "red" });
+		});
+}
+
+function download_pdf(state) {
+	if (!state.date) {
+		frappe.show_alert({ message: __("Select a date first"), indicator: "orange" });
+		return;
+	}
+	let url = `/api/method/${DPS_PDF_API}?date=${encodeURIComponent(state.date)}`;
+	if (state.machine) {
+		url += `&machine=${encodeURIComponent(state.machine)}`;
+	}
+	window.open(url, "_blank");
+}
+
+function open_print_window(html) {
+	const win = window.open("", "_blank");
+	if (!win) {
+		frappe.show_alert({ message: __("Allow pop-ups to print"), indicator: "orange" });
+		return;
+	}
+	win.document.open();
+	win.document.write(html);
+	win.document.close();
+	win.focus();
+	setTimeout(() => win.print(), 250);
 }
 
 function filter_rows(rows, columns, query) {
@@ -342,9 +432,9 @@ function csv_cell(value) {
 }
 
 function inject_styles() {
-	if (document.getElementById("tb-dps-styles-v2")) return;
+	if (document.getElementById("tb-dps-styles-v3")) return;
 	const style = document.createElement("style");
-	style.id = "tb-dps-styles-v2";
+	style.id = "tb-dps-styles-v3";
 	style.textContent = `
 		.tb-dps-backdrop {
 			position: fixed; inset: 0; background: rgba(0,0,0,.45);
@@ -431,12 +521,15 @@ function inject_styles() {
 			display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
 		}
 		.tb-dps-count { font-size: 12px; color: var(--text-muted); }
-		.tb-dps-btn-export {
+		.tb-dps-footer-actions { display: flex; gap: 8px; align-items: center; }
+		.tb-dps-btn-export, .tb-dps-btn-print, .tb-dps-btn-pdf {
 			height: 30px; padding: 0 16px; font-size: 12px; font-weight: 600;
 			border: 1px solid var(--border-color); border-radius: 6px;
 			background: var(--card-bg); color: var(--text-color); cursor: pointer;
 		}
-		.tb-dps-btn-export:hover { background: var(--subtle-fg); }
+		.tb-dps-btn-export:hover, .tb-dps-btn-print:hover, .tb-dps-btn-pdf:hover {
+			background: var(--subtle-fg);
+		}
 		.tb-dps-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 		.tb-dps-table thead th {
 			padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--text-muted);
@@ -454,8 +547,19 @@ function inject_styles() {
 		.tb-dps-table td.muted { color: var(--text-muted); font-size: 12px; }
 		.tb-dps-table tbody tr:last-child td { border-bottom: none; }
 		.tb-dps-table tbody tr:hover td { background: var(--highlight-color); }
+		.tb-dps-table tbody tr.tb-dps-row-short td { background: #ffe8cc; }
+		.tb-dps-table tbody tr.tb-dps-row-no_out td { background: #e8f0fe; }
+		.tb-dps-table tbody tr.tb-dps-row-short:hover td { background: #ffd9a8; }
+		.tb-dps-table tbody tr.tb-dps-row-no_out:hover td { background: #d6e4fc; }
+		.tb-dps-punch-link { font-weight: 700; }
+		.tb-dps-punch-list { margin: 0; padding-left: 18px; }
 		.tb-dps-empty, .tb-dps-loading {
 			text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px;
+		}
+		@media print {
+			.tb-dps-sidebar, .tb-dps-toolbar, .tb-dps-footer, .list-sidebar { display: none !important; }
+			.tb-dps-table tbody tr.tb-dps-row-short td { background: #ffe8cc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+			.tb-dps-table tbody tr.tb-dps-row-no_out td { background: #e8f0fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 		}
 	`;
 	document.head.appendChild(style);

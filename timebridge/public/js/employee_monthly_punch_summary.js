@@ -5,6 +5,10 @@ frappe.provide("timebridge.employee_monthly_punch_summary");
 
 const EMPS_API =
 	"timebridge.timebridge.services.dashboard.get_employee_monthly_punch_summary_list";
+const EMPS_PRINT_API =
+	"timebridge.timebridge.services.dashboard.get_employee_monthly_punch_summary_print_html";
+const EMPS_PDF_API =
+	"timebridge.timebridge.services.dashboard.download_employee_monthly_punch_summary_pdf";
 
 const EMPS_COLUMNS = () => [
 	{ key: "date_display", label: __("Date"), sortable: true, sort_key: "date" },
@@ -40,11 +44,13 @@ timebridge.employee_monthly_punch_summary.render_inline = function ($parent, opt
 	const initial = parse_month_value(options.month || current_month());
 	const state = {
 		machine_user: options.machine_user || "",
+		machine: options.machine || "",
 		year: initial.year,
 		month_num: initial.month_num,
 		month: month_from_parts(initial.year, initial.month_num),
 		user_id: "",
 		user_name: "",
+		expected_working_hours: null,
 		rows: [],
 		sort_field: "date",
 		sort_order: "asc",
@@ -144,6 +150,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		filter_mount.html(`
 			<div class="sidebar-section">
 				<div class="sidebar-label">${__("Filters")}</div>
+				<div class="tb-emps-field tb-emps-field-machine">
+					<label class="tb-emps-field-label">${__("Machine")}</label>
+					<div class="tb-emps-link-wrap tb-emps-machine"></div>
+				</div>
 				<div class="tb-emps-field tb-emps-field-user">
 					<label class="tb-emps-field-label">${__("User")}</label>
 					<div class="tb-emps-link-wrap tb-emps-user"></div>
@@ -165,6 +175,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 			<div class="tb-emps-title">${__("Employee Monthly Punch Summary")}</div>
 		</div>`}
 		${use_sidebar ? "" : `<div class="tb-emps-toolbar tb-emps-toolbar-filters">
+			<div class="tb-emps-field tb-emps-field-machine">
+				<label class="tb-emps-field-label">${__("Machine")}</label>
+				<div class="tb-emps-link-wrap tb-emps-machine"></div>
+			</div>
 			<div class="tb-emps-field tb-emps-field-user">
 				<label class="tb-emps-field-label">${__("User")}</label>
 				<div class="tb-emps-link-wrap tb-emps-user"></div>
@@ -191,7 +205,11 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		</div>
 		<div class="tb-emps-footer">
 			<span class="tb-emps-count"></span>
-			<button type="button" class="tb-emps-btn-export">&#11015; ${__("Export CSV")}</button>
+			<div class="tb-emps-footer-actions">
+				<button type="button" class="tb-emps-btn-print">${__("Print")}</button>
+				<button type="button" class="tb-emps-btn-pdf">${__("PDF")}</button>
+				<button type="button" class="tb-emps-btn-export">&#11015; ${__("Export CSV")}</button>
+			</div>
 		</div>
 	`);
 
@@ -202,6 +220,8 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		$body: $root.find(".tb-emps-body"),
 		$count: $root.find(".tb-emps-count"),
 		$export: $root.find(".tb-emps-btn-export"),
+		$print: $root.find(".tb-emps-btn-print"),
+		$pdf: $root.find(".tb-emps-btn-pdf"),
 		$headline_user: $root.find(".tb-emps-headline-user"),
 		$headline_period: $root.find(".tb-emps-headline-period"),
 	};
@@ -214,6 +234,43 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		load_rows(state, ui);
 	}
 
+	const machine_control = frappe.ui.form.make_control({
+		df: {
+			fieldtype: "Link",
+			fieldname: "machine",
+			label: __("Machine"),
+			options: "TimeBridge Machine",
+			placeholder: __("All machines"),
+			only_select: 1,
+			change: () => {
+				state.machine = machine_control.get_value() || "";
+				if (state.machine_user) {
+					frappe.db
+						.get_value("TimeBridge Machine User", state.machine_user, "machine")
+						.then((r) => {
+							const mu_machine = r && r.message && r.message.machine;
+							if (state.machine && mu_machine && mu_machine !== state.machine) {
+								user_control.set_value("");
+								state.machine_user = "";
+								state.user_id = "";
+								state.user_name = "";
+								update_headline(ui, state);
+							}
+							load_rows(state, ui);
+						});
+				} else {
+					load_rows(state, ui);
+				}
+			},
+		},
+		parent: filter_root.find(".tb-emps-machine"),
+		render_input: true,
+	});
+	if (state.machine) {
+		machine_control.set_value(state.machine);
+	}
+	normalize_frappe_control(filter_root.find(".tb-emps-machine"));
+
 	const user_control = frappe.ui.form.make_control({
 		df: {
 			fieldtype: "Link",
@@ -221,6 +278,12 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 			label: __("User"),
 			options: "TimeBridge Machine User",
 			only_select: 1,
+			get_query: () => {
+				if (!state.machine) {
+					return {};
+				}
+				return { filters: { machine: state.machine } };
+			},
 			change: () => {
 				state.machine_user = user_control.get_value() || "";
 				sync_user_meta(state).then(() => {
@@ -267,6 +330,7 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 	month_control.set_value(month_label_for_num(state.month_num));
 	normalize_frappe_control(filter_root.find(".tb-emps-month"));
 
+	ui.machine_control = machine_control;
 	ui.user_control = user_control;
 	ui.year_control = year_control;
 	ui.month_control = month_control;
@@ -282,11 +346,14 @@ function normalize_frappe_control($wrap) {
 
 function wire_panel(ui, state) {
 	ui.$export.on("click", () => export_csv(state, ui));
+	ui.$print.on("click", () => print_report(state));
+	ui.$pdf.on("click", () => download_pdf(state));
 }
 
 function update_headline(ui, state) {
 	ui.$headline_user.text(format_user_headline(state));
-	ui.$headline_period.text(format_period_label(state.year, state.month_num));
+	const period = format_period_label(state.year, state.month_num);
+	ui.$headline_period.text(state.machine ? `${period} · ${state.machine}` : period);
 }
 
 function load_rows(state, ui) {
@@ -303,16 +370,20 @@ function load_rows(state, ui) {
 		.xcall(EMPS_API, {
 			machine_user: state.machine_user,
 			month: state.month,
+			machine: state.machine || null,
 		})
 		.then((data) => {
 			const payload = data && data.rows ? data : { rows: data || [] };
 			state.user_id = payload.user_id || state.user_id || "";
 			state.user_name = payload.user_name || state.user_name || "";
+			state.expected_working_hours = payload.expected_working_hours ?? null;
 			state.rows = (payload.rows || []).map((row) => ({
 				...row,
 				date_display: row.date_display || "",
 				punched_in_display: row.punched_in_display || "",
 				punched_out_display: row.punched_out_display || "",
+				punch_details: row.punch_details || [],
+				row_status: row.row_status || "absent",
 			}));
 			update_headline(ui, state);
 			render_table(state, ui);
@@ -343,15 +414,22 @@ function render_table(state, ui) {
 		.join("");
 
 	const body = sorted
-		.map((row) => {
+		.map((row, idx) => {
+			const status = row.row_status || "absent";
+			const row_cls = status === "short" || status === "no_out" ? `tb-emps-row-${status}` : "";
 			const tds = columns
 				.map((col) => {
 					const val = row[col.key] ?? "";
 					const cls = col.align === "right" ? "r" : "";
+					if (col.key === "punches" && (row.punches || 0) >= 1) {
+						return `<td class="${cls}"><a href="#" class="tb-emps-punch-link" data-idx="${idx}">${frappe.utils.escape_html(
+							String(val)
+						)}</a></td>`;
+					}
 					return `<td class="${cls}">${frappe.utils.escape_html(String(val))}</td>`;
 				})
 				.join("");
-			return `<tr>${tds}</tr>`;
+			return `<tr class="${row_cls}" data-idx="${idx}">${tds}</tr>`;
 		})
 		.join("");
 
@@ -374,8 +452,85 @@ function render_table(state, ui) {
 		render_table(state, ui);
 	});
 
+	ui.$body.find(".tb-emps-punch-link").on("click", (e) => {
+		e.preventDefault();
+		const idx = parseInt($(e.currentTarget).data("idx"), 10);
+		show_punch_details(sorted[idx]);
+	});
+
 	const with_punches = sorted.filter((row) => (row.punches || 0) > 0).length;
-	ui.$count.text(__("{0} days with punches · {1} days", [with_punches, sorted.length]));
+	ui.$count.text(__("{0} days with punches", [sorted.length]));
+}
+
+function show_punch_details(row) {
+	const details = row?.punch_details || [];
+	const lines = details
+		.map((p) => {
+			const date = frappe.utils.escape_html(p.date_display || row.date_display || "");
+			const time = frappe.utils.escape_html(p.time_display || "");
+			const direction = frappe.utils.escape_html(p.direction || "Unknown");
+			const label = `${date} · ${time} · ${direction}`;
+			if (p.name) {
+				const href = `/app/timebridge-punch-log/${encodeURIComponent(p.name)}`;
+				return `<li><a class="tb-emps-punch-doc-link" href="${href}">${label}</a></li>`;
+			}
+			return `<li>${label}</li>`;
+		})
+		.join("");
+	const dialog = new frappe.ui.Dialog({
+		title: __("Punches · {0}", [row.date_display || ""]),
+		size: "small",
+		fields: [{ fieldtype: "HTML", fieldname: "list" }],
+	});
+	dialog.fields_dict.list.$wrapper.html(
+		`<ul class="tb-emps-punch-list">${lines || `<li>${__("No punches")}</li>`}</ul>`
+	);
+	dialog.show();
+}
+
+function print_report(state) {
+	if (!state.machine_user) {
+		frappe.show_alert({ message: __("Select a user and month first"), indicator: "orange" });
+		return;
+	}
+	frappe
+		.xcall(EMPS_PRINT_API, {
+			machine_user: state.machine_user,
+			month: state.month,
+			machine: state.machine || null,
+		})
+		.then((html) => open_print_window(html))
+		.catch(() => {
+			frappe.show_alert({ message: __("Could not prepare print"), indicator: "red" });
+		});
+}
+
+function download_pdf(state) {
+	if (!state.machine_user) {
+		frappe.show_alert({ message: __("Select a user and month first"), indicator: "orange" });
+		return;
+	}
+	let url =
+		`/api/method/${EMPS_PDF_API}` +
+		`?machine_user=${encodeURIComponent(state.machine_user)}` +
+		`&month=${encodeURIComponent(state.month)}`;
+	if (state.machine) {
+		url += `&machine=${encodeURIComponent(state.machine)}`;
+	}
+	window.open(url, "_blank");
+}
+
+function open_print_window(html) {
+	const win = window.open("", "_blank");
+	if (!win) {
+		frappe.show_alert({ message: __("Allow pop-ups to print"), indicator: "orange" });
+		return;
+	}
+	win.document.open();
+	win.document.write(html);
+	win.document.close();
+	win.focus();
+	setTimeout(() => win.print(), 250);
 }
 
 function sort_rows(rows, state) {
@@ -428,9 +583,9 @@ function csv_cell(value) {
 }
 
 function inject_styles() {
-	if (document.getElementById("tb-emps-styles-v3")) return;
+	if (document.getElementById("tb-emps-styles-v5")) return;
 	const style = document.createElement("style");
-	style.id = "tb-emps-styles-v3";
+	style.id = "tb-emps-styles-v5";
 	style.textContent = `
 		.tb-emps-inline { max-width: 960px; margin: 0 auto; padding: 0 8px 24px; overflow: visible; }
 		.tb-emps-inline.tb-emps-with-sidebar { max-width: none; margin: 0; padding: 0 0 24px; }
@@ -508,12 +663,15 @@ function inject_styles() {
 			display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
 		}
 		.tb-emps-count { font-size: 12px; color: var(--text-muted); }
-		.tb-emps-btn-export {
+		.tb-emps-footer-actions { display: flex; gap: 8px; align-items: center; }
+		.tb-emps-btn-export, .tb-emps-btn-print, .tb-emps-btn-pdf {
 			height: 30px; padding: 0 16px; font-size: 12px; font-weight: 600;
 			border: 1px solid var(--border-color); border-radius: 6px;
 			background: var(--card-bg); color: var(--text-color); cursor: pointer;
 		}
-		.tb-emps-btn-export:hover { background: var(--subtle-fg); }
+		.tb-emps-btn-export:hover, .tb-emps-btn-print:hover, .tb-emps-btn-pdf:hover {
+			background: var(--subtle-fg);
+		}
 		.tb-emps-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 		.tb-emps-table thead th {
 			padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--text-muted);
@@ -530,8 +688,19 @@ function inject_styles() {
 		.tb-emps-table td.r { text-align: right; font-weight: 600; }
 		.tb-emps-table tbody tr:last-child td { border-bottom: none; }
 		.tb-emps-table tbody tr:hover td { background: var(--highlight-color); }
+		.tb-emps-table tbody tr.tb-emps-row-short td { background: #ffe8cc; }
+		.tb-emps-table tbody tr.tb-emps-row-no_out td { background: #e8f0fe; }
+		.tb-emps-table tbody tr.tb-emps-row-short:hover td { background: #ffd9a8; }
+		.tb-emps-table tbody tr.tb-emps-row-no_out:hover td { background: #d6e4fc; }
+		.tb-emps-punch-link { font-weight: 700; }
+		.tb-emps-punch-list { margin: 0; padding-left: 18px; }
 		.tb-emps-empty, .tb-emps-loading {
 			text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px;
+		}
+		@media print {
+			.tb-emps-sidebar, .tb-emps-toolbar, .tb-emps-footer, .list-sidebar { display: none !important; }
+			.tb-emps-table tbody tr.tb-emps-row-short td { background: #ffe8cc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+			.tb-emps-table tbody tr.tb-emps-row-no_out td { background: #e8f0fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 		}
 	`;
 	document.head.appendChild(style);

@@ -43,7 +43,7 @@ Delivered as a **Desk Page** with inline table UI — not a Script Report grid (
 | Working Hrs | Duration from Punched In to Punched Out (`H:MM`); blank when no out punch |
 | Punches | Row count for that user on that day |
 
-- One row per **calendar day** in the month (blank in/out/hrs on absent days)
+- One row per **day that has punches** in the month (absent / off days omitted — punches are never invented)
 - Punches for the selected user's `user_id` on **all machines** merged per day
 - Default sort: **Date** ascending; click column headers to re-sort
 - Headline band (replaces search): User ID + Name on the left, Month + Year on the right
@@ -76,7 +76,7 @@ bench --site saral.localhost run-tests --app timebridge
 Manual:
 
 1. Reports → **Employee Monthly Punch Summary** — pick User + month
-2. All calendar days shown; days with punches show in/out/hrs/count
+2. Only days with punches shown; In/Out/Hrs/count from Punch Log (nothing invented)
 3. User who punched on two machines same day → one merged row per day
 4. Export CSV downloads all rows
 5. Column headers re-sort the table
@@ -90,6 +90,6 @@ Manual:
 | Q1 | Report name: **Employee Monthly Punch Summary** |
 | Q2 | User filter = **TimeBridge Machine User** Link; backend queries by `user_id` globally |
 | Q3 | No Employee DocType — display name only; `user_id` is system-wide unique |
-| Q4 | All calendar days in month, blanks for absent days |
+| Q4 | Days with punches only (absent/off days omitted); blanks are not invented |
 | Q5 | Same in/out/hrs/punch-count rules as Daily Punch Summary |
 | Q6 | Desk Page + inline UI, same pattern as spec 006 |
