@@ -327,10 +327,10 @@ def _fetch_punches_for_user_month(user_id, from_date, to_date, machine=None):
 def build_employee_monthly_punch_summary_rows(
 	machine_user, month, expected_hours=None, machine=None
 ):
-	"""One row per day that has punches for a user's global device_user_id.
+	"""One row per calendar day for a user's global device_user_id.
 
-	Absent / off days are omitted — punches are never invented; only Punch Log rows appear.
-	Optional machine limits punches to that TimeBridge Machine.
+	Days without punches stay blank (nothing invented). Optional machine limits
+	punches to that TimeBridge Machine.
 	"""
 	if not machine_user or not month:
 		return []
@@ -356,10 +356,9 @@ def build_employee_monthly_punch_summary_rows(
 		by_day[getdate(punch.timestamp)].append(punch)
 
 	rows = []
-	for day in sorted(by_day.keys()):
-		summary = _summarize_day_punches(by_day[day], expected_hours=expected)
-		if summary["punches"] <= 0:
-			continue
+	day = from_date
+	while day <= to_date:
+		summary = _summarize_day_punches(by_day.get(day, []), expected_hours=expected)
 		rows.append(
 			{
 				"date": day,
@@ -367,6 +366,7 @@ def build_employee_monthly_punch_summary_rows(
 				**summary,
 			}
 		)
+		day = add_days(day, 1)
 	return rows
 
 

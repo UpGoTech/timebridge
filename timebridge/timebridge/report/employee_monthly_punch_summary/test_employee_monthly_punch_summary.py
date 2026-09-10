@@ -5,7 +5,7 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import get_datetime, now_datetime
+from frappe.utils import get_datetime, get_last_day, now_datetime
 
 from timebridge.timebridge.report.employee_monthly_punch_summary.employee_monthly_punch_summary import (
 	execute,
@@ -97,6 +97,10 @@ class TestEmployeeMonthlyPunchSummary(FrappeTestCase):
 			{"machine_user": machine_user.name, "month": month_start.date()}
 		)
 		self.assertFalse(any(col["fieldname"] == "user_name" for col in columns))
-		self.assertEqual(len(rows), 1)
-		self.assertEqual(rows[0]["punches"], 1)
-		self.assertEqual(rows[0]["row_status"], "no_out")
+		self.assertEqual(len(rows), get_last_day(month_start).day)
+		punch_rows = [row for row in rows if row["punches"]]
+		self.assertEqual(len(punch_rows), 1)
+		self.assertEqual(punch_rows[0]["punches"], 1)
+		self.assertEqual(punch_rows[0]["row_status"], "no_out")
+		blank = next(row for row in rows if row["punches"] == 0)
+		self.assertEqual(blank["row_status"], "absent")

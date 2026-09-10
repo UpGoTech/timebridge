@@ -459,7 +459,7 @@ function render_table(state, ui) {
 	});
 
 	const with_punches = sorted.filter((row) => (row.punches || 0) > 0).length;
-	ui.$count.text(__("{0} days with punches", [sorted.length]));
+	ui.$count.text(__("{0} days with punches · {1} days", [with_punches, sorted.length]));
 }
 
 function show_punch_details(row) {
