@@ -58,7 +58,7 @@ Resolve: Machine User if set → else Settings → else code fallback `9.0`.
 
 ### Monthly rows
 
-Only days that have punches in the Punch Log. Absent / off days are omitted — punches are never invented. If a Sunday shows In/Out, that day has real device punches.
+One row per calendar day in the month. Days without punches are blank (`row_status: absent`) — punches are never invented. If a Sunday shows In/Out, that day has real device punches.
 
 ### Print / PDF
 

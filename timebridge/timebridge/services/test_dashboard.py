@@ -278,8 +278,7 @@ class TestDashboard(FrappeTestCase):
 		self._make_punch(machine_a.name, "42", other_day)
 
 		rows = build_employee_monthly_punch_summary_rows(machine_user.name, month_start)
-		# Only days with punches — absent / off days are omitted (not invented).
-		self.assertEqual(len(rows), 2)
+		self.assertEqual(len(rows), get_last_day(month_start).day)
 
 		day_15 = next(row for row in rows if getdate(row["date"]).day == 15)
 		self.assertEqual(day_15["punches"], 3)
@@ -291,7 +290,10 @@ class TestDashboard(FrappeTestCase):
 		self.assertEqual(day_16["punches"], 1)
 		self.assertEqual(day_16["working_hours_display"], "")
 
-		self.assertFalse(any(getdate(row["date"]).day == 1 for row in rows))
+		blank_day = next(row for row in rows if getdate(row["date"]).day == 1)
+		self.assertEqual(blank_day["punches"], 0)
+		self.assertEqual(blank_day["punched_in_display"], "")
+		self.assertEqual(blank_day["row_status"], "absent")
 
 	def test_employee_monthly_punch_summary_list_api(self):
 		machine = self._make_machine(self.MACHINE_A)
@@ -303,11 +305,13 @@ class TestDashboard(FrappeTestCase):
 		result = get_employee_monthly_punch_summary_list(
 			machine_user.name, punch_day.replace(day=1)
 		)
-		self.assertEqual(len(result["rows"]), 1)
+		self.assertEqual(len(result["rows"]), get_last_day(punch_day).day)
 		self.assertEqual(result["user_id"], "55")
 		self.assertEqual(result["user_name"], "API Monthly User")
-		self.assertEqual(result["rows"][0]["punches"], 1)
-		self.assertEqual(result["rows"][0]["row_status"], "no_out")
+		with_punches = [row for row in result["rows"] if row["punches"]]
+		self.assertEqual(len(with_punches), 1)
+		self.assertEqual(with_punches[0]["punches"], 1)
+		self.assertEqual(with_punches[0]["row_status"], "no_out")
 
 	def test_format_monthly_summary_date(self):
 		self.assertEqual(_format_monthly_summary_date(date(2026, 8, 5)), "05-Aug-2026 (Wed)")
@@ -474,13 +478,15 @@ class TestDashboard(FrappeTestCase):
 		all_rows = build_employee_monthly_punch_summary_rows(
 			machine_user.name, day.replace(day=1)
 		)
-		self.assertEqual(len(all_rows), 1)
-		self.assertEqual(all_rows[0]["punches"], 4)
+		self.assertEqual(len(all_rows), get_last_day(day).day)
+		day_row = next(row for row in all_rows if getdate(row["date"]).day == 8)
+		self.assertEqual(day_row["punches"], 4)
 
 		filtered = build_employee_monthly_punch_summary_rows(
 			machine_user.name, day.replace(day=1), machine=machine_a.name
 		)
-		self.assertEqual(len(filtered), 1)
-		self.assertEqual(filtered[0]["punches"], 2)
-		self.assertEqual(filtered[0]["punched_in_display"], "09:00:00")
-		self.assertEqual(filtered[0]["punched_out_display"], "18:00:00")
+		self.assertEqual(len(filtered), get_last_day(day).day)
+		filtered_day = next(row for row in filtered if getdate(row["date"]).day == 8)
+		self.assertEqual(filtered_day["punches"], 2)
+		self.assertEqual(filtered_day["punched_in_display"], "09:00:00")
+		self.assertEqual(filtered_day["punched_out_display"], "18:00:00")
