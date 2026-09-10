@@ -52,9 +52,13 @@ Resolve: Machine User if set → else Settings → else code fallback `9.0`.
 
 ### Punch-count popup
 
-- Clickable only when punches **&gt; 2**.
-- Read-only list: `time · direction`.
+- Clickable when punches **≥ 1**.
+- Read-only list: `date · time · direction` (`In` / `Out` / `Unknown`).
 - No In/Out override storage (report stays read-only).
+
+### Monthly rows
+
+Only days that have punches in the Punch Log. Absent / off days are omitted — punches are never invented. If a Sunday shows In/Out, that day has real device punches.
 
 ### Print / PDF
 
@@ -104,5 +108,5 @@ Manual:
 | Q2 | Both Daily and Monthly |
 | Q3 | Strict `&lt;` expected; no Out = third style; whole row |
 | Q4 | MU field + Settings fallback (default 9, stored on install) |
-| Q5 | Popup read-only, punches &gt; 2, time + direction; no override storage |
+| Q5 | Popup read-only, punches ≥ 1, date · time · direction; no override storage |
 | Q6 | Browser Print + PDF download; legend; PDF grayscale; A4 portrait; both reports |

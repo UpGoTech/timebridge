@@ -278,7 +278,8 @@ class TestDashboard(FrappeTestCase):
 		self._make_punch(machine_a.name, "42", other_day)
 
 		rows = build_employee_monthly_punch_summary_rows(machine_user.name, month_start)
-		self.assertEqual(len(rows), get_last_day(month_start).day)
+		# Only days with punches — absent / off days are omitted (not invented).
+		self.assertEqual(len(rows), 2)
 
 		day_15 = next(row for row in rows if getdate(row["date"]).day == 15)
 		self.assertEqual(day_15["punches"], 3)
@@ -290,9 +291,7 @@ class TestDashboard(FrappeTestCase):
 		self.assertEqual(day_16["punches"], 1)
 		self.assertEqual(day_16["working_hours_display"], "")
 
-		blank_day = next(row for row in rows if getdate(row["date"]).day == 1)
-		self.assertEqual(blank_day["punches"], 0)
-		self.assertEqual(blank_day["punched_in_display"], "")
+		self.assertFalse(any(getdate(row["date"]).day == 1 for row in rows))
 
 	def test_employee_monthly_punch_summary_list_api(self):
 		machine = self._make_machine(self.MACHINE_A)
@@ -304,12 +303,11 @@ class TestDashboard(FrappeTestCase):
 		result = get_employee_monthly_punch_summary_list(
 			machine_user.name, punch_day.replace(day=1)
 		)
-		self.assertEqual(len(result["rows"]), get_last_day(punch_day).day)
+		self.assertEqual(len(result["rows"]), 1)
 		self.assertEqual(result["user_id"], "55")
 		self.assertEqual(result["user_name"], "API Monthly User")
-		with_punches = [row for row in result["rows"] if row["punches"]]
-		self.assertEqual(len(with_punches), 1)
-		self.assertEqual(with_punches[0]["punches"], 1)
+		self.assertEqual(result["rows"][0]["punches"], 1)
+		self.assertEqual(result["rows"][0]["row_status"], "no_out")
 
 	def test_format_monthly_summary_date(self):
 		self.assertEqual(_format_monthly_summary_date(date(2026, 8, 5)), "05-Aug-2026 (Wed)")
@@ -329,6 +327,7 @@ class TestDashboard(FrappeTestCase):
 		self.assertEqual(summary["punches"], 3)
 		self.assertEqual(len(summary["punch_details"]), 3)
 		self.assertEqual(summary["punch_details"][0]["direction"], "Out")
+		self.assertIn("date_display", summary["punch_details"][0])
 		self.assertEqual(summary["row_status"], "ok")
 
 	def test_summarize_one_punch_is_no_out(self):
@@ -389,6 +388,7 @@ class TestDashboard(FrappeTestCase):
 		self.assertEqual(day_12["working_hours"], 8.0)
 		self.assertEqual(day_12["row_status"], "short")
 		self.assertEqual(len(day_12["punch_details"]), 3)
+		self.assertTrue(all(detail.get("name") for detail in day_12["punch_details"]))
 
 	def test_daily_uses_machine_user_expected_hours(self):
 		ensure_default_expected_working_hours()
@@ -437,7 +437,7 @@ class TestDashboard(FrappeTestCase):
 			getdate(day), machine.name, grayscale=True
 		)
 		self.assertIn("Daily Punch Summary", daily_html)
-		self.assertIn("#d0d0d0", daily_html)
+		self.assertIn("#777777", daily_html)
 
 	def test_daily_pdf_download_smoke(self):
 		machine = self._make_machine(self.MACHINE_A)
@@ -456,3 +456,31 @@ class TestDashboard(FrappeTestCase):
 		self.assertEqual(frappe.local.response.type, "pdf")
 		self.assertTrue(frappe.local.response.filecontent)
 		self.assertIn("daily-punch-summary", frappe.local.response.filename)
+
+	def test_monthly_machine_filter(self):
+		machine_a = self._make_machine(self.MACHINE_A)
+		machine_b = self._make_machine(self.MACHINE_B)
+		machine_user = self._make_machine_user(machine_a.name, "90", "Machine Filter User")
+		day = now_datetime().replace(day=8, hour=9, minute=0, second=0, microsecond=0)
+		self._make_punch(machine_a.name, "90", day)
+		self._make_punch(
+			machine_a.name, "90", day.replace(hour=18), punch_direction="Out"
+		)
+		self._make_punch(machine_b.name, "90", day.replace(hour=10))
+		self._make_punch(
+			machine_b.name, "90", day.replace(hour=17), punch_direction="Out"
+		)
+
+		all_rows = build_employee_monthly_punch_summary_rows(
+			machine_user.name, day.replace(day=1)
+		)
+		self.assertEqual(len(all_rows), 1)
+		self.assertEqual(all_rows[0]["punches"], 4)
+
+		filtered = build_employee_monthly_punch_summary_rows(
+			machine_user.name, day.replace(day=1), machine=machine_a.name
+		)
+		self.assertEqual(len(filtered), 1)
+		self.assertEqual(filtered[0]["punches"], 2)
+		self.assertEqual(filtered[0]["punched_in_display"], "09:00:00")
+		self.assertEqual(filtered[0]["punched_out_display"], "18:00:00")

@@ -14,7 +14,7 @@ def execute(filters=None):
 	if not filters.get("machine_user") or not filters.get("month"):
 		return columns, []
 	return columns, build_employee_monthly_punch_summary_rows(
-		filters.machine_user, filters.month
+		filters.machine_user, filters.month, machine=filters.get("machine")
 	)
 
 

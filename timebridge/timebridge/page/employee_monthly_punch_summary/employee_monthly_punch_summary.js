@@ -20,6 +20,7 @@ frappe.pages["employee-monthly-punch-summary"].on_page_show = function (wrapper)
 
 	const machine_user =
 		(frappe.route_options && frappe.route_options.machine_user) || "";
+	const machine = (frappe.route_options && frappe.route_options.machine) || "";
 	const month =
 		(frappe.route_options && frappe.route_options.month) ||
 		frappe.datetime.get_today().slice(0, 7) + "-01";
@@ -28,6 +29,7 @@ frappe.pages["employee-monthly-punch-summary"].on_page_show = function (wrapper)
 	frappe.require("/assets/timebridge/js/employee_monthly_punch_summary.js").then(() => {
 		timebridge.employee_monthly_punch_summary.render_inline($main, {
 			machine_user,
+			machine,
 			month,
 			$sidebar,
 		});

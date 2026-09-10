@@ -44,6 +44,7 @@ timebridge.employee_monthly_punch_summary.render_inline = function ($parent, opt
 	const initial = parse_month_value(options.month || current_month());
 	const state = {
 		machine_user: options.machine_user || "",
+		machine: options.machine || "",
 		year: initial.year,
 		month_num: initial.month_num,
 		month: month_from_parts(initial.year, initial.month_num),
@@ -149,6 +150,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		filter_mount.html(`
 			<div class="sidebar-section">
 				<div class="sidebar-label">${__("Filters")}</div>
+				<div class="tb-emps-field tb-emps-field-machine">
+					<label class="tb-emps-field-label">${__("Machine")}</label>
+					<div class="tb-emps-link-wrap tb-emps-machine"></div>
+				</div>
 				<div class="tb-emps-field tb-emps-field-user">
 					<label class="tb-emps-field-label">${__("User")}</label>
 					<div class="tb-emps-link-wrap tb-emps-user"></div>
@@ -170,6 +175,10 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 			<div class="tb-emps-title">${__("Employee Monthly Punch Summary")}</div>
 		</div>`}
 		${use_sidebar ? "" : `<div class="tb-emps-toolbar tb-emps-toolbar-filters">
+			<div class="tb-emps-field tb-emps-field-machine">
+				<label class="tb-emps-field-label">${__("Machine")}</label>
+				<div class="tb-emps-link-wrap tb-emps-machine"></div>
+			</div>
 			<div class="tb-emps-field tb-emps-field-user">
 				<label class="tb-emps-field-label">${__("User")}</label>
 				<div class="tb-emps-link-wrap tb-emps-user"></div>
@@ -225,6 +234,43 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 		load_rows(state, ui);
 	}
 
+	const machine_control = frappe.ui.form.make_control({
+		df: {
+			fieldtype: "Link",
+			fieldname: "machine",
+			label: __("Machine"),
+			options: "TimeBridge Machine",
+			placeholder: __("All machines"),
+			only_select: 1,
+			change: () => {
+				state.machine = machine_control.get_value() || "";
+				if (state.machine_user) {
+					frappe.db
+						.get_value("TimeBridge Machine User", state.machine_user, "machine")
+						.then((r) => {
+							const mu_machine = r && r.message && r.message.machine;
+							if (state.machine && mu_machine && mu_machine !== state.machine) {
+								user_control.set_value("");
+								state.machine_user = "";
+								state.user_id = "";
+								state.user_name = "";
+								update_headline(ui, state);
+							}
+							load_rows(state, ui);
+						});
+				} else {
+					load_rows(state, ui);
+				}
+			},
+		},
+		parent: filter_root.find(".tb-emps-machine"),
+		render_input: true,
+	});
+	if (state.machine) {
+		machine_control.set_value(state.machine);
+	}
+	normalize_frappe_control(filter_root.find(".tb-emps-machine"));
+
 	const user_control = frappe.ui.form.make_control({
 		df: {
 			fieldtype: "Link",
@@ -232,6 +278,12 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 			label: __("User"),
 			options: "TimeBridge Machine User",
 			only_select: 1,
+			get_query: () => {
+				if (!state.machine) {
+					return {};
+				}
+				return { filters: { machine: state.machine } };
+			},
 			change: () => {
 				state.machine_user = user_control.get_value() || "";
 				sync_user_meta(state).then(() => {
@@ -278,6 +330,7 @@ function build_panel($root, state, { $sidebar = null } = {}) {
 	month_control.set_value(month_label_for_num(state.month_num));
 	normalize_frappe_control(filter_root.find(".tb-emps-month"));
 
+	ui.machine_control = machine_control;
 	ui.user_control = user_control;
 	ui.year_control = year_control;
 	ui.month_control = month_control;
@@ -299,7 +352,8 @@ function wire_panel(ui, state) {
 
 function update_headline(ui, state) {
 	ui.$headline_user.text(format_user_headline(state));
-	ui.$headline_period.text(format_period_label(state.year, state.month_num));
+	const period = format_period_label(state.year, state.month_num);
+	ui.$headline_period.text(state.machine ? `${period} · ${state.machine}` : period);
 }
 
 function load_rows(state, ui) {
@@ -316,6 +370,7 @@ function load_rows(state, ui) {
 		.xcall(EMPS_API, {
 			machine_user: state.machine_user,
 			month: state.month,
+			machine: state.machine || null,
 		})
 		.then((data) => {
 			const payload = data && data.rows ? data : { rows: data || [] };
@@ -366,7 +421,7 @@ function render_table(state, ui) {
 				.map((col) => {
 					const val = row[col.key] ?? "";
 					const cls = col.align === "right" ? "r" : "";
-					if (col.key === "punches" && (row.punches || 0) > 2) {
+					if (col.key === "punches" && (row.punches || 0) >= 1) {
 						return `<td class="${cls}"><a href="#" class="tb-emps-punch-link" data-idx="${idx}">${frappe.utils.escape_html(
 							String(val)
 						)}</a></td>`;
@@ -404,23 +459,33 @@ function render_table(state, ui) {
 	});
 
 	const with_punches = sorted.filter((row) => (row.punches || 0) > 0).length;
-	ui.$count.text(__("{0} days with punches · {1} days", [with_punches, sorted.length]));
+	ui.$count.text(__("{0} days with punches", [sorted.length]));
 }
 
 function show_punch_details(row) {
 	const details = row?.punch_details || [];
 	const lines = details
 		.map((p) => {
+			const date = frappe.utils.escape_html(p.date_display || row.date_display || "");
 			const time = frappe.utils.escape_html(p.time_display || "");
-			const direction = frappe.utils.escape_html(p.direction || "");
-			return `<li>${time}${direction ? ` · ${direction}` : ""}</li>`;
+			const direction = frappe.utils.escape_html(p.direction || "Unknown");
+			const label = `${date} · ${time} · ${direction}`;
+			if (p.name) {
+				const href = `/app/timebridge-punch-log/${encodeURIComponent(p.name)}`;
+				return `<li><a class="tb-emps-punch-doc-link" href="${href}">${label}</a></li>`;
+			}
+			return `<li>${label}</li>`;
 		})
 		.join("");
-	frappe.msgprint({
+	const dialog = new frappe.ui.Dialog({
 		title: __("Punches · {0}", [row.date_display || ""]),
-		message: `<ul class="tb-emps-punch-list">${lines}</ul>`,
-		indicator: "blue",
+		size: "small",
+		fields: [{ fieldtype: "HTML", fieldname: "list" }],
 	});
+	dialog.fields_dict.list.$wrapper.html(
+		`<ul class="tb-emps-punch-list">${lines || `<li>${__("No punches")}</li>`}</ul>`
+	);
+	dialog.show();
 }
 
 function print_report(state) {
@@ -429,7 +494,11 @@ function print_report(state) {
 		return;
 	}
 	frappe
-		.xcall(EMPS_PRINT_API, { machine_user: state.machine_user, month: state.month })
+		.xcall(EMPS_PRINT_API, {
+			machine_user: state.machine_user,
+			month: state.month,
+			machine: state.machine || null,
+		})
 		.then((html) => open_print_window(html))
 		.catch(() => {
 			frappe.show_alert({ message: __("Could not prepare print"), indicator: "red" });
@@ -441,10 +510,13 @@ function download_pdf(state) {
 		frappe.show_alert({ message: __("Select a user and month first"), indicator: "orange" });
 		return;
 	}
-	const url =
+	let url =
 		`/api/method/${EMPS_PDF_API}` +
 		`?machine_user=${encodeURIComponent(state.machine_user)}` +
 		`&month=${encodeURIComponent(state.month)}`;
+	if (state.machine) {
+		url += `&machine=${encodeURIComponent(state.machine)}`;
+	}
 	window.open(url, "_blank");
 }
 
@@ -511,9 +583,9 @@ function csv_cell(value) {
 }
 
 function inject_styles() {
-	if (document.getElementById("tb-emps-styles-v4")) return;
+	if (document.getElementById("tb-emps-styles-v5")) return;
 	const style = document.createElement("style");
-	style.id = "tb-emps-styles-v4";
+	style.id = "tb-emps-styles-v5";
 	style.textContent = `
 		.tb-emps-inline { max-width: 960px; margin: 0 auto; padding: 0 8px 24px; overflow: visible; }
 		.tb-emps-inline.tb-emps-with-sidebar { max-width: none; margin: 0; padding: 0 0 24px; }

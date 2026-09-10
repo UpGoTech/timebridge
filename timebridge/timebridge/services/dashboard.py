@@ -10,6 +10,7 @@ from html import escape
 import frappe
 from frappe.utils import (
 	add_days,
+	add_to_date,
 	flt,
 	format_time,
 	get_datetime,
@@ -156,10 +157,17 @@ def _compute_working_hours(punched_in, punched_out):
 	return round(total_minutes / 60, 2), f"{hours}:{minutes:02d}"
 
 
+def _local_day_range(day):
+	"""Half-open [start, end) in site-local naive datetimes — avoids DATE() TZ shifts."""
+	start = get_datetime(f"{getdate(day)} 00:00:00")
+	end = add_to_date(start, days=1)
+	return start, end
+
+
 def _fetch_punches_for_date(punch_date, machine=None):
-	punch_date = getdate(punch_date)
-	conditions = ["DATE(timestamp) = %(punch_date)s"]
-	values = {"punch_date": punch_date}
+	start, end = _local_day_range(punch_date)
+	conditions = ["timestamp >= %(start)s", "timestamp < %(end)s"]
+	values = {"start": start, "end": end}
 	if machine:
 		conditions.append("machine = %(machine)s")
 		values["machine"] = machine
@@ -167,7 +175,7 @@ def _fetch_punches_for_date(punch_date, machine=None):
 	where = " AND ".join(conditions)
 	return frappe.db.sql(
 		f"""
-		SELECT machine, device_user_id, machine_user, timestamp, punch_direction
+		SELECT name, machine, device_user_id, machine_user, timestamp, punch_direction
 		FROM `tabTimeBridge Punch Log`
 		WHERE {where}
 		ORDER BY timestamp
@@ -210,6 +218,14 @@ def _format_monthly_summary_date(day):
 	return f"{day.day:02d}-{day.strftime('%b')}-{day.year} ({calendar.day_abbr[day.weekday()]})"
 
 
+def _punch_direction_label(direction):
+	"""Normalize device direction to In / Out / Unknown for display."""
+	value = (direction or "").strip()
+	if value in ("In", "Out"):
+		return value
+	return "Unknown"
+
+
 def _row_status(punches_count, punched_in, punched_out, working_hours, expected_hours):
 	if punches_count <= 0:
 		return "absent"
@@ -241,11 +257,13 @@ def _summarize_day_punches(punches, expected_hours=None):
 			"expected_working_hours": expected,
 		}
 
-	ordered = sorted(punches, key=lambda p: p.timestamp)
+	ordered = sorted(punches, key=lambda p: get_datetime(p.timestamp))
 	punch_details = [
 		{
+			"name": p.get("name") or getattr(p, "name", None),
+			"date_display": _format_monthly_summary_date(getdate(p.timestamp)),
 			"time_display": _format_punch_time(p.timestamp),
-			"direction": p.punch_direction or "",
+			"direction": _punch_direction_label(p.punch_direction),
 		}
 		for p in ordered
 	]
@@ -277,27 +295,43 @@ def _summarize_day_punches(punches, expected_hours=None):
 	}
 
 
-def _fetch_punches_for_user_month(user_id, from_date, to_date):
+def _fetch_punches_for_user_month(user_id, from_date, to_date, machine=None):
+	start, _ = _local_day_range(from_date)
+	_, end = _local_day_range(to_date)
+	conditions = [
+		"device_user_id = %(user_id)s",
+		"timestamp >= %(start)s",
+		"timestamp < %(end)s",
+	]
+	values = {
+		"user_id": str(user_id),
+		"start": start,
+		"end": end,
+	}
+	if machine:
+		conditions.append("machine = %(machine)s")
+		values["machine"] = machine
+	where = " AND ".join(conditions)
 	return frappe.db.sql(
-		"""
-		SELECT machine, device_user_id, machine_user, timestamp, punch_direction
+		f"""
+		SELECT name, machine, device_user_id, machine_user, timestamp, punch_direction
 		FROM `tabTimeBridge Punch Log`
-		WHERE device_user_id = %(user_id)s
-		  AND DATE(timestamp) >= %(from_date)s
-		  AND DATE(timestamp) <= %(to_date)s
+		WHERE {where}
 		ORDER BY timestamp
 		""",
-		{
-			"user_id": str(user_id),
-			"from_date": getdate(from_date),
-			"to_date": getdate(to_date),
-		},
+		values,
 		as_dict=True,
 	)
 
 
-def build_employee_monthly_punch_summary_rows(machine_user, month, expected_hours=None):
-	"""One row per calendar day for a user's global device_user_id."""
+def build_employee_monthly_punch_summary_rows(
+	machine_user, month, expected_hours=None, machine=None
+):
+	"""One row per day that has punches for a user's global device_user_id.
+
+	Absent / off days are omitted — punches are never invented; only Punch Log rows appear.
+	Optional machine limits punches to that TimeBridge Machine.
+	"""
 	if not machine_user or not month:
 		return []
 
@@ -314,15 +348,18 @@ def build_employee_monthly_punch_summary_rows(machine_user, month, expected_hour
 	from_date = get_first_day(month_date)
 	to_date = get_last_day(month_date)
 
-	punches = _fetch_punches_for_user_month(user_id, from_date, to_date)
+	punches = _fetch_punches_for_user_month(
+		user_id, from_date, to_date, machine=machine or None
+	)
 	by_day = defaultdict(list)
 	for punch in punches:
 		by_day[getdate(punch.timestamp)].append(punch)
 
 	rows = []
-	day = from_date
-	while day <= to_date:
-		summary = _summarize_day_punches(by_day.get(day, []), expected_hours=expected)
+	for day in sorted(by_day.keys()):
+		summary = _summarize_day_punches(by_day[day], expected_hours=expected)
+		if summary["punches"] <= 0:
+			continue
 		rows.append(
 			{
 				"date": day,
@@ -330,12 +367,11 @@ def build_employee_monthly_punch_summary_rows(machine_user, month, expected_hour
 				**summary,
 			}
 		)
-		day = add_days(day, 1)
 	return rows
 
 
 @frappe.whitelist()
-def get_employee_monthly_punch_summary_list(machine_user=None, month=None):
+def get_employee_monthly_punch_summary_list(machine_user=None, month=None, machine=None):
 	"""Rows and user metadata for the Employee Monthly Punch Summary Desk Page."""
 
 	if not machine_user:
@@ -354,8 +390,9 @@ def get_employee_monthly_punch_summary_list(machine_user=None, month=None):
 		"user_id": mu.user_id if mu else "",
 		"user_name": mu.user_name if mu else "",
 		"expected_working_hours": expected,
+		"machine": machine or "",
 		"rows": build_employee_monthly_punch_summary_rows(
-			machine_user, month, expected_hours=expected
+			machine_user, month, expected_hours=expected, machine=machine or None
 		),
 	}
 
@@ -408,25 +445,35 @@ def get_daily_punch_summary_list(date=None, machine=None):
 
 
 def _legend_html(grayscale=False):
+	# wkhtmltopdf mishandles inline-block legends; use a single-row table.
 	if grayscale:
-		short_bg, no_out_bg = "#d0d0d0", "#e8e8e8"
+		short_bg, no_out_bg = "#777777", "#d8d8d8"
 	else:
 		short_bg, no_out_bg = "#ffe8cc", "#e8f0fe"
 	return f"""
-	<div class="tb-ps-legend">
-		<span class="tb-ps-legend-item"><span class="tb-ps-swatch" style="background:{short_bg}"></span> Below expected hours</span>
-		&nbsp;&nbsp;
-		<span class="tb-ps-legend-item"><span class="tb-ps-swatch" style="background:{no_out_bg}"></span> No out punch</span>
-		&nbsp;&nbsp;
-		<span class="tb-ps-legend-item"><span class="tb-ps-swatch" style="background:#ffffff;border:1px solid #ccc"></span> Normal / absent</span>
-	</div>
+	<table class="tb-ps-legend" cellpadding="0" cellspacing="0">
+		<tr>
+			<td class="tb-ps-legend-cell">
+				<span class="tb-ps-swatch" style="background:{short_bg}">&nbsp;</span>
+				<span class="tb-ps-legend-label">Below expected hours</span>
+			</td>
+			<td class="tb-ps-legend-cell">
+				<span class="tb-ps-swatch" style="background:{no_out_bg}">&nbsp;</span>
+				<span class="tb-ps-legend-label">No out punch</span>
+			</td>
+			<td class="tb-ps-legend-cell">
+				<span class="tb-ps-swatch" style="background:#ffffff;border:1px solid #999">&nbsp;</span>
+				<span class="tb-ps-legend-label">Normal / absent</span>
+			</td>
+		</tr>
+	</table>
 	"""
 
 
 def _table_styles(grayscale=False):
 	if grayscale:
-		short = "background:#d0d0d0;"
-		no_out = "background:#e8e8e8;"
+		short = "background:#777777;color:#fff;"
+		no_out = "background:#d8d8d8;"
 	else:
 		short = "background:#ffe8cc;"
 		no_out = "background:#e8f0fe;"
@@ -436,15 +483,28 @@ def _table_styles(grayscale=False):
 		body {{ font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #222; }}
 		h1 {{ font-size: 16px; margin: 0 0 4px; }}
 		.tb-ps-meta {{ color: #555; margin-bottom: 12px; }}
-		.tb-ps-legend {{ margin: 0 0 12px; }}
-		.tb-ps-legend-item {{ display: inline-block; margin-right: 12px; }}
-		.tb-ps-swatch {{ width: 14px; height: 14px; display: inline-block; border: 1px solid #bbb; vertical-align: middle; }}
-		table {{ width: 100%; border-collapse: collapse; }}
-		th, td {{ border: 1px solid #ccc; padding: 6px 8px; text-align: left; }}
-		th {{ background: #f3f3f3; font-size: 10px; text-transform: uppercase; }}
-		td.r, th.r {{ text-align: right; }}
-		tr.short td {{ {short} }}
-		tr.no_out td {{ {no_out} }}
+		table.tb-ps-legend {{
+			width: auto; border-collapse: collapse; margin: 0 0 14px 0;
+			border: none;
+		}}
+		table.tb-ps-legend td {{
+			border: none; padding: 0 18px 0 0; vertical-align: middle;
+			white-space: nowrap; font-size: 11px;
+		}}
+		.tb-ps-swatch {{
+			width: 12px; height: 12px; border: 1px solid #999;
+			display: inline-block; vertical-align: middle; line-height: 12px;
+			font-size: 8px;
+		}}
+		.tb-ps-legend-label {{ vertical-align: middle; margin-left: 4px; }}
+		table.tb-ps-data {{ width: 100%; border-collapse: collapse; }}
+		table.tb-ps-data th, table.tb-ps-data td {{
+			border: 1px solid #ccc; padding: 6px 8px; text-align: left;
+		}}
+		table.tb-ps-data th {{ background: #f3f3f3; font-size: 10px; text-transform: uppercase; }}
+		table.tb-ps-data td.r, table.tb-ps-data th.r {{ text-align: right; }}
+		table.tb-ps-data tr.short td {{ {short} }}
+		table.tb-ps-data tr.no_out td {{ {no_out} }}
 	</style>
 	"""
 
@@ -480,22 +540,30 @@ def _render_punch_summary_html(
 <h1>{escape(title)}</h1>
 <div class="tb-ps-meta">{escape(subtitle)}</div>
 {_legend_html(grayscale=grayscale)}
-<table>
+<table class="tb-ps-data">
 <thead><tr>{header}</tr></thead>
 <tbody>{"".join(body_rows)}</tbody>
 </table>
 </body></html>"""
 
 
-def build_employee_monthly_punch_summary_html(machine_user, month, grayscale=False):
-	payload = get_employee_monthly_punch_summary_list(machine_user, month)
+def build_employee_monthly_punch_summary_html(
+	machine_user, month, grayscale=False, machine=None
+):
+	payload = get_employee_monthly_punch_summary_list(
+		machine_user, month, machine=machine or None
+	)
 	month_date = getdate(month)
 	period = f"{month_date.strftime('%B')} {month_date.year}"
 	user_label = " · ".join(
 		part for part in [payload.get("user_id"), payload.get("user_name")] if part
 	) or "—"
 	expected = payload.get("expected_working_hours")
-	subtitle = f"{user_label} · {period} · Expected {expected:g}h"
+	parts = [user_label, period]
+	if machine:
+		parts.append(str(machine))
+	parts.append(f"Expected {expected:g}h")
+	subtitle = " · ".join(parts)
 	columns = [
 		{"key": "date_display", "label": "Date"},
 		{"key": "punched_in_display", "label": "Punched In"},
@@ -535,13 +603,15 @@ def build_daily_punch_summary_html(punch_date, machine=None, grayscale=False):
 
 
 @frappe.whitelist()
-def get_employee_monthly_punch_summary_print_html(machine_user=None, month=None):
+def get_employee_monthly_punch_summary_print_html(
+	machine_user=None, month=None, machine=None
+):
 	if not machine_user:
 		frappe.throw("User is required")
 	if not month:
 		frappe.throw("Month is required")
 	return build_employee_monthly_punch_summary_html(
-		machine_user, month, grayscale=False
+		machine_user, month, grayscale=False, machine=machine or None
 	)
 
 
@@ -553,7 +623,9 @@ def get_daily_punch_summary_print_html(date=None, machine=None):
 
 
 @frappe.whitelist()
-def download_employee_monthly_punch_summary_pdf(machine_user=None, month=None):
+def download_employee_monthly_punch_summary_pdf(
+	machine_user=None, month=None, machine=None
+):
 	from frappe.utils.pdf import get_pdf
 
 	if not machine_user:
@@ -561,7 +633,7 @@ def download_employee_monthly_punch_summary_pdf(machine_user=None, month=None):
 	if not month:
 		frappe.throw("Month is required")
 	html = build_employee_monthly_punch_summary_html(
-		machine_user, month, grayscale=True
+		machine_user, month, grayscale=True, machine=machine or None
 	)
 	month_date = getdate(month)
 	filename = f"employee-monthly-punch-summary-{month_date.strftime('%Y-%m')}.pdf"

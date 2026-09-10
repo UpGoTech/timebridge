@@ -270,7 +270,7 @@ function render_table(state, ui) {
 				.map((col) => {
 					const val = row[col.key] ?? "";
 					const cls = col.align === "right" ? "r" : "";
-					if (col.key === "punches" && (row.punches || 0) > 2) {
+					if (col.key === "punches" && (row.punches || 0) >= 1) {
 						return `<td class="${cls}"><a href="#" class="tb-dps-punch-link" data-idx="${idx}">${frappe.utils.escape_html(
 							String(val)
 						)}</a></td>`;
@@ -314,16 +314,26 @@ function show_punch_details(row) {
 	const details = row?.punch_details || [];
 	const lines = details
 		.map((p) => {
+			const date = frappe.utils.escape_html(p.date_display || "");
 			const time = frappe.utils.escape_html(p.time_display || "");
-			const direction = frappe.utils.escape_html(p.direction || "");
-			return `<li>${time}${direction ? ` · ${direction}` : ""}</li>`;
+			const direction = frappe.utils.escape_html(p.direction || "Unknown");
+			const label = `${date} · ${time} · ${direction}`;
+			if (p.name) {
+				const href = `/app/timebridge-punch-log/${encodeURIComponent(p.name)}`;
+				return `<li><a class="tb-dps-punch-doc-link" href="${href}">${label}</a></li>`;
+			}
+			return `<li>${label}</li>`;
 		})
 		.join("");
-	frappe.msgprint({
+	const dialog = new frappe.ui.Dialog({
 		title: __("Punches · {0}", [row.user_name || ""]),
-		message: `<ul class="tb-dps-punch-list">${lines}</ul>`,
-		indicator: "blue",
+		size: "small",
+		fields: [{ fieldtype: "HTML", fieldname: "list" }],
 	});
+	dialog.fields_dict.list.$wrapper.html(
+		`<ul class="tb-dps-punch-list">${lines || `<li>${__("No punches")}</li>`}</ul>`
+	);
+	dialog.show();
 }
 
 function print_report(state) {
