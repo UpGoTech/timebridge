@@ -21,3 +21,4 @@ timebridge.patches.v1_0.drop_adms_onboarding
 timebridge.patches.v1_0.sync_adms_command_lab_page
 timebridge.patches.v1_0.sync_machine_status_workspace
 timebridge.patches.v1_0.seed_default_expected_working_hours
+timebridge.patches.v1_0.repair_foreign_link_options_after_rename
